@@ -40,3 +40,8 @@ hosted-path = "/assets"
 [landing.auto-reload]
 enabled = true
 assets-enabled = true
+
+[telegram]
+enabled = true
+secret-file = "./secrets/telegram.secret"
+api-base-url = "https://api.telegram.org"

@@ -15,6 +15,9 @@
     <nav class="menu" aria-label="Main">
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
         <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>
+        <#if telegramPageAvailable>
+            <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
+        </#if>
         <a href="${githubPath}">github</a>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">

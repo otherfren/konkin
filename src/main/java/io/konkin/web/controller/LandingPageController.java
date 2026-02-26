@@ -5,14 +5,21 @@ import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.service.LandingPageService;
+import io.konkin.web.service.TelegramSecretService;
+import io.konkin.web.service.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -29,21 +36,37 @@ public class LandingPageController {
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
     private final PasswordFileManager passwordFileManager;
+    private final boolean telegramEnabled;
+    private final List<String> configuredTelegramChatIds;
+    private final TelegramService telegramService;
+    private final TelegramSecretService telegramSecretService;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
-            PasswordFileManager passwordFileManager
+            PasswordFileManager passwordFileManager,
+            boolean telegramEnabled,
+            List<String> configuredTelegramChatIds,
+            TelegramService telegramService,
+            TelegramSecretService telegramSecretService
     ) {
         if (passwordProtectionEnabled && passwordFileManager == null) {
             throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
         }
 
+        if (telegramEnabled && (telegramService == null || telegramSecretService == null)) {
+            throw new IllegalArgumentException("telegramService and telegramSecretService are required when telegram is enabled");
+        }
+
         this.landingPageService = landingPageService;
         this.passwordProtectionEnabled = passwordProtectionEnabled;
         this.passwordFileManager = passwordFileManager;
+        this.telegramEnabled = telegramEnabled;
+        this.configuredTelegramChatIds = configuredTelegramChatIds == null ? List.of() : List.copyOf(configuredTelegramChatIds);
+        this.telegramService = telegramService;
+        this.telegramSecretService = telegramSecretService;
     }
 
     public void handleRoot(Context ctx) {
@@ -52,6 +75,15 @@ public class LandingPageController {
 
     public void handleLog(Context ctx) {
         renderLandingForPage(ctx, "log");
+    }
+
+    public void handleTelegramPage(Context ctx) {
+        if (!telegramEnabled) {
+            ctx.status(404);
+            return;
+        }
+
+        renderLandingForPage(ctx, "telegram");
     }
 
     public void handleLoginPage(Context ctx) {
@@ -103,6 +135,69 @@ public class LandingPageController {
         ctx.redirect("/");
     }
 
+    public void handleTelegramApprove(Context ctx) {
+        if (!telegramEnabled) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String chatIdInput = ctx.formParam("chat_id");
+        String chatId = chatIdInput == null ? "" : chatIdInput.trim();
+        if (chatId.isEmpty()) {
+            renderLandingForPage(ctx, "telegram", "Chat ID cannot be empty.", true, "");
+            return;
+        }
+
+        if (telegramSecretService.approveChatId(chatId)) {
+            renderLandingForPage(ctx, "telegram", "Approved Telegram chat ID " + chatId + ".", false, "");
+            return;
+        }
+
+        log.warn("Failed Telegram chat ID approval from {} for chatId={}", ctx.ip(), chatId);
+        renderLandingForPage(ctx, "telegram", "Failed to approve Telegram chat ID.", true, "");
+    }
+
+    public void handleTelegramSubmit(Context ctx) {
+        if (!telegramEnabled) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String messageInput = ctx.formParam("telegram_message");
+        String messageText = messageInput == null ? "" : messageInput.trim();
+
+        if (messageText.isEmpty()) {
+            renderLandingForPage(ctx, "telegram", "Message cannot be empty.", true, messageInput == null ? "" : messageInput);
+            return;
+        }
+
+        if (messageText.length() > 4096) {
+            renderLandingForPage(ctx, "telegram", "Message is too long (max 4096 characters).", true, messageInput);
+            return;
+        }
+
+        List<String> targetChatIds = approvedChatIds();
+        TelegramService.SendResult result = telegramService.sendMessage(messageText, targetChatIds);
+        if (result.success()) {
+            renderLandingForPage(ctx, "telegram", "Telegram message sent.", false, "");
+            return;
+        }
+
+        String detail = result.detail() == null || result.detail().isBlank() ? "unknown error" : result.detail();
+        log.warn("Telegram send failed from {}: {}", ctx.ip(), detail);
+        renderLandingForPage(ctx, "telegram", "Telegram send failed: " + detail, true, messageInput);
+    }
+
     private void showLogin(Context ctx, boolean invalidPassword) {
         ctx.status(invalidPassword ? 401 : 200);
         ctx.contentType("text/html; charset=UTF-8");
@@ -110,13 +205,84 @@ public class LandingPageController {
     }
 
     private void renderLandingForPage(Context ctx, String activePage) {
+        renderLandingForPage(ctx, activePage, "", false, "");
+    }
+
+    private void renderLandingForPage(
+            Context ctx,
+            String activePage,
+            String telegramNotice,
+            boolean telegramNoticeError,
+            String telegramDraft
+    ) {
         if (!passwordProtectionEnabled || hasValidSession(ctx)) {
+            TelegramPageData telegramPageData = loadTelegramPageData();
+
             ctx.contentType("text/html; charset=UTF-8");
-            ctx.result(landingPageService.renderLanding(passwordProtectionEnabled, activePage));
+            ctx.result(landingPageService.renderLanding(
+                    passwordProtectionEnabled,
+                    activePage,
+                    telegramNotice,
+                    telegramNoticeError,
+                    telegramDraft,
+                    telegramPageData.chatRequests(),
+                    telegramPageData.approvedChats()));
             return;
         }
 
         showLogin(ctx, false);
+    }
+
+    private TelegramPageData loadTelegramPageData() {
+        if (!telegramEnabled) {
+            return new TelegramPageData(List.of(), List.of());
+        }
+
+        List<String> approvedChatIds = approvedChatIds();
+        Set<String> approvedSet = new HashSet<>(approvedChatIds);
+
+        Map<String, String> usernameByChatId = new LinkedHashMap<>();
+        List<Map<String, String>> requestRows = new ArrayList<>();
+        for (TelegramService.ChatRequest request : telegramService.discoverChatRequests()) {
+            if (request.chatId() == null || request.chatId().isBlank()) {
+                continue;
+            }
+
+            String chatId = request.chatId().trim();
+            String username = request.chatUsername() == null ? "" : request.chatUsername().trim();
+            if (!username.isEmpty()) {
+                usernameByChatId.put(chatId, username);
+            }
+
+            if (approvedSet.contains(chatId)) {
+                continue;
+            }
+
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatType", request.chatType() == null || request.chatType().isBlank() ? "unknown" : request.chatType().trim());
+            row.put("chatTitle", request.chatTitle() == null || request.chatTitle().isBlank() ? "(no title)" : request.chatTitle().trim());
+            requestRows.add(Map.copyOf(row));
+        }
+
+        List<Map<String, String>> approvedRows = new ArrayList<>();
+        for (String chatId : approvedChatIds) {
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatUsername", usernameByChatId.getOrDefault(chatId, ""));
+            approvedRows.add(Map.copyOf(row));
+        }
+
+        return new TelegramPageData(List.copyOf(requestRows), List.copyOf(approvedRows));
+    }
+
+    private List<String> approvedChatIds() {
+        if (!telegramEnabled) {
+            return List.of();
+        }
+
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        return TelegramSecretService.mergeChatIds(configuredTelegramChatIds, secret.chatIds());
     }
 
     private boolean hasValidSession(Context ctx) {
@@ -143,5 +309,8 @@ public class LandingPageController {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private record TelegramPageData(List<Map<String, String>> chatRequests, List<Map<String, String>> approvedChats) {
     }
 }

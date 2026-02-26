@@ -11,10 +11,13 @@ import io.konkin.web.service.AuthQueueService;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.LandingResourceWatcher;
+import io.konkin.web.service.TelegramSecretService;
+import io.konkin.web.service.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
+import java.util.List;
 
 public class KonkinWebServer {
 
@@ -25,6 +28,7 @@ public class KonkinWebServer {
 
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
+    private boolean running;
 
     public KonkinWebServer(KonkinConfig config, String version) {
         this.config = config;
@@ -32,6 +36,8 @@ public class KonkinWebServer {
     }
 
     public void start() {
+        running = false;
+
         HealthService healthService = new HealthService(version);
         HealthController healthController = new HealthController(healthService);
 
@@ -51,6 +57,46 @@ public class KonkinWebServer {
         Path landingTemplateDirectory = null;
         Path landingStaticDirectory = null;
 
+        TelegramService telegramService = null;
+        TelegramSecretService telegramSecretService = null;
+
+        if (config.telegramEnabled()) {
+            Path secretFile = Path.of(config.telegramSecretFile());
+            telegramSecretService = new TelegramSecretService(secretFile);
+
+            if (!telegramSecretService.ensureExists()) {
+                logTelegramStartupAction(
+                        "Secret file could not be created.",
+                        "KONKIN kept startup in safe mode and did not start HTTP services.",
+                        secretFile
+                );
+                return;
+            }
+
+            TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+            if (!telegramSecretService.hasConfiguredBotToken(secret)) {
+                logTelegramStartupAction(
+                        "Missing required key 'bot-token' in telegram secret file.",
+                        "KONKIN kept startup in safe mode and did not start HTTP services.",
+                        secretFile
+                );
+                return;
+            }
+
+            List<String> mergedChatIds = TelegramSecretService.mergeChatIds(config.telegramChatIds(), secret.chatIds());
+            telegramService = new TelegramService(
+                    config.telegramApiBaseUrl(),
+                    secret.botToken(),
+                    mergedChatIds
+            );
+
+            if (mergedChatIds.isEmpty()) {
+                log.info("Telegram initialized with bot token but no approved chat IDs yet. Use /telegram to approve chats.");
+            } else {
+                log.info("Telegram initialized with {} approved chat id(s).", mergedChatIds.size());
+            }
+        }
+
         if (config.landingEnabled()) {
             landingTemplateDirectory = Path.of(config.landingTemplateDirectory()).toAbsolutePath().normalize();
             landingStaticDirectory = Path.of(config.landingStaticDirectory()).toAbsolutePath().normalize();
@@ -64,13 +110,18 @@ public class KonkinWebServer {
                     landingTemplateDirectory,
                     config.landingTemplateName(),
                     config.landingStaticHostedPath(),
-                    config.landingAutoReloadEnabled()
+                    config.landingAutoReloadEnabled(),
+                    config.telegramEnabled() && config.landingEnabled()
             );
 
             landingPageController = new LandingPageController(
                     landingPageService,
                     config.landingPasswordProtectionEnabled(),
-                    landingPasswordFileManager
+                    landingPasswordFileManager,
+                    config.telegramEnabled(),
+                    config.telegramChatIds(),
+                    telegramService,
+                    telegramSecretService
             );
         }
 
@@ -106,6 +157,12 @@ public class KonkinWebServer {
             app.post("/login", landingPageControllerFinal::handleLoginSubmit);
             app.post("/logout", landingPageControllerFinal::handleLogout);
 
+            if (config.telegramEnabled()) {
+                app.get("/telegram", landingPageControllerFinal::handleTelegramPage);
+                app.post("/telegram/approve", landingPageControllerFinal::handleTelegramApprove);
+                app.post("/telegram/send", landingPageControllerFinal::handleTelegramSubmit);
+            }
+
             landingResourceWatcher = new LandingResourceWatcher(
                     config.landingAutoReloadEnabled(),
                     config.landingAssetsAutoReloadEnabled(),
@@ -117,6 +174,7 @@ public class KonkinWebServer {
         }
 
         app.start(config.host(), config.port());
+        running = true;
 
         if (landingResourceWatcher != null) {
             landingResourceWatcher.start();
@@ -134,6 +192,16 @@ public class KonkinWebServer {
         if (config.landingEnabled()) {
             log.info("  /                    — landing page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /log                 — audit log page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
+            if (config.telegramEnabled()) {
+                log.info("  /telegram            — telegram onboarding and manual send page");
+                log.info("  /telegram/approve    — approve discovered telegram chat request");
+                log.info("  /telegram/send       — telegram send endpoint");
+            } else {
+                log.info("  /telegram            — disabled via config");
+                log.info("  /telegram/approve    — disabled via config");
+                log.info("  /telegram/send       — disabled via config");
+            }
+
             log.info("  {}/*             — static assets from {}",
                     config.landingStaticHostedPath(),
                     staticDirectoryFinal);
@@ -145,7 +213,34 @@ public class KonkinWebServer {
         } else {
             log.info("  /                    — disabled via config");
             log.info("  /log                 — disabled via config");
+            log.info("  /telegram            — disabled via config (landing disabled)");
+            log.info("  /telegram/approve    — disabled via config (landing disabled)");
+            log.info("  /telegram/send       — disabled via config (landing disabled)");
         }
+    }
+
+    private void logTelegramStartupAction(String reason, String actionTaken, Path secretFile) {
+        Path absolute = secretFile.toAbsolutePath().normalize();
+        log.warn("");
+        log.warn("################################################################################");
+        log.warn("# KONKIN STARTUP ACTION REQUIRED — TELEGRAM SECRETS");
+        log.warn("#");
+        log.warn("# Reason      : {}", reason);
+        log.warn("# KONKIN did  : {}", actionTaken);
+        log.warn("# HTTP server : NOT STARTED (intentional safe stop)");
+        log.warn("# Secret file : {}", absolute);
+        log.warn("#");
+        log.warn("# Required file content:");
+        log.warn("#   bot-token=<telegram bot token>");
+        log.warn("#   chat-ids=<id1,id2,...>");
+        log.warn("#");
+        log.warn("# Discovery note:");
+        log.warn("#   Each target chat must send at least one message (e.g. /start) to your bot");
+        log.warn("#   before it appears in /telegram approval requests.");
+        log.warn("#");
+        log.warn("# Next step   : Edit the file, replace placeholders, restart KONKIN.");
+        log.warn("################################################################################");
+        log.warn("");
     }
 
     public void stop() {
@@ -156,6 +251,13 @@ public class KonkinWebServer {
 
         if (app != null) {
             app.stop();
+            app = null;
         }
+
+        running = false;
+    }
+
+    public boolean isRunning() {
+        return running;
     }
 }

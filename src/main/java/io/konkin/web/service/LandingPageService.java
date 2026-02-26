@@ -8,6 +8,8 @@ import freemarker.template.TemplateExceptionHandler;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -18,16 +20,25 @@ public class LandingPageService {
 
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
+    private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
 
     private final Configuration freemarker;
     private final String templateName;
     private final String staticHostedPath;
     private final AtomicLong staticAssetsVersion;
+    private final boolean telegramEnabled;
 
-    public LandingPageService(Path templateDirectory, String templateName, String staticHostedPath, boolean autoReloadEnabled) {
+    public LandingPageService(
+            Path templateDirectory,
+            String templateName,
+            String staticHostedPath,
+            boolean autoReloadEnabled,
+            boolean telegramEnabled
+    ) {
         this.templateName = templateName;
         this.staticHostedPath = staticHostedPath;
         this.staticAssetsVersion = new AtomicLong(1L);
+        this.telegramEnabled = telegramEnabled;
 
         this.freemarker = new Configuration(Configuration.VERSION_2_3_34);
         this.freemarker.setDefaultEncoding("UTF-8");
@@ -45,18 +56,44 @@ public class LandingPageService {
     }
 
     public String renderLanding(boolean showLogout, String activePage) {
-        Map<String, Object> model = Map.of(
-                "assetsPath", staticHostedPath,
-                "assetsVersion", staticAssetsVersion.get(),
-                "queuePath", "/",
-                "auditLogPath", "/log",
-                "githubPath", "#",
-                "title", "KONKIN.io",
-                "showLogout", showLogout,
-                "activePage", activePage
-        );
+        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of());
+    }
 
-        String selectedTemplate = "log".equals(activePage) ? AUDIT_LOG_TEMPLATE_NAME : templateName;
+    public String renderLanding(
+            boolean showLogout,
+            String activePage,
+            String telegramNotice,
+            boolean telegramNoticeError,
+            String telegramDraft,
+            List<Map<String, String>> telegramChatRequests,
+            List<Map<String, String>> telegramApprovedChats
+    ) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/log");
+        model.put("telegramPath", "/telegram");
+        model.put("githubPath", "#");
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", activePage);
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("telegramNotice", telegramNotice == null ? "" : telegramNotice);
+        model.put("telegramNoticeError", telegramNoticeError);
+        model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
+        model.put("telegramChatRequests", telegramChatRequests == null ? List.of() : telegramChatRequests);
+        model.put("telegramApprovedChats", telegramApprovedChats == null ? List.of() : telegramApprovedChats);
+
+        String selectedTemplate;
+        if ("log".equals(activePage)) {
+            selectedTemplate = AUDIT_LOG_TEMPLATE_NAME;
+        } else if ("telegram".equals(activePage)) {
+            selectedTemplate = TELEGRAM_TEMPLATE_NAME;
+        } else {
+            selectedTemplate = templateName;
+        }
+
         return renderTemplate(selectedTemplate, model);
     }
 

@@ -6,6 +6,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 /**
  * Loads and holds all configuration from config.toml.
@@ -40,6 +43,11 @@ public class KonkinConfig {
     private final boolean landingAutoReloadEnabled;
     private final boolean landingAssetsAutoReloadEnabled;
 
+    private final boolean telegramEnabled;
+    private final String telegramSecretFile;
+    private final String telegramApiBaseUrl;
+    private final List<String> telegramChatIds;
+
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
         this.host = toml.getOrElse("server.host", "127.0.0.1");
@@ -65,6 +73,25 @@ public class KonkinConfig {
         this.landingStaticHostedPath = toml.getOrElse("landing.static.hosted-path", "/assets");
         this.landingAutoReloadEnabled = toml.getOrElse("landing.auto-reload.enabled", true);
         this.landingAssetsAutoReloadEnabled = toml.getOrElse("landing.auto-reload.assets-enabled", true);
+
+        this.telegramEnabled = toml.getOrElse("telegram.enabled", false);
+        this.telegramSecretFile = toml.getOrElse("telegram.secret-file", "./secrets/telegram.secret");
+        this.telegramApiBaseUrl = toml.getOrElse("telegram.api-base-url", "https://api.telegram.org");
+
+        LinkedHashSet<String> deduplicatedTelegramChatIds = new LinkedHashSet<>();
+        Object rawTelegramChatIds = toml.get("telegram.chat-ids");
+        if (rawTelegramChatIds instanceof List<?> listValue) {
+            for (Object candidate : listValue) {
+                if (candidate == null) {
+                    continue;
+                }
+                String chatId = candidate.toString().trim();
+                if (!chatId.isEmpty()) {
+                    deduplicatedTelegramChatIds.add(chatId);
+                }
+            }
+        }
+        this.telegramChatIds = List.copyOf(deduplicatedTelegramChatIds);
     }
 
     /**
@@ -102,6 +129,10 @@ public class KonkinConfig {
                     config.landingTemplateDirectory,
                     config.landingStaticDirectory
             );
+            log.info("Telegram config — enabled={}, secretFile={}, configuredChatIds={}",
+                    config.telegramEnabled,
+                    config.telegramSecretFile,
+                    config.telegramChatIds.size());
             return config;
         }
     }
@@ -130,26 +161,43 @@ public class KonkinConfig {
                     "Invalid config: landing.password-protection.enabled=true requires landing.enabled=true.");
         }
 
-        if (!landingEnabled) {
-            return;
-        }
-
-        if (landingTemplateName == null || landingTemplateName.isBlank()) {
-            throw new IllegalStateException("Invalid config: landing.template.name must not be blank when landing.enabled=true.");
-        }
-        if (landingStaticHostedPath == null || landingStaticHostedPath.isBlank() || !landingStaticHostedPath.startsWith("/")) {
-            throw new IllegalStateException("Invalid config: landing.static.hosted-path must start with '/' when landing.enabled=true.");
-        }
-
-        validatePath(landingTemplateDirectory, "landing.template.directory");
-        validatePath(landingStaticDirectory, "landing.static.directory");
-
-        if (landingPasswordProtectionEnabled) {
-            if (landingPasswordFile == null || landingPasswordFile.isBlank()) {
-                throw new IllegalStateException(
-                        "Invalid config: landing.password-protection.password-file must be set when password protection is enabled.");
+        if (landingEnabled) {
+            if (landingTemplateName == null || landingTemplateName.isBlank()) {
+                throw new IllegalStateException("Invalid config: landing.template.name must not be blank when landing.enabled=true.");
             }
-            validatePath(landingPasswordFile, "landing.password-protection.password-file");
+            if (landingStaticHostedPath == null || landingStaticHostedPath.isBlank() || !landingStaticHostedPath.startsWith("/")) {
+                throw new IllegalStateException("Invalid config: landing.static.hosted-path must start with '/' when landing.enabled=true.");
+            }
+
+            validatePath(landingTemplateDirectory, "landing.template.directory");
+            validatePath(landingStaticDirectory, "landing.static.directory");
+
+            if (landingPasswordProtectionEnabled) {
+                if (landingPasswordFile == null || landingPasswordFile.isBlank()) {
+                    throw new IllegalStateException(
+                            "Invalid config: landing.password-protection.password-file must be set when password protection is enabled.");
+                }
+                validatePath(landingPasswordFile, "landing.password-protection.password-file");
+            }
+        }
+
+        if (telegramEnabled) {
+            if (telegramSecretFile == null || telegramSecretFile.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: telegram.secret-file must be set when telegram.enabled=true.");
+            }
+            validatePath(telegramSecretFile, "telegram.secret-file");
+            if (telegramApiBaseUrl == null || telegramApiBaseUrl.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: telegram.api-base-url must be set when telegram.enabled=true.");
+            }
+
+            for (String chatId : telegramChatIds) {
+                if (chatId == null || chatId.isBlank()) {
+                    throw new IllegalStateException(
+                            "Invalid config: telegram.chat-ids must not contain blank entries.");
+                }
+            }
         }
     }
 
@@ -188,4 +236,9 @@ public class KonkinConfig {
     public String landingStaticHostedPath() { return landingStaticHostedPath; }
     public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
     public boolean landingAssetsAutoReloadEnabled() { return landingAssetsAutoReloadEnabled; }
+
+    public boolean telegramEnabled() { return telegramEnabled; }
+    public String telegramSecretFile() { return telegramSecretFile; }
+    public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
+    public List<String> telegramChatIds() { return telegramChatIds; }
 }

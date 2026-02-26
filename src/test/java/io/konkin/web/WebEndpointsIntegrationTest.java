@@ -2,6 +2,7 @@ package io.konkin.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.HttpServer;
 import io.konkin.config.KonkinConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -10,6 +11,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.io.Writer;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,10 +27,12 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebEndpointsIntegrationTest {
@@ -141,10 +145,214 @@ class WebEndpointsIntegrationTest {
             assertEquals(302, loginPost.statusCode());
             assertEquals("/", loginPost.headers().firstValue("location").orElse(""));
 
+            assertFalse(root.body().contains("Telegram Broadcast"));
+
+            HttpResponse<String> telegramPage = get(server, "/telegram", Map.of());
+            assertEquals(404, telegramPage.statusCode());
+
+            HttpResponse<String> telegramSubmit = postForm(server, "/telegram/send", "telegram_message=hello", Map.of());
+            assertEquals(404, telegramSubmit.statusCode());
+
             HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
             assertEquals(200, staticAsset.statusCode());
             assertTrue(staticAsset.body().contains("<svg"));
         }
+    }
+
+    @Test
+    void landingTelegramEnabledShowsFormAndSubmitsToTelegramApi() throws Exception {
+        int telegramApiPort = freePort();
+        AtomicReference<String> capturedPayload = new AtomicReference<>("");
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/sendMessage", exchange -> {
+            try (exchange) {
+                if (!"POST".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                String payload = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                capturedPayload.set(payload);
+
+                byte[] body = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int port = freePort();
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram.secret");
+        Files.writeString(
+                secretFile,
+                "chat-ids=-100123456789\nbot-token=test-bot-token\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                port,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> root = get(runningServer, "/", Map.of());
+            assertEquals(200, root.statusCode());
+            assertTrue(root.body().contains("href=\"/telegram\""));
+            assertFalse(root.body().contains("Telegram Broadcast"));
+
+            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            assertEquals(200, telegramPage.statusCode());
+            assertTrue(telegramPage.body().contains("Telegram Broadcast"));
+            assertTrue(telegramPage.body().contains("action=\"/telegram/send\""));
+
+            HttpResponse<String> telegramSubmit = postForm(
+                    runningServer,
+                    "/telegram/send",
+                    "telegram_message=Hello+Konkin",
+                    Map.of()
+            );
+            assertEquals(200, telegramSubmit.statusCode());
+            assertTrue(telegramSubmit.body().contains("Telegram message sent."));
+
+            String payload = capturedPayload.get();
+            assertTrue(payload.contains("chat_id=-100123456789"));
+            assertTrue(payload.contains("text=Hello+Konkin"));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
+    void telegramSecretFileIsBootstrappedAndStartupStaysStoppedUntilReplaced() throws Exception {
+        int port = freePort();
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("secrets/telegram.secret");
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:65534"
+                """.formatted(
+                port,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-bootstrap-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+
+        KonkinWebServer firstServer = new KonkinWebServer(config, "test-version");
+        firstServer.start();
+        assertFalse(firstServer.isRunning());
+        assertTrue(Files.exists(secretFile));
+
+        String bootstrap = Files.readString(secretFile, StandardCharsets.UTF_8);
+        assertTrue(bootstrap.contains("chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS"));
+        assertTrue(bootstrap.contains("bot-token=REPLACE_WITH_TELEGRAM_BOT_TOKEN"));
+        assertTrue(bootstrap.contains("@BotFather"));
+
+        KonkinWebServer secondServer = new KonkinWebServer(config, "test-version");
+        secondServer.start();
+        assertFalse(secondServer.isRunning());
     }
 
     @Test

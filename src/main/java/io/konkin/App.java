@@ -46,6 +46,13 @@ public class App {
         KonkinWebServer webServer = new KonkinWebServer(config, VERSION);
         webServer.start();
 
+        if (!webServer.isRunning()) {
+            log.warn("KONKIN did not start the HTTP server because startup prerequisites are not satisfied.");
+            log.warn("Shutting down gracefully. Fix the reported configuration/secret issue and restart KONKIN.");
+            dbManager.shutdown();
+            return;
+        }
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("KONKIN shutting down... allowing up to 3 seconds for in-flight requests.");
             webServer.stop();
