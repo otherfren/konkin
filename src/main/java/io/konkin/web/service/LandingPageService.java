@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LandingPageService {
 
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
+    private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
 
     private final Configuration freemarker;
     private final String templateName;
@@ -34,7 +35,7 @@ public class LandingPageService {
         this.freemarker.setLogTemplateExceptions(false);
         this.freemarker.setWrapUncheckedExceptions(true);
         this.freemarker.setFallbackOnNullLoopVariable(false);
-        this.freemarker.setTemplateUpdateDelayMilliseconds(autoReloadEnabled ? 500 : 60_000);
+        this.freemarker.setTemplateUpdateDelayMilliseconds(autoReloadEnabled ? 0 : 60_000);
 
         try {
             this.freemarker.setDirectoryForTemplateLoading(templateDirectory.toFile());
@@ -55,7 +56,8 @@ public class LandingPageService {
                 "activePage", activePage
         );
 
-        return renderTemplate(templateName, model);
+        String selectedTemplate = "log".equals(activePage) ? AUDIT_LOG_TEMPLATE_NAME : templateName;
+        return renderTemplate(selectedTemplate, model);
     }
 
     public String renderLogin(boolean invalidPassword) {

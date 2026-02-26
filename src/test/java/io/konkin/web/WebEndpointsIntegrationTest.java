@@ -20,7 +20,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -121,10 +123,14 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
+            assertTrue(root.body().contains("Auth Queue"));
+            assertFalse(root.body().contains("Audit Log"));
 
             HttpResponse<String> logPage = get(server, "/log", Map.of());
             assertEquals(200, logPage.statusCode());
             assertTrue(logPage.body().contains("KONKIN"));
+            assertTrue(logPage.body().contains("Audit Log"));
+            assertFalse(logPage.body().contains("Auth Queue"));
             assertTrue(logPage.body().contains("menu-active\">audit<"));
 
             HttpResponse<String> loginGet = get(server, "/login", Map.of());
@@ -170,10 +176,14 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> rootWithSession = get(server, "/", Map.of("Cookie", sessionCookie));
             assertEquals(200, rootWithSession.statusCode());
             assertTrue(rootWithSession.body().contains("logout"));
+            assertTrue(rootWithSession.body().contains("Auth Queue"));
+            assertFalse(rootWithSession.body().contains("Audit Log"));
 
             HttpResponse<String> logWithSession = get(server, "/log", Map.of("Cookie", sessionCookie));
             assertEquals(200, logWithSession.statusCode());
             assertTrue(logWithSession.body().contains("logout"));
+            assertTrue(logWithSession.body().contains("Audit Log"));
+            assertFalse(logWithSession.body().contains("Auth Queue"));
             assertTrue(logWithSession.body().contains("menu-active\">audit<"));
 
             HttpResponse<String> logout = postForm(server, "/logout", "", Map.of("Cookie", sessionCookie));
@@ -187,6 +197,89 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> logAfterLogout = get(server, "/log", Map.of("Cookie", sessionCookie));
             assertEquals(200, logAfterLogout.statusCode());
             assertTrue(logAfterLogout.body().contains("Enter your landing password"));
+        }
+    }
+
+    @Test
+    void landingTemplateAutoReloadPicksUpFtlChangesWithoutRestart() throws Exception {
+        Path sourceTemplates = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path templateDir = tempDir.resolve("templates");
+        Files.createDirectories(templateDir);
+        for (String templateName : List.of("layout.ftl", "landing.ftl", "landing-log.ftl", "landing-login.ftl")) {
+            Files.copy(sourceTemplates.resolve(templateName), templateDir.resolve(templateName));
+        }
+
+        Path staticDir = tempDir.resolve("static");
+        Files.createDirectories(staticDir);
+
+        int port = freePort();
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = true
+                assets-enabled = true
+                """.formatted(
+                port,
+                tomlPath(tempDir.resolve("unused-auth-queue.password")),
+                tomlPath(tempDir.resolve("unused-landing.password")),
+                tomlPath(templateDir),
+                tomlPath(staticDir)
+        );
+
+        Path configFile = tempDir.resolve("config-reload-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> initial = get(runningServer, "/", Map.of());
+            assertEquals(200, initial.statusCode());
+            assertTrue(initial.body().contains("Auth Queue"));
+
+            Path landingTemplate = templateDir.resolve("landing.ftl");
+            String currentTemplate = Files.readString(landingTemplate, StandardCharsets.UTF_8);
+            String updatedTemplate = currentTemplate.replace("Auth Queue", "Auth Queue Reloaded");
+            Files.writeString(
+                    landingTemplate,
+                    updatedTemplate,
+                    StandardCharsets.UTF_8,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE
+            );
+
+            boolean observedUpdate = waitForBodyContains(runningServer, "/", "Auth Queue Reloaded", Duration.ofSeconds(5));
+            assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
     }
 
@@ -302,6 +395,23 @@ class WebEndpointsIntegrationTest {
             socket.setReuseAddress(true);
             return socket.getLocalPort();
         }
+    }
+
+    private static boolean waitForBodyContains(RunningServer server, String path, String expected, Duration timeout)
+            throws InterruptedException {
+        Instant deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                HttpResponse<String> response = get(server, path, Map.of());
+                if (response.statusCode() == 200 && response.body().contains(expected)) {
+                    return true;
+                }
+            } catch (IOException ignored) {
+                // retry while server settles
+            }
+            Thread.sleep(100L);
+        }
+        return false;
     }
 
     private static void waitForHealth(int port) throws Exception {
