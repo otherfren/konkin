@@ -26,6 +26,7 @@
         <logback.version>1.5.15</logback.version>
         <nightconfig.version>3.8.1</nightconfig.version>
         <jackson.version>2.18.2</jackson.version>
+        <freemarker.version>2.3.34</freemarker.version>
     </properties>
 
     <dependencies>
@@ -86,6 +87,13 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
+        </dependency>
+
+        <!-- FreeMarker template engine -->
+        <dependency>
+            <groupId>org.freemarker</groupId>
+            <artifactId>freemarker</artifactId>
+            <version>${freemarker.version}</version>
         </dependency>
 
         <!-- Test dependencies -->

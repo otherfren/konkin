@@ -29,6 +29,15 @@ public class KonkinConfig {
     private final boolean authQueuePasswordProtectionEnabled;
     private final String authQueuePasswordFile;
 
+    private final boolean landingEnabled;
+    private final boolean landingPasswordProtectionEnabled;
+    private final String landingPasswordFile;
+    private final String landingTemplateDirectory;
+    private final String landingTemplateName;
+    private final String landingStaticDirectory;
+    private final String landingStaticHostedPath;
+    private final boolean landingAutoReloadEnabled;
+
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
         this.host = toml.getOrElse("server.host", "127.0.0.1");
@@ -43,6 +52,15 @@ public class KonkinConfig {
         this.authQueueEnabled = toml.getOrElse("auth_queue.enabled", true);
         this.authQueuePasswordProtectionEnabled = toml.getOrElse("auth_queue.password-protection.enabled", true);
         this.authQueuePasswordFile = toml.getOrElse("auth_queue.password-protection.password-file", "./secrets/auth_queue.password");
+
+        this.landingEnabled = toml.getOrElse("landing.enabled", false);
+        this.landingPasswordProtectionEnabled = toml.getOrElse("landing.password-protection.enabled", this.landingEnabled);
+        this.landingPasswordFile = toml.getOrElse("landing.password-protection.password-file", "./secrets/landing.password");
+        this.landingTemplateDirectory = toml.getOrElse("landing.template.directory", "./src/main/resources/templates");
+        this.landingTemplateName = toml.getOrElse("landing.template.name", "landing.ftl");
+        this.landingStaticDirectory = toml.getOrElse("landing.static.directory", "./src/main/resources/static");
+        this.landingStaticHostedPath = toml.getOrElse("landing.static.hosted-path", "/assets");
+        this.landingAutoReloadEnabled = toml.getOrElse("landing.auto-reload.enabled", true);
     }
 
     /**
@@ -70,6 +88,12 @@ public class KonkinConfig {
 
             log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
             log.info("Auth queue config — enabled={}, passwordProtection={}", config.authQueueEnabled, config.authQueuePasswordProtectionEnabled);
+            log.info("Landing page config — enabled={}, passwordProtection={}, templateDir={}, staticDir={}",
+                    config.landingEnabled,
+                    config.landingPasswordProtectionEnabled,
+                    config.landingTemplateDirectory,
+                    config.landingStaticDirectory
+            );
             return config;
         }
     }
@@ -85,14 +109,45 @@ public class KonkinConfig {
                 throw new IllegalStateException(
                         "Invalid config: auth_queue.password-protection.password-file must be set when password protection is enabled.");
             }
-            try {
-                Path.of(authQueuePasswordFile);
-            } catch (InvalidPathException e) {
+            validatePath(authQueuePasswordFile, "auth_queue.password-protection.password-file");
+        }
+
+        if (!landingEnabled && landingPasswordProtectionEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: landing.password-protection.enabled=true requires landing.enabled=true.");
+        }
+
+        if (!landingEnabled) {
+            return;
+        }
+
+        if (landingTemplateName == null || landingTemplateName.isBlank()) {
+            throw new IllegalStateException("Invalid config: landing.template.name must not be blank when landing.enabled=true.");
+        }
+        if (landingStaticHostedPath == null || landingStaticHostedPath.isBlank() || !landingStaticHostedPath.startsWith("/")) {
+            throw new IllegalStateException("Invalid config: landing.static.hosted-path must start with '/' when landing.enabled=true.");
+        }
+
+        validatePath(landingTemplateDirectory, "landing.template.directory");
+        validatePath(landingStaticDirectory, "landing.static.directory");
+
+        if (landingPasswordProtectionEnabled) {
+            if (landingPasswordFile == null || landingPasswordFile.isBlank()) {
                 throw new IllegalStateException(
-                        "Invalid config: auth_queue.password-protection.password-file is not a valid path: " + authQueuePasswordFile,
-                        e
-                );
+                        "Invalid config: landing.password-protection.password-file must be set when password protection is enabled.");
             }
+            validatePath(landingPasswordFile, "landing.password-protection.password-file");
+        }
+    }
+
+    private void validatePath(String pathValue, String keyName) {
+        try {
+            Path.of(pathValue);
+        } catch (InvalidPathException e) {
+            throw new IllegalStateException(
+                    "Invalid config: " + keyName + " is not a valid path: " + pathValue,
+                    e
+            );
         }
     }
 
@@ -109,4 +164,13 @@ public class KonkinConfig {
     public boolean authQueueEnabled() { return authQueueEnabled; }
     public boolean authQueuePasswordProtectionEnabled() { return authQueuePasswordProtectionEnabled; }
     public String authQueuePasswordFile() { return authQueuePasswordFile; }
+
+    public boolean landingEnabled() { return landingEnabled; }
+    public boolean landingPasswordProtectionEnabled() { return landingPasswordProtectionEnabled; }
+    public String landingPasswordFile() { return landingPasswordFile; }
+    public String landingTemplateDirectory() { return landingTemplateDirectory; }
+    public String landingTemplateName() { return landingTemplateName; }
+    public String landingStaticDirectory() { return landingStaticDirectory; }
+    public String landingStaticHostedPath() { return landingStaticHostedPath; }
+    public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
 }

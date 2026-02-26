@@ -19,3 +19,22 @@ enabled = true
 enabled = true
 # rotate keys by deleting the referenced file
 password-file = "./secrets/auth_queue.password"
+
+[landing]
+enabled = true
+
+[landing.password-protection]
+enabled = true
+# rotate keys by deleting the referenced file
+password-file = "./secrets/landing.password"
+
+[landing.template]
+directory = "./src/main/resources/templates"
+name = "landing.ftl"
+
+[landing.static]
+directory = "./src/main/resources/static"
+hosted-path = "/assets"
+
+[landing.auto-reload]
+enabled = true

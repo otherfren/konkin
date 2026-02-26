@@ -4,3 +4,5 @@ variables:
     value: http://127.0.0.1:7070
   - secret: true
     name: API_KEY
+  - secret: true
+    name: LANDING_PASSWORD
