@@ -24,7 +24,8 @@ public class LandingResourceWatcher {
 
     private static final Logger log = LoggerFactory.getLogger(LandingResourceWatcher.class);
 
-    private final boolean enabled;
+    private final boolean templateAutoReloadEnabled;
+    private final boolean staticAssetsAutoReloadEnabled;
     private final Path templateDirectory;
     private final Path staticDirectory;
     private final Runnable onTemplateChange;
@@ -40,13 +41,15 @@ public class LandingResourceWatcher {
     private volatile Instant lastStaticReload = Instant.EPOCH;
 
     public LandingResourceWatcher(
-            boolean enabled,
+            boolean templateAutoReloadEnabled,
+            boolean staticAssetsAutoReloadEnabled,
             Path templateDirectory,
             Path staticDirectory,
             Runnable onTemplateChange,
             Runnable onStaticChange
     ) {
-        this.enabled = enabled;
+        this.templateAutoReloadEnabled = templateAutoReloadEnabled;
+        this.staticAssetsAutoReloadEnabled = staticAssetsAutoReloadEnabled;
         this.templateDirectory = templateDirectory.toAbsolutePath().normalize();
         this.staticDirectory = staticDirectory.toAbsolutePath().normalize();
         this.onTemplateChange = onTemplateChange;
@@ -54,7 +57,7 @@ public class LandingResourceWatcher {
     }
 
     public void start() {
-        if (!enabled) {
+        if (!templateAutoReloadEnabled && !staticAssetsAutoReloadEnabled) {
             return;
         }
 
@@ -64,8 +67,12 @@ public class LandingResourceWatcher {
 
         try {
             this.watchService = FileSystems.getDefault().newWatchService();
-            registerAll(templateDirectory);
-            registerAll(staticDirectory);
+            if (templateAutoReloadEnabled) {
+                registerAll(templateDirectory);
+            }
+            if (staticAssetsAutoReloadEnabled) {
+                registerAll(staticDirectory);
+            }
         } catch (IOException e) {
             running.set(false);
             throw new IllegalStateException("Failed to initialize landing resource watcher", e);
@@ -75,7 +82,13 @@ public class LandingResourceWatcher {
         this.watchThread.setDaemon(true);
         this.watchThread.start();
 
-        log.info("Landing resource watcher started (templateDir={}, staticDir={})", templateDirectory, staticDirectory);
+        log.info(
+                "Landing resource watcher started (templateAutoReload={}, staticAssetsAutoReload={}, templateDir={}, staticDir={})",
+                templateAutoReloadEnabled,
+                staticAssetsAutoReloadEnabled,
+                templateDirectory,
+                staticDirectory
+        );
     }
 
     public void stop() {
@@ -170,7 +183,7 @@ public class LandingResourceWatcher {
     }
 
     private void notifyChange(Path changedPath) {
-        if (changedPath.startsWith(templateDirectory)) {
+        if (templateAutoReloadEnabled && changedPath.startsWith(templateDirectory)) {
             if (debounceTemplate()) {
                 onTemplateChange.run();
                 log.info("Template change detected: {}", changedPath);
@@ -178,7 +191,7 @@ public class LandingResourceWatcher {
             return;
         }
 
-        if (changedPath.startsWith(staticDirectory)) {
+        if (staticAssetsAutoReloadEnabled && changedPath.startsWith(staticDirectory)) {
             if (debounceStatic()) {
                 onStaticChange.run();
                 log.info("Static asset change detected: {}", changedPath);

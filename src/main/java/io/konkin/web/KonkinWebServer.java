@@ -107,6 +107,7 @@ public class KonkinWebServer {
 
             landingResourceWatcher = new LandingResourceWatcher(
                     config.landingAutoReloadEnabled(),
+                    config.landingAssetsAutoReloadEnabled(),
                     landingTemplateDirectoryFinal,
                     staticDirectoryFinal,
                     landingPageServiceFinal::clearTemplateCache,
@@ -134,7 +135,11 @@ public class KonkinWebServer {
             log.info("  {}/*             — static assets from {}",
                     config.landingStaticHostedPath(),
                     staticDirectoryFinal);
-            log.info("Landing auto-reload is {}", config.landingAutoReloadEnabled() ? "enabled" : "disabled");
+            log.info(
+                    "Landing auto-reload — templates={}, assets={}",
+                    config.landingAutoReloadEnabled() ? "enabled" : "disabled",
+                    config.landingAssetsAutoReloadEnabled() ? "enabled" : "disabled"
+            );
         } else {
             log.info("  /                    — disabled via config");
         }

@@ -20,6 +20,7 @@ public class KonkinConfig {
     private final int port;
     private final String logLevel;
     private final String logFile;
+    private final int logRotateMaxSizeMb;
     private final String dbUrl;
     private final String dbUser;
     private final String dbPassword;
@@ -37,6 +38,7 @@ public class KonkinConfig {
     private final String landingStaticDirectory;
     private final String landingStaticHostedPath;
     private final boolean landingAutoReloadEnabled;
+    private final boolean landingAssetsAutoReloadEnabled;
 
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
@@ -44,6 +46,7 @@ public class KonkinConfig {
         this.port = toml.getIntOrElse("server.port", 7070);
         this.logLevel = toml.getOrElse("server.log-level", "info");
         this.logFile = toml.getOrElse("server.log-file", "./logs/konkin.log");
+        this.logRotateMaxSizeMb = toml.getIntOrElse("server.log-rotate-max-size-mb", 10);
         this.dbUrl = toml.getOrElse("database.url", "jdbc:h2:./data/konkin");
         this.dbUser = toml.getOrElse("database.user", "konkin");
         this.dbPassword = toml.getOrElse("database.password", "konkin");
@@ -61,6 +64,7 @@ public class KonkinConfig {
         this.landingStaticDirectory = toml.getOrElse("landing.static.directory", "./src/main/resources/static");
         this.landingStaticHostedPath = toml.getOrElse("landing.static.hosted-path", "/assets");
         this.landingAutoReloadEnabled = toml.getOrElse("landing.auto-reload.enabled", true);
+        this.landingAssetsAutoReloadEnabled = toml.getOrElse("landing.auto-reload.assets-enabled", true);
     }
 
     /**
@@ -87,6 +91,10 @@ public class KonkinConfig {
             config.validateConsistency();
 
             log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
+            log.info("Logging config — level={}, file={}, rotateMaxSizeMb={}",
+                    config.logLevel,
+                    config.logFile,
+                    config.logRotateMaxSizeMb);
             log.info("Auth queue config — enabled={}, passwordProtection={}", config.authQueueEnabled, config.authQueuePasswordProtectionEnabled);
             log.info("Landing page config — enabled={}, passwordProtection={}, templateDir={}, staticDir={}",
                     config.landingEnabled,
@@ -99,6 +107,11 @@ public class KonkinConfig {
     }
 
     private void validateConsistency() {
+        if (logRotateMaxSizeMb <= 0) {
+            throw new IllegalStateException(
+                    "Invalid config: server.log-rotate-max-size-mb must be > 0.");
+        }
+
         if (!authQueueEnabled && authQueuePasswordProtectionEnabled) {
             throw new IllegalStateException(
                     "Invalid config: auth_queue.password-protection.enabled=true requires auth_queue.enabled=true.");
@@ -156,6 +169,7 @@ public class KonkinConfig {
     public int port() { return port; }
     public String logLevel() { return logLevel; }
     public String logFile() { return logFile; }
+    public int logRotateMaxSizeMb() { return logRotateMaxSizeMb; }
     public String dbUrl() { return dbUrl; }
     public String dbUser() { return dbUser; }
     public String dbPassword() { return dbPassword; }
@@ -173,4 +187,5 @@ public class KonkinConfig {
     public String landingStaticDirectory() { return landingStaticDirectory; }
     public String landingStaticHostedPath() { return landingStaticHostedPath; }
     public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
+    public boolean landingAssetsAutoReloadEnabled() { return landingAssetsAutoReloadEnabled; }
 }
