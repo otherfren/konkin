@@ -47,7 +47,7 @@ public class LandingPageService {
         Map<String, Object> model = Map.of(
                 "assetsPath", staticHostedPath,
                 "assetsVersion", staticAssetsVersion.get(),
-                "queuePath", "/api/v1/auth_queue",
+                "queuePath", "/",
                 "auditLogPath", "/log",
                 "githubPath", "#",
                 "title", "KONKIN.io",
