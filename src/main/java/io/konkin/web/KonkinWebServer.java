@@ -101,6 +101,7 @@ public class KonkinWebServer {
 
         if (config.landingEnabled()) {
             app.get("/", landingPageControllerFinal::handleRoot);
+            app.get("/log", landingPageControllerFinal::handleLog);
             app.get("/login", landingPageControllerFinal::handleLoginPage);
             app.post("/login", landingPageControllerFinal::handleLoginSubmit);
             app.post("/logout", landingPageControllerFinal::handleLogout);
@@ -132,6 +133,7 @@ public class KonkinWebServer {
 
         if (config.landingEnabled()) {
             log.info("  /                    — landing page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
+            log.info("  /log                 — audit log page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  {}/*             — static assets from {}",
                     config.landingStaticHostedPath(),
                     staticDirectoryFinal);
@@ -142,6 +144,7 @@ public class KonkinWebServer {
             );
         } else {
             log.info("  /                    — disabled via config");
+            log.info("  /log                 — disabled via config");
         }
     }
 

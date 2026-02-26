@@ -47,13 +47,11 @@ public class LandingPageController {
     }
 
     public void handleRoot(Context ctx) {
-        if (!passwordProtectionEnabled || hasValidSession(ctx)) {
-            ctx.contentType("text/html; charset=UTF-8");
-            ctx.result(landingPageService.renderLanding(passwordProtectionEnabled));
-            return;
-        }
+        renderLandingForPage(ctx, "queue");
+    }
 
-        showLogin(ctx, false);
+    public void handleLog(Context ctx) {
+        renderLandingForPage(ctx, "log");
     }
 
     public void handleLoginPage(Context ctx) {
@@ -109,6 +107,16 @@ public class LandingPageController {
         ctx.status(invalidPassword ? 401 : 200);
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderLogin(invalidPassword));
+    }
+
+    private void renderLandingForPage(Context ctx, String activePage) {
+        if (!passwordProtectionEnabled || hasValidSession(ctx)) {
+            ctx.contentType("text/html; charset=UTF-8");
+            ctx.result(landingPageService.renderLanding(passwordProtectionEnabled, activePage));
+            return;
+        }
+
+        showLogin(ctx, false);
     }
 
     private boolean hasValidSession(Context ctx) {

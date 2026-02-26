@@ -1,13 +1,12 @@
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${title}</title>
-    <link rel="icon" type="image/png" href="${assetsPath}/img/logo.png?v=${assetsVersion}">
-    <link rel="stylesheet" href="${assetsPath}/css/landing.css?v=${assetsVersion}">
-</head>
-<body>
+<#import "layout.ftl" as layout>
+
+<@layout.page
+    title=title
+    assetsPath=assetsPath
+    assetsVersion=assetsVersion
+    iconType="image/png"
+    iconHref=(assetsPath + "/img/logo.png")
+>
 <header class="topbar">
     <a href="/" class="brand">
         <img src="${assetsPath}/img/logo.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
@@ -15,7 +14,7 @@
     </a>
     <nav class="menu" aria-label="Main">
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
-        <#if activePage == "audit"><span class="menu-active">audit</span><#else><a href="/audit">audit</a></#if>
+        <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>
         <a href="${githubPath}">github</a>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
@@ -115,5 +114,4 @@
         </tbody>
     </table>
 </div></main>
-</body>
-</html>
+</@layout.page>

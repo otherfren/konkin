@@ -102,10 +102,13 @@ class WebEndpointsIntegrationTest {
     }
 
     @Test
-    void landingDisabledDoesNotExposeRootOrStaticAssets() throws Exception {
+    void landingDisabledDoesNotExposeRootLogOrStaticAssets() throws Exception {
         try (RunningServer server = startServer(false, false, "unused", false, false, "unused")) {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(404, root.statusCode());
+
+            HttpResponse<String> logPage = get(server, "/log", Map.of());
+            assertEquals(404, logPage.statusCode());
 
             HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
             assertEquals(404, staticAsset.statusCode());
@@ -113,11 +116,16 @@ class WebEndpointsIntegrationTest {
     }
 
     @Test
-    void landingEnabledUnprotectedServesRootAndStaticAssets() throws Exception {
+    void landingEnabledUnprotectedServesRootLogAndStaticAssets() throws Exception {
         try (RunningServer server = startServer(false, false, "unused", true, false, "unused")) {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
+
+            HttpResponse<String> logPage = get(server, "/log", Map.of());
+            assertEquals(200, logPage.statusCode());
+            assertTrue(logPage.body().contains("KONKIN"));
+            assertTrue(logPage.body().contains("menu-active\">audit<"));
 
             HttpResponse<String> loginGet = get(server, "/login", Map.of());
             assertEquals(302, loginGet.statusCode());
@@ -134,13 +142,17 @@ class WebEndpointsIntegrationTest {
     }
 
     @Test
-    void landingProtectedSupportsFullPasswordSessionFlow() throws Exception {
+    void landingProtectedSupportsFullPasswordSessionFlowForRootAndLog() throws Exception {
         String landingPassword = "landing-secret";
 
         try (RunningServer server = startServer(false, false, "unused", true, true, landingPassword)) {
             HttpResponse<String> rootWithoutSession = get(server, "/", Map.of());
             assertEquals(200, rootWithoutSession.statusCode());
             assertTrue(rootWithoutSession.body().contains("Enter your landing password"));
+
+            HttpResponse<String> logWithoutSession = get(server, "/log", Map.of());
+            assertEquals(200, logWithoutSession.statusCode());
+            assertTrue(logWithoutSession.body().contains("Enter your landing password"));
 
             HttpResponse<String> badLogin = postForm(server, "/login", "password=wrong", Map.of());
             assertEquals(401, badLogin.statusCode());
@@ -159,6 +171,11 @@ class WebEndpointsIntegrationTest {
             assertEquals(200, rootWithSession.statusCode());
             assertTrue(rootWithSession.body().contains("logout"));
 
+            HttpResponse<String> logWithSession = get(server, "/log", Map.of("Cookie", sessionCookie));
+            assertEquals(200, logWithSession.statusCode());
+            assertTrue(logWithSession.body().contains("logout"));
+            assertTrue(logWithSession.body().contains("menu-active\">audit<"));
+
             HttpResponse<String> logout = postForm(server, "/logout", "", Map.of("Cookie", sessionCookie));
             assertEquals(302, logout.statusCode());
             assertEquals("/", logout.headers().firstValue("location").orElse(""));
@@ -166,6 +183,10 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> rootAfterLogout = get(server, "/", Map.of("Cookie", sessionCookie));
             assertEquals(200, rootAfterLogout.statusCode());
             assertTrue(rootAfterLogout.body().contains("Enter your landing password"));
+
+            HttpResponse<String> logAfterLogout = get(server, "/log", Map.of("Cookie", sessionCookie));
+            assertEquals(200, logAfterLogout.statusCode());
+            assertTrue(logAfterLogout.body().contains("Enter your landing password"));
         }
     }
 

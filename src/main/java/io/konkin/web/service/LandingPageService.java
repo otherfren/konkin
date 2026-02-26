@@ -43,15 +43,16 @@ public class LandingPageService {
         }
     }
 
-    public String renderLanding(boolean showLogout) {
+    public String renderLanding(boolean showLogout, String activePage) {
         Map<String, Object> model = Map.of(
                 "assetsPath", staticHostedPath,
                 "assetsVersion", staticAssetsVersion.get(),
                 "queuePath", "/api/v1/auth_queue",
+                "auditLogPath", "/log",
                 "githubPath", "#",
                 "title", "KONKIN.io",
                 "showLogout", showLogout,
-                "activePage", "queue"
+                "activePage", activePage
         );
 
         return renderTemplate(templateName, model);
