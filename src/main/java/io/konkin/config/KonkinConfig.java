@@ -4,6 +4,7 @@ import com.electronwill.nightconfig.core.file.FileConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 
 /**
@@ -24,6 +25,10 @@ public class KonkinConfig {
     private final String dbPassword;
     private final int dbPoolSize;
 
+    private final boolean authQueueEnabled;
+    private final boolean authQueuePasswordProtectionEnabled;
+    private final String authQueuePasswordFile;
+
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
         this.host = toml.getOrElse("server.host", "127.0.0.1");
@@ -34,11 +39,15 @@ public class KonkinConfig {
         this.dbUser = toml.getOrElse("database.user", "konkin");
         this.dbPassword = toml.getOrElse("database.password", "konkin");
         this.dbPoolSize = toml.getIntOrElse("database.pool-size", 5);
+
+        this.authQueueEnabled = toml.getOrElse("auth_queue.enabled", true);
+        this.authQueuePasswordProtectionEnabled = toml.getOrElse("auth_queue.password-protection.enabled", true);
+        this.authQueuePasswordFile = toml.getOrElse("auth_queue.password-protection.password-file", "./secrets/auth_queue.password");
     }
 
     /**
      * Load configuration from a TOML file path.
-     * Fails fast on missing or incompatible config-version.
+     * Fails fast on missing/incompatible config-version and logical inconsistencies.
      */
     public static KonkinConfig load(String path) {
         log.info("Loading configuration from: {}", path);
@@ -57,8 +66,33 @@ public class KonkinConfig {
             }
 
             KonkinConfig config = new KonkinConfig(toml);
+            config.validateConsistency();
+
             log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
+            log.info("Auth queue config — enabled={}, passwordProtection={}", config.authQueueEnabled, config.authQueuePasswordProtectionEnabled);
             return config;
+        }
+    }
+
+    private void validateConsistency() {
+        if (!authQueueEnabled && authQueuePasswordProtectionEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: auth_queue.password-protection.enabled=true requires auth_queue.enabled=true.");
+        }
+
+        if (authQueuePasswordProtectionEnabled) {
+            if (authQueuePasswordFile == null || authQueuePasswordFile.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: auth_queue.password-protection.password-file must be set when password protection is enabled.");
+            }
+            try {
+                Path.of(authQueuePasswordFile);
+            } catch (InvalidPathException e) {
+                throw new IllegalStateException(
+                        "Invalid config: auth_queue.password-protection.password-file is not a valid path: " + authQueuePasswordFile,
+                        e
+                );
+            }
         }
     }
 
@@ -71,4 +105,8 @@ public class KonkinConfig {
     public String dbUser() { return dbUser; }
     public String dbPassword() { return dbPassword; }
     public int dbPoolSize() { return dbPoolSize; }
+
+    public boolean authQueueEnabled() { return authQueueEnabled; }
+    public boolean authQueuePasswordProtectionEnabled() { return authQueuePasswordProtectionEnabled; }
+    public String authQueuePasswordFile() { return authQueuePasswordFile; }
 }

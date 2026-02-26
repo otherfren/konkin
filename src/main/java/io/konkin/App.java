@@ -1,17 +1,15 @@
 package io.konkin;
 
-import io.javalin.Javalin;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.KvStore;
+import io.konkin.web.KonkinWebServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Map;
-
 /**
  * KONKIN MCP Server — main entry point.
- * Boots Javalin, H2 + Flyway, and exposes /health and /auth_queue.
+ * Boots Javalin, H2 + Flyway, and exposes /api/v1/health and optional /api/v1/auth_queue.
  */
 public class App {
 
@@ -19,50 +17,30 @@ public class App {
     private static final String VERSION = "0.1.0";
 
     public static void main(String[] args) {
-        String configPath = args.length > 0 ? args[0] : "config.toml";
+        if (args.length != 1 || args[0] == null || args[0].isBlank()) {
+            System.err.println("Usage: java -jar konkin-server.jar <config.toml>");
+            System.exit(1);
+            return;
+        }
+
+        String configPath = args[0];
 
         log.info("KONKIN mcp — starting up");
 
-        // 1. Load config
+        // 1. Load config (including consistency checks)
         KonkinConfig config = KonkinConfig.load(configPath);
 
-        // 2. Initialize a database (connection pool + Flyway migration)
+        // 2. Initialize database (connection pool + Flyway migration)
         DatabaseManager dbManager = new DatabaseManager(config);
-        KvStore kvStore = new KvStore(dbManager.dataSource());
+        new KvStore(dbManager.dataSource()); //will fail hard if something is broken
 
-        // 3. Start Javalin server
-        Javalin app = Javalin.create(javalinConfig -> {
-            javalinConfig.showJavalinBanner = false;
-        });
+        // 3. Start web server (services/controllers are assembled in KonkinWebServer)
+        KonkinWebServer webServer = new KonkinWebServer(config, VERSION);
+        webServer.start();
 
-        // /health — basic health check
-        app.get("/health", ctx -> {
-            ctx.json(Map.of(
-                    "status", "healthy",
-                    "version", VERSION,
-                    "database", "connected"
-            ));
-        });
-
-        // /auth_queue — placeholder for the HITL approval queue
-        app.get("/auth_queue", ctx -> {
-            ctx.json(Map.of(
-                    "pending", 0,
-                    "lockdown_active", false,
-                    "message", "Authorization queue is empty. No pending approvals."
-            ));
-        });
-
-        app.start(config.host(), config.port());
-
-        log.info("KONKIN server running at http://{}:{}", config.host(), config.port());
-        log.info("  /health       — health check");
-        log.info("  /auth_queue   — approval queue status");
-
-        // Graceful shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            log.info("KONKIN shutting down...");
-            app.stop();
+            log.info("KONKIN shutting down... allowing up to 3 seconds for in-flight requests.");
+            webServer.stop();
             dbManager.shutdown();
             log.info("KONKIN shutdown complete.");
         }));

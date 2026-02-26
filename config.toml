@@ -11,3 +11,11 @@ url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
 user = "sa"
 password = "sa"
 pool-size = 5
+
+[auth_queue]
+enabled = true
+
+[auth_queue.password-protection]
+enabled = true
+# rotate keys by deleting the referenced file
+password-file = "./secrets/auth_queue.password"
