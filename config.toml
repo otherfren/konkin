@@ -1,0 +1,13 @@
+config-version = 1
+
+[server]
+host = "127.0.0.1"
+port = 7070
+log-level = "info"
+log-file = "./logs/konkin.log"
+
+[database]
+url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
+user = "sa"
+password = "sa"
+pool-size = 5
