@@ -26,14 +26,14 @@ public class KonkinWebServer {
     private final KonkinConfig config;
     private final String version;
 
-    private Javalin app;
-    private LandingResourceWatcher landingResourceWatcher;
-    private boolean running;
-
     public KonkinWebServer(KonkinConfig config, String version) {
         this.config = config;
         this.version = version;
     }
+
+    private Javalin app;
+    private LandingResourceWatcher landingResourceWatcher;
+    private boolean running;
 
     public void start() {
         running = false;

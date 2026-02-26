@@ -74,7 +74,7 @@ public class LandingPageService {
         model.put("queuePath", "/");
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
-        model.put("githubPath", "#");
+        model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);

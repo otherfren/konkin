@@ -146,6 +146,9 @@ class WebEndpointsIntegrationTest {
             assertEquals("/", loginPost.headers().firstValue("location").orElse(""));
 
             assertFalse(root.body().contains("Telegram Broadcast"));
+            assertFalse(root.body().contains("href=\"/telegram\""));
+            assertFalse(root.body().contains(">github<"));
+            assertTrue(root.body().contains("View on GitHub"));
 
             HttpResponse<String> telegramPage = get(server, "/telegram", Map.of());
             assertEquals(404, telegramPage.statusCode());
@@ -257,11 +260,15 @@ class WebEndpointsIntegrationTest {
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("href=\"/telegram\""));
             assertFalse(root.body().contains("Telegram Broadcast"));
+            assertFalse(root.body().contains(">github<"));
+            assertTrue(root.body().contains("View on GitHub"));
 
             HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
             assertEquals(200, telegramPage.statusCode());
             assertTrue(telegramPage.body().contains("Telegram Broadcast"));
             assertTrue(telegramPage.body().contains("action=\"/telegram/send\""));
+            assertFalse(telegramPage.body().contains(">github<"));
+            assertTrue(telegramPage.body().contains("View on GitHub"));
 
             HttpResponse<String> telegramSubmit = postForm(
                     runningServer,

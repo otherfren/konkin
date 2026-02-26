@@ -6,7 +6,6 @@ import java.util.Map;
  * Health business logic.
  */
 public class HealthService {
-
     private final String version;
 
     public HealthService(String version) {

@@ -18,7 +18,6 @@
         <#if telegramPageAvailable>
             <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
         </#if>
-        <a href="${githubPath}">github</a>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
                 <button type="submit" class="logout-btn">logout</button>
@@ -111,4 +110,11 @@
         </form>
     </section>
 </div></main>
+
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <span class="site-footer-copy">KONKIN control panel</span>
+        <a href="${githubPath}" class="footer-link">View on GitHub</a>
+    </div>
+</footer>
 </@layout.page>

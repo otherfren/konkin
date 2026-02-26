@@ -48,6 +48,36 @@ public class KonkinConfig {
     private final String telegramApiBaseUrl;
     private final List<String> telegramChatIds;
 
+    public int configVersion() { return configVersion; }
+    public String host() { return host; }
+    public int port() { return port; }
+    public String logLevel() { return logLevel; }
+    public String logFile() { return logFile; }
+    public int logRotateMaxSizeMb() { return logRotateMaxSizeMb; }
+    public String dbUrl() { return dbUrl; }
+    public String dbUser() { return dbUser; }
+    public String dbPassword() { return dbPassword; }
+    public int dbPoolSize() { return dbPoolSize; }
+
+    public boolean authQueueEnabled() { return authQueueEnabled; }
+    public boolean authQueuePasswordProtectionEnabled() { return authQueuePasswordProtectionEnabled; }
+    public String authQueuePasswordFile() { return authQueuePasswordFile; }
+
+    public boolean landingEnabled() { return landingEnabled; }
+    public boolean landingPasswordProtectionEnabled() { return landingPasswordProtectionEnabled; }
+    public String landingPasswordFile() { return landingPasswordFile; }
+    public String landingTemplateDirectory() { return landingTemplateDirectory; }
+    public String landingTemplateName() { return landingTemplateName; }
+    public String landingStaticDirectory() { return landingStaticDirectory; }
+    public String landingStaticHostedPath() { return landingStaticHostedPath; }
+    public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
+    public boolean landingAssetsAutoReloadEnabled() { return landingAssetsAutoReloadEnabled; }
+
+    public boolean telegramEnabled() { return telegramEnabled; }
+    public String telegramSecretFile() { return telegramSecretFile; }
+    public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
+    public List<String> telegramChatIds() { return telegramChatIds; }
+
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
         this.host = toml.getOrElse("server.host", "127.0.0.1");
@@ -212,33 +242,4 @@ public class KonkinConfig {
         }
     }
 
-    public int configVersion() { return configVersion; }
-    public String host() { return host; }
-    public int port() { return port; }
-    public String logLevel() { return logLevel; }
-    public String logFile() { return logFile; }
-    public int logRotateMaxSizeMb() { return logRotateMaxSizeMb; }
-    public String dbUrl() { return dbUrl; }
-    public String dbUser() { return dbUser; }
-    public String dbPassword() { return dbPassword; }
-    public int dbPoolSize() { return dbPoolSize; }
-
-    public boolean authQueueEnabled() { return authQueueEnabled; }
-    public boolean authQueuePasswordProtectionEnabled() { return authQueuePasswordProtectionEnabled; }
-    public String authQueuePasswordFile() { return authQueuePasswordFile; }
-
-    public boolean landingEnabled() { return landingEnabled; }
-    public boolean landingPasswordProtectionEnabled() { return landingPasswordProtectionEnabled; }
-    public String landingPasswordFile() { return landingPasswordFile; }
-    public String landingTemplateDirectory() { return landingTemplateDirectory; }
-    public String landingTemplateName() { return landingTemplateName; }
-    public String landingStaticDirectory() { return landingStaticDirectory; }
-    public String landingStaticHostedPath() { return landingStaticHostedPath; }
-    public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
-    public boolean landingAssetsAutoReloadEnabled() { return landingAssetsAutoReloadEnabled; }
-
-    public boolean telegramEnabled() { return telegramEnabled; }
-    public String telegramSecretFile() { return telegramSecretFile; }
-    public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
-    public List<String> telegramChatIds() { return telegramChatIds; }
 }
