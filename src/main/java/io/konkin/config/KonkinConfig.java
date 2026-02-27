@@ -1,14 +1,21 @@
 package io.konkin.config;
 
+import com.electronwill.nightconfig.core.Config;
 import com.electronwill.nightconfig.core.file.FileConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Loads and holds all configuration from config.toml.
@@ -51,6 +58,8 @@ public class KonkinConfig {
     private final String telegramApiBaseUrl;
     private final List<String> telegramChatIds;
 
+    private final CoinConfig bitcoin;
+
     public int configVersion() { return configVersion; }
     public String host() { return host; }
     public int port() { return port; }
@@ -84,6 +93,8 @@ public class KonkinConfig {
     public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
     public List<String> telegramChatIds() { return telegramChatIds; }
 
+    public CoinConfig bitcoin() { return bitcoin; }
+
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
         this.host = toml.getOrElse("server.host", "127.0.0.1");
@@ -100,15 +111,55 @@ public class KonkinConfig {
         this.authQueuePasswordProtectionEnabled = toml.getOrElse("auth_queue.password-protection.enabled", true);
         this.authQueuePasswordFile = toml.getOrElse("auth_queue.password-protection.password-file", "./secrets/auth_queue.password");
 
-        this.landingEnabled = toml.getOrElse("landing.enabled", false);
-        this.landingPasswordProtectionEnabled = toml.getOrElse("landing.password-protection.enabled", this.landingEnabled);
-        this.landingPasswordFile = toml.getOrElse("landing.password-protection.password-file", "./secrets/landing.password");
-        this.landingTemplateDirectory = toml.getOrElse("landing.template.directory", "./src/main/resources/templates");
-        this.landingTemplateName = toml.getOrElse("landing.template.name", "landing.ftl");
-        this.landingStaticDirectory = toml.getOrElse("landing.static.directory", "./src/main/resources/static");
-        this.landingStaticHostedPath = toml.getOrElse("landing.static.hosted-path", "/assets");
-        this.landingAutoReloadEnabled = toml.getOrElse("landing.auto-reload.enabled", true);
-        this.landingAssetsAutoReloadEnabled = toml.getOrElse("landing.auto-reload.assets-enabled", true);
+        this.landingEnabled = getOrElseWithFallback(toml, "web-ui.enabled", "landing.enabled", false);
+        this.landingPasswordProtectionEnabled = getOrElseWithFallback(
+                toml,
+                "web-ui.password-protection.enabled",
+                "landing.password-protection.enabled",
+                this.landingEnabled
+        );
+        this.landingPasswordFile = getOrElseWithFallback(
+                toml,
+                "web-ui.password-protection.password-file",
+                "landing.password-protection.password-file",
+                "./secrets/web-ui.password"
+        );
+        this.landingTemplateDirectory = getOrElseWithFallback(
+                toml,
+                "web-ui.template.directory",
+                "landing.template.directory",
+                "./src/main/resources/templates"
+        );
+        this.landingTemplateName = getOrElseWithFallback(
+                toml,
+                "web-ui.template.name",
+                "landing.template.name",
+                "landing.ftl"
+        );
+        this.landingStaticDirectory = getOrElseWithFallback(
+                toml,
+                "web-ui.static.directory",
+                "landing.static.directory",
+                "./src/main/resources/static"
+        );
+        this.landingStaticHostedPath = getOrElseWithFallback(
+                toml,
+                "web-ui.static.hosted-path",
+                "landing.static.hosted-path",
+                "/assets"
+        );
+        this.landingAutoReloadEnabled = getOrElseWithFallback(
+                toml,
+                "web-ui.auto-reload.enabled",
+                "landing.auto-reload.enabled",
+                true
+        );
+        this.landingAssetsAutoReloadEnabled = getOrElseWithFallback(
+                toml,
+                "web-ui.auto-reload.assets-enabled",
+                "landing.auto-reload.assets-enabled",
+                true
+        );
 
         this.debugEnabled = toml.getOrElse("debug.enabled", false);
         this.debugSeedFakeData = toml.getOrElse("debug.seed-fake-data", false);
@@ -131,6 +182,12 @@ public class KonkinConfig {
             }
         }
         this.telegramChatIds = List.copyOf(deduplicatedTelegramChatIds);
+
+        this.bitcoin = loadBitcoinConfig(toml);
+    }
+
+    private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
+        return toml.getOrElse(primaryKey, toml.getOrElse(legacyKey, defaultValue));
     }
 
     /**
@@ -155,6 +212,7 @@ public class KonkinConfig {
 
             KonkinConfig config = new KonkinConfig(toml);
             config.validateConsistency();
+            config.bootstrapSecretFiles();
 
             log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
             log.info("Logging config — level={}, file={}, rotateMaxSizeMb={}",
@@ -173,6 +231,16 @@ public class KonkinConfig {
                     config.telegramEnabled,
                     config.telegramSecretFile,
                     config.telegramChatIds.size());
+            log.info("Bitcoin config — enabled={}, daemonSecretFile={}, walletSecretFile={}, webUi={}, restApi={}, telegram={}, mcpId={}, autoAcceptRules={}, autoDenyRules={}",
+                    config.bitcoin.enabled(),
+                    config.bitcoin.bitcoinDaemonConfigSecretFile(),
+                    config.bitcoin.bitcoinWalletConfigSecretFile(),
+                    config.bitcoin.auth().webUi(),
+                    config.bitcoin.auth().restApi(),
+                    config.bitcoin.auth().telegram(),
+                    config.bitcoin.auth().mcp(),
+                    config.bitcoin.auth().autoAccept().size(),
+                    config.bitcoin.auth().autoDeny().size());
             return config;
         }
     }
@@ -203,26 +271,26 @@ public class KonkinConfig {
 
         if (!landingEnabled && landingPasswordProtectionEnabled) {
             throw new IllegalStateException(
-                    "Invalid config: landing.password-protection.enabled=true requires landing.enabled=true.");
+                    "Invalid config: web-ui.password-protection.enabled=true requires web-ui.enabled=true.");
         }
 
         if (landingEnabled) {
             if (landingTemplateName == null || landingTemplateName.isBlank()) {
-                throw new IllegalStateException("Invalid config: landing.template.name must not be blank when landing.enabled=true.");
+                throw new IllegalStateException("Invalid config: web-ui.template.name must not be blank when web-ui.enabled=true.");
             }
             if (landingStaticHostedPath == null || landingStaticHostedPath.isBlank() || !landingStaticHostedPath.startsWith("/")) {
-                throw new IllegalStateException("Invalid config: landing.static.hosted-path must start with '/' when landing.enabled=true.");
+                throw new IllegalStateException("Invalid config: web-ui.static.hosted-path must start with '/' when web-ui.enabled=true.");
             }
 
-            validatePath(landingTemplateDirectory, "landing.template.directory");
-            validatePath(landingStaticDirectory, "landing.static.directory");
+            validatePath(landingTemplateDirectory, "web-ui.template.directory");
+            validatePath(landingStaticDirectory, "web-ui.static.directory");
 
             if (landingPasswordProtectionEnabled) {
                 if (landingPasswordFile == null || landingPasswordFile.isBlank()) {
                     throw new IllegalStateException(
-                            "Invalid config: landing.password-protection.password-file must be set when password protection is enabled.");
+                            "Invalid config: web-ui.password-protection.password-file must be set when password protection is enabled.");
                 }
-                validatePath(landingPasswordFile, "landing.password-protection.password-file");
+                validatePath(landingPasswordFile, "web-ui.password-protection.password-file");
             }
         }
 
@@ -244,6 +312,252 @@ public class KonkinConfig {
                 }
             }
         }
+
+        validateBitcoinConfig();
+    }
+
+    private CoinConfig loadBitcoinConfig(FileConfig toml) {
+        boolean enabled = toml.getOrElse("coins.bitcoin.enabled", false);
+
+        String daemonSecretFile = toml.getOrElse(
+                "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
+                "./secrets/bitcoin-daemon.conf"
+        );
+        String walletSecretFile = toml.getOrElse(
+                "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
+                "./secrets/bitcoin-wallet.conf"
+        );
+
+        boolean webUi = toml.getOrElse("coins.bitcoin.auth.web-ui", true);
+        boolean restApi = toml.getOrElse("coins.bitcoin.auth.rest-api", true);
+        boolean telegram = toml.getOrElse("coins.bitcoin.auth.telegram", false);
+        String mcp = toml.getOrElse("coins.bitcoin.auth.mcp", "");
+
+        List<ApprovalRule> autoAccept = readApprovalRules(toml, "coins.bitcoin.auth.auto-accept");
+        List<ApprovalRule> autoDeny = readApprovalRules(toml, "coins.bitcoin.auth.auto-deny");
+
+        return new CoinConfig(
+                enabled,
+                daemonSecretFile,
+                walletSecretFile,
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp)
+        );
+    }
+
+    private List<ApprovalRule> readApprovalRules(FileConfig toml, String keyPath) {
+        Object rawRules = toml.get(keyPath);
+        if (rawRules == null) {
+            return List.of();
+        }
+
+        if (!(rawRules instanceof List<?> listRules)) {
+            throw new IllegalStateException("Invalid config: " + keyPath + " must be a TOML list.");
+        }
+
+        List<ApprovalRule> parsedRules = new ArrayList<>();
+        int index = 0;
+        for (Object rawRule : listRules) {
+            parsedRules.add(parseApprovalRule(rawRule, keyPath, index));
+            index++;
+        }
+
+        return List.copyOf(parsedRules);
+    }
+
+    private ApprovalRule parseApprovalRule(Object rawRule, String keyPath, int index) {
+        if (!(rawRule instanceof Config ruleConfig)) {
+            throw new IllegalStateException(
+                    "Invalid config: " + keyPath + "[" + index + "] must be a TOML table with criteria.");
+        }
+
+        Object rawCriteria = ruleConfig.get("criteria");
+        ApprovalCriteria criteria = rawCriteria == null
+                ? parseCriteria(ruleConfig, keyPath + "[" + index + "]")
+                : parseCriteria(rawCriteria, keyPath + "[" + index + "].criteria");
+
+        return new ApprovalRule(criteria);
+    }
+
+    private ApprovalCriteria parseCriteria(Object rawCriteria, String keyPath) {
+        if (!(rawCriteria instanceof Config criteriaConfig)) {
+            throw new IllegalStateException("Invalid config: " + keyPath + " must be a TOML table.");
+        }
+
+        String typeRaw = normalizeString(criteriaConfig.get("type"));
+        if (typeRaw == null || typeRaw.isBlank()) {
+            throw new IllegalStateException("Invalid config: " + keyPath + ".type must be set.");
+        }
+
+        CriteriaType type = CriteriaType.fromTomlValue(typeRaw);
+
+        double value = parseDouble(criteriaConfig.get("value"), keyPath + ".value");
+        if (value <= 0d) {
+            throw new IllegalStateException("Invalid config: " + keyPath + ".value must be > 0.");
+        }
+
+        String periodRaw = normalizeString(criteriaConfig.get("period"));
+        Duration period = null;
+
+        if (type.requiresPeriod()) {
+            if (periodRaw == null || periodRaw.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: " + keyPath + ".period is required for type=" + type.tomlValue() + "."
+                );
+            }
+            period = parseDuration(periodRaw, keyPath + ".period");
+        } else if (periodRaw != null && !periodRaw.isBlank()) {
+            period = parseDuration(periodRaw, keyPath + ".period");
+        }
+
+        return new ApprovalCriteria(type, value, period);
+    }
+
+    private double parseDouble(Object value, String keyPath) {
+        if (value instanceof Number numberValue) {
+            return numberValue.doubleValue();
+        }
+
+        if (value instanceof String stringValue) {
+            try {
+                return Double.parseDouble(stringValue.trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("Invalid config: " + keyPath + " must be a numeric value.", e);
+            }
+        }
+
+        throw new IllegalStateException("Invalid config: " + keyPath + " must be a numeric value.");
+    }
+
+    private Duration parseDuration(String value, String keyPath) {
+        try {
+            Duration duration = Duration.parse(value);
+            if (duration.isZero() || duration.isNegative()) {
+                throw new IllegalStateException("Invalid config: " + keyPath + " must be > PT0S.");
+            }
+            return duration;
+        } catch (DateTimeParseException e) {
+            throw new IllegalStateException(
+                    "Invalid config: " + keyPath + " must be ISO-8601 duration, e.g. PT24H.",
+                    e
+            );
+        }
+    }
+
+    private void validateBitcoinConfig() {
+        if (!bitcoin.enabled()) {
+            return;
+        }
+
+        if (bitcoin.bitcoinDaemonConfigSecretFile() == null || bitcoin.bitcoinDaemonConfigSecretFile().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.bitcoin.secret-files.bitcoin-daemon-config-file must be set when coins.bitcoin.enabled=true.");
+        }
+        if (bitcoin.bitcoinWalletConfigSecretFile() == null || bitcoin.bitcoinWalletConfigSecretFile().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.bitcoin.secret-files.bitcoin-wallet-config-file must be set when coins.bitcoin.enabled=true.");
+        }
+
+        validatePath(bitcoin.bitcoinDaemonConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-daemon-config-file");
+        validatePath(bitcoin.bitcoinWalletConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-wallet-config-file");
+
+        CoinAuthConfig auth = bitcoin.auth();
+        if (!auth.webUi() && !auth.restApi() && !auth.telegram()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.bitcoin.auth must enable at least one channel (web-ui/rest-api/telegram).");
+        }
+
+        if (auth.mcp() == null || auth.mcp().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.bitcoin.auth.mcp must be a non-empty unique identifier.");
+        }
+
+        for (ApprovalRule rule : auth.autoAccept()) {
+            ensureRuleConsistency(rule, "coins.bitcoin.auth.auto-accept");
+        }
+        for (ApprovalRule rule : auth.autoDeny()) {
+            ensureRuleConsistency(rule, "coins.bitcoin.auth.auto-deny");
+        }
+
+        CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);
+    }
+
+    private void ensureRuleConsistency(ApprovalRule rule, String keyPath) {
+        if (rule == null || rule.criteria() == null) {
+            throw new IllegalStateException("Invalid config: " + keyPath + " contains an empty rule.");
+        }
+
+        ApprovalCriteria criteria = rule.criteria();
+        if (criteria.value() <= 0d) {
+            throw new IllegalStateException("Invalid config: " + keyPath + " criteria.value must be > 0.");
+        }
+
+        if (criteria.type().requiresPeriod()) {
+            if (criteria.period() == null || criteria.period().isZero() || criteria.period().isNegative()) {
+                throw new IllegalStateException(
+                        "Invalid config: " + keyPath + " requires criteria.period > PT0S for cumulated types.");
+            }
+        }
+    }
+
+    private void bootstrapSecretFiles() {
+        if (!bitcoin.enabled()) {
+            return;
+        }
+
+        ensureSecretFileExists(
+                Path.of(bitcoin.bitcoinDaemonConfigSecretFile()),
+                "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
+                defaultBitcoinDaemonSecretContent()
+        );
+        ensureSecretFileExists(
+                Path.of(bitcoin.bitcoinWalletConfigSecretFile()),
+                "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
+                defaultBitcoinWalletSecretContent()
+        );
+    }
+
+    private void ensureSecretFileExists(Path secretFile, String keyName, String content) {
+        if (Files.exists(secretFile)) {
+            return;
+        }
+
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(secretFile, content, StandardCharsets.UTF_8);
+            log.warn("Created missing secret file for {} at {}", keyName, secretFile.toAbsolutePath());
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create secret file for " + keyName + ": " + secretFile, e);
+        }
+    }
+
+    private String defaultBitcoinDaemonSecretContent() {
+        return """
+                # KONKIN Bitcoin daemon secret config
+                # Fill with your node RPC credentials.
+                rpcuser=REPLACE_WITH_BITCOIN_RPC_USER
+                rpcpassword=REPLACE_WITH_BITCOIN_RPC_PASSWORD
+                rpcconnect=127.0.0.1
+                rpcport=8332
+                """;
+    }
+
+    private String defaultBitcoinWalletSecretContent() {
+        return """
+                # KONKIN Bitcoin wallet secret config
+                # Fill with your wallet details.
+                wallet=REPLACE_WITH_BITCOIN_WALLET_NAME
+                wallet-passphrase=REPLACE_WITH_BITCOIN_WALLET_PASSPHRASE
+                """;
+    }
+
+    private static String normalizeString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString().trim();
     }
 
     private void validatePath(String pathValue, String keyName) {
@@ -257,4 +571,68 @@ public class KonkinConfig {
         }
     }
 
+    public record CoinConfig(
+            boolean enabled,
+            String bitcoinDaemonConfigSecretFile,
+            String bitcoinWalletConfigSecretFile,
+            CoinAuthConfig auth
+    ) {
+    }
+
+    public record CoinAuthConfig(
+            List<ApprovalRule> autoAccept,
+            List<ApprovalRule> autoDeny,
+            boolean webUi,
+            boolean restApi,
+            boolean telegram,
+            String mcp
+    ) {
+    }
+
+    public record ApprovalRule(ApprovalCriteria criteria) {
+    }
+
+    public record ApprovalCriteria(CriteriaType type, double value, Duration period) {
+    }
+
+    public enum CriteriaType {
+        VALUE_GT("value-gt", false),
+        VALUE_LT("value-lt", false),
+        CUMULATED_VALUE_GT("cumulated-value-gt", true),
+        CUMULATED_VALUE_LT("cumulated-value-lt", true);
+
+        private final String tomlValue;
+        private final boolean requiresPeriod;
+
+        CriteriaType(String tomlValue, boolean requiresPeriod) {
+            this.tomlValue = tomlValue;
+            this.requiresPeriod = requiresPeriod;
+        }
+
+        public String tomlValue() {
+            return tomlValue;
+        }
+
+        public boolean requiresPeriod() {
+            return requiresPeriod;
+        }
+
+        public static CriteriaType fromTomlValue(String rawType) {
+            String normalized = rawType.trim()
+                    .toLowerCase(Locale.ROOT)
+                    .replace("_", "-")
+                    .replace(" ", "");
+
+            return switch (normalized) {
+                case "value-gt", "value>", "gt", "greater-than" -> VALUE_GT;
+                case "value-lt", "value<", "lt", "less-than" -> VALUE_LT;
+                case "cumulated-value-gt", "cumulatedvalue-gt", "cumulated>", "cumulated-greater-than" -> CUMULATED_VALUE_GT;
+                case "cumulated-value-lt", "cumulatedvalue-lt", "cumulated<", "cumulated-less-than" -> CUMULATED_VALUE_LT;
+                default -> throw new IllegalStateException(
+                        "Invalid config: unsupported criteria.type='" + rawType +
+                                "'. Supported: value-gt, value-lt, cumulated-value-gt, cumulated-value-lt."
+                );
+            };
+        }
+    }
 }

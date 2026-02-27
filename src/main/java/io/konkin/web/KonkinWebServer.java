@@ -161,21 +161,21 @@ public class KonkinWebServer {
             app.get("/api/v1/auth_queue", authQueueController::handle);
         }
 
-        LandingPageController landingPageControllerFinal = landingPageController;
+        LandingPageController webUiPageControllerFinal = landingPageController;
         LandingPageService landingPageServiceFinal = landingPageService;
         Path landingTemplateDirectoryFinal = landingTemplateDirectory;
 
         if (config.landingEnabled()) {
-            app.get("/", landingPageControllerFinal::handleRoot);
-            app.get("/log", landingPageControllerFinal::handleLog);
-            app.get("/login", landingPageControllerFinal::handleLoginPage);
-            app.post("/login", landingPageControllerFinal::handleLoginSubmit);
-            app.post("/logout", landingPageControllerFinal::handleLogout);
+            app.get("/", webUiPageControllerFinal::handleRoot);
+            app.get("/log", webUiPageControllerFinal::handleLog);
+            app.get("/login", webUiPageControllerFinal::handleLoginPage);
+            app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
+            app.post("/logout", webUiPageControllerFinal::handleLogout);
 
             if (config.telegramEnabled()) {
-                app.get("/telegram", landingPageControllerFinal::handleTelegramPage);
-                app.post("/telegram/approve", landingPageControllerFinal::handleTelegramApprove);
-                app.post("/telegram/send", landingPageControllerFinal::handleTelegramSubmit);
+                app.get("/telegram", webUiPageControllerFinal::handleTelegramPage);
+                app.post("/telegram/approve", webUiPageControllerFinal::handleTelegramApprove);
+                app.post("/telegram/send", webUiPageControllerFinal::handleTelegramSubmit);
             }
 
             landingResourceWatcher = new LandingResourceWatcher(

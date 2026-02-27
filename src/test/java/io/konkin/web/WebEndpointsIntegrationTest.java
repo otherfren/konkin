@@ -177,6 +177,130 @@ class WebEndpointsIntegrationTest {
     }
 
     @Test
+    void webUiConfigSectionEnablesLandingRoutes() throws Exception {
+        int port = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui.password");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+                """.formatted(
+                port,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir)
+        );
+
+        Path configFile = tempDir.resolve("config-web-ui-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        assertTrue(config.landingEnabled());
+        assertEquals(tomlPath(webUiPasswordFile), config.landingPasswordFile());
+
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> root = get(runningServer, "/", Map.of());
+            assertEquals(200, root.statusCode());
+            assertTrue(root.body().contains("KONKIN"));
+        }
+    }
+
+    @Test
+    void bitcoinContradictoryAuthCriteriaRefusesStartupAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = false
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+
+                [[coins.bitcoin.auth.auto-accept]]
+                [coins.bitcoin.auth.auto-accept.criteria]
+                type = "value-lt"
+                value = 1.0
+
+                [[coins.bitcoin.auth.auto-deny]]
+                [coins.bitcoin.auth.auto-deny.criteria]
+                type = "value-gt"
+                value = 0.5
+                """.formatted(
+                port,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-contradiction-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("contradictory auth criteria for coin 'bitcoin'"));
+    }
+
+    @Test
     void landingEnabledUnprotectedServesRootLogAndStaticAssets() throws Exception {
         try (RunningServer server = startServer(false, false, "unused", true, false, "unused")) {
             HttpResponse<String> root = get(server, "/", Map.of());
