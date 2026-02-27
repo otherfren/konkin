@@ -42,7 +42,7 @@ enabled = true
 assets-enabled = true
 
 [debug]
-enabled = true
+enabled = false
 seed-fake-data = false
 
 [telegram]

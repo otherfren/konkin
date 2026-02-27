@@ -162,7 +162,7 @@ public class KonkinConfig {
                     config.logFile,
                     config.logRotateMaxSizeMb);
             log.info("Auth queue config — enabled={}, passwordProtection={}", config.authQueueEnabled, config.authQueuePasswordProtectionEnabled);
-            log.info("Landing page config — enabled={}, passwordProtection={}, templateDir={}, staticDir={}",
+            log.info("Web UI config — enabled={}, passwordProtection={}, templateDir={}, staticDir={}",
                     config.landingEnabled,
                     config.landingPasswordProtectionEnabled,
                     config.landingTemplateDirectory,
