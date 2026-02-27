@@ -112,6 +112,21 @@ body {
     font-weight: 400;
 }
 
+.table-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin: 0 0 10px;
+}
+
+.table-meta {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
 .queue-table {
     width: 100%;
     border-collapse: collapse;
@@ -128,6 +143,27 @@ body {
     text-align: left;
     padding: 8px 12px;
     border-bottom: 1px solid var(--line);
+}
+
+.sort-link {
+    color: inherit;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sort-link:hover {
+    color: var(--accent);
+}
+
+.sort-link.active {
+    color: var(--accent);
+}
+
+.sort-indicator {
+    font-size: 0.82em;
+    line-height: 1;
 }
 
 .queue-table td {
@@ -204,6 +240,60 @@ body {
     color: var(--muted);
     background: rgba(169, 176, 190, 0.06);
     border: 1px solid var(--line);
+}
+
+.status.pending {
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.24);
+}
+
+.empty-row {
+    text-align: center;
+    color: var(--muted);
+    font-style: italic;
+}
+
+.pager {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.pager-link {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 10px;
+    background: rgba(23, 26, 33, 0.75);
+}
+
+.pager-link:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(247, 147, 26, 0.06);
+}
+
+.pager-link.disabled {
+    color: #6d7584;
+    border-color: #2a313d;
+    background: rgba(15, 17, 21, 0.6);
+    pointer-events: none;
+}
+
+.pager-info {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
 }
 
 .main-section {

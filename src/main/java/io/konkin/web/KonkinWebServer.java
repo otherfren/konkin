@@ -3,6 +3,8 @@ package io.konkin.web;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
 import io.konkin.config.KonkinConfig;
+import io.konkin.db.AuthQueueStore;
+import io.konkin.db.DebugDataSeeder;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.controller.AuthQueueController;
 import io.konkin.web.controller.HealthController;
@@ -16,6 +18,7 @@ import io.konkin.web.service.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -25,10 +28,16 @@ public class KonkinWebServer {
 
     private final KonkinConfig config;
     private final String version;
+    private final DataSource dataSource;
 
     public KonkinWebServer(KonkinConfig config, String version) {
+        this(config, version, null);
+    }
+
+    public KonkinWebServer(KonkinConfig config, String version, DataSource dataSource) {
         this.config = config;
         this.version = version;
+        this.dataSource = dataSource;
     }
 
     private Javalin app;
@@ -41,7 +50,12 @@ public class KonkinWebServer {
         HealthService healthService = new HealthService(version);
         HealthController healthController = new HealthController(healthService);
 
-        AuthQueueService authQueueService = new AuthQueueService();
+        AuthQueueStore authQueueStore = dataSource != null ? new AuthQueueStore(dataSource) : null;
+        if (dataSource != null) {
+            DebugDataSeeder debugDataSeeder = new DebugDataSeeder(dataSource);
+            debugDataSeeder.seedIfEnabled(config.debugEnabled(), config.debugSeedFakeData());
+        }
+        AuthQueueService authQueueService = new AuthQueueService(authQueueStore);
         PasswordFileManager authQueuePasswordFileManager = null;
         if (config.authQueueEnabled() && config.authQueuePasswordProtectionEnabled()) {
             authQueuePasswordFileManager = PasswordFileManager.bootstrap(Path.of(config.authQueuePasswordFile()));
@@ -121,7 +135,8 @@ public class KonkinWebServer {
                     config.telegramEnabled(),
                     config.telegramChatIds(),
                     telegramService,
-                    telegramSecretService
+                    telegramSecretService,
+                    authQueueStore
             );
         }
 

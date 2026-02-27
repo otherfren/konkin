@@ -43,6 +43,9 @@ public class KonkinConfig {
     private final boolean landingAutoReloadEnabled;
     private final boolean landingAssetsAutoReloadEnabled;
 
+    private final boolean debugEnabled;
+    private final boolean debugSeedFakeData;
+
     private final boolean telegramEnabled;
     private final String telegramSecretFile;
     private final String telegramApiBaseUrl;
@@ -72,6 +75,9 @@ public class KonkinConfig {
     public String landingStaticHostedPath() { return landingStaticHostedPath; }
     public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
     public boolean landingAssetsAutoReloadEnabled() { return landingAssetsAutoReloadEnabled; }
+
+    public boolean debugEnabled() { return debugEnabled; }
+    public boolean debugSeedFakeData() { return debugSeedFakeData; }
 
     public boolean telegramEnabled() { return telegramEnabled; }
     public String telegramSecretFile() { return telegramSecretFile; }
@@ -103,6 +109,9 @@ public class KonkinConfig {
         this.landingStaticHostedPath = toml.getOrElse("landing.static.hosted-path", "/assets");
         this.landingAutoReloadEnabled = toml.getOrElse("landing.auto-reload.enabled", true);
         this.landingAssetsAutoReloadEnabled = toml.getOrElse("landing.auto-reload.assets-enabled", true);
+
+        this.debugEnabled = toml.getOrElse("debug.enabled", false);
+        this.debugSeedFakeData = toml.getOrElse("debug.seed-fake-data", false);
 
         this.telegramEnabled = toml.getOrElse("telegram.enabled", false);
         this.telegramSecretFile = toml.getOrElse("telegram.secret-file", "./secrets/telegram.secret");
@@ -159,6 +168,7 @@ public class KonkinConfig {
                     config.landingTemplateDirectory,
                     config.landingStaticDirectory
             );
+            log.info("Debug config — enabled={}, seedFakeData={}", config.debugEnabled, config.debugSeedFakeData);
             log.info("Telegram config — enabled={}, secretFile={}, configuredChatIds={}",
                     config.telegramEnabled,
                     config.telegramSecretFile,
@@ -171,6 +181,11 @@ public class KonkinConfig {
         if (logRotateMaxSizeMb <= 0) {
             throw new IllegalStateException(
                     "Invalid config: server.log-rotate-max-size-mb must be > 0.");
+        }
+
+        if (debugSeedFakeData && !debugEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: debug.seed-fake-data=true requires debug.enabled=true.");
         }
 
         if (!authQueueEnabled && authQueuePasswordProtectionEnabled) {

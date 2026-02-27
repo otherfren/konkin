@@ -56,7 +56,7 @@ public class LandingPageService {
     }
 
     public String renderLanding(boolean showLogout, String activePage) {
-        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of());
+        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of());
     }
 
     public String renderLanding(
@@ -66,7 +66,11 @@ public class LandingPageService {
             boolean telegramNoticeError,
             String telegramDraft,
             List<Map<String, String>> telegramChatRequests,
-            List<Map<String, String>> telegramApprovedChats
+            List<Map<String, String>> telegramApprovedChats,
+            List<Map<String, Object>> queueRows,
+            Map<String, Object> queuePage,
+            List<Map<String, Object>> auditRows,
+            Map<String, Object> auditPage
     ) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
@@ -84,6 +88,10 @@ public class LandingPageService {
         model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
         model.put("telegramChatRequests", telegramChatRequests == null ? List.of() : telegramChatRequests);
         model.put("telegramApprovedChats", telegramApprovedChats == null ? List.of() : telegramApprovedChats);
+        model.put("queueRows", queueRows == null ? List.of() : queueRows);
+        model.put("queuePage", queuePage == null ? Map.of() : queuePage);
+        model.put("auditRows", auditRows == null ? List.of() : auditRows);
+        model.put("auditPage", auditPage == null ? Map.of() : auditPage);
 
         String selectedTemplate;
         if ("log".equals(activePage)) {

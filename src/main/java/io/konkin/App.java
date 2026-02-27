@@ -43,7 +43,7 @@ public class App {
         new KvStore(dbManager.dataSource()); //will fail hard if something is broken
 
         // 4. Start web server (services/controllers are assembled in KonkinWebServer)
-        KonkinWebServer webServer = new KonkinWebServer(config, VERSION);
+        KonkinWebServer webServer = new KonkinWebServer(config, VERSION, dbManager.dataSource());
         webServer.start();
 
         if (!webServer.isRunning()) {

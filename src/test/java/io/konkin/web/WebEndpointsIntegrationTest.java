@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import io.konkin.config.KonkinConfig;
+import io.konkin.db.DatabaseManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.io.Writer;
 import java.net.InetSocketAddress;
@@ -21,6 +23,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -104,6 +110,55 @@ class WebEndpointsIntegrationTest {
 
             JsonNode validJson = JSON.readTree(validHeader.body());
             assertEquals(0, validJson.path("pending").asInt());
+        }
+    }
+
+    @Test
+    void authQueueStatusReflectsOpenRequestsAndLockdownFromDatabase() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+
+            insertApprovalRequest(dataSource, "req-open", "nonce-open", "PENDING");
+            insertApprovalRequest(dataSource, "req-done", "nonce-done", "COMPLETED");
+            insertCoinLockdown(dataSource, "bitcoin", Instant.now().plusSeconds(120));
+
+            HttpResponse<String> response = get(server, "/api/v1/auth_queue", Map.of());
+            assertEquals(200, response.statusCode());
+
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals(1, json.path("pending").asInt());
+            assertTrue(json.path("lockdown_active").asBoolean());
+            assertTrue(json.path("message").asText().contains("lockdown"));
+        }
+    }
+
+    @Test
+    void approvalRequestsRejectDuplicateNonceComposite() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+
+            insertApprovalRequest(dataSource, "req-1", "nonce-duplicate", "PENDING");
+
+            assertThrows(
+                    SQLException.class,
+                    () -> insertApprovalRequest(dataSource, "req-2", "nonce-duplicate", "PENDING")
+            );
+        }
+    }
+
+    @Test
+    void approvalVotesRejectDuplicateVotePerRequestAndChannel() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+
+            insertApprovalRequest(dataSource, "req-votes", "nonce-votes", "PENDING");
+            insertApprovalChannel(dataSource, "telegram.main", "telegram");
+            insertApprovalVote(dataSource, "req-votes", "telegram.main", "approve");
+
+            assertThrows(
+                    SQLException.class,
+                    () -> insertApprovalVote(dataSource, "req-votes", "telegram.main", "deny")
+            );
         }
     }
 
@@ -521,12 +576,20 @@ class WebEndpointsIntegrationTest {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
+        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-" + System.nanoTime() + "/konkin"));
+
         String configToml = """
                 config-version = 1
 
                 [server]
                 host = "127.0.0.1"
                 port = %d
+
+                [database]
+                url = "%s"
+                user = "konkin"
+                password = "konkin"
+                pool-size = 5
 
                 [auth_queue]
                 enabled = %s
@@ -554,6 +617,7 @@ class WebEndpointsIntegrationTest {
                 enabled = false
                 """.formatted(
                 port,
+                dbUrl,
                 authQueueEnabled,
                 authQueuePasswordProtected,
                 tomlPath(authQueuePasswordFile),
@@ -568,17 +632,19 @@ class WebEndpointsIntegrationTest {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 
         try {
             waitForHealth(port);
         } catch (Exception e) {
             server.stop();
+            dbManager.shutdown();
             throw e;
         }
 
-        return new RunningServer(server, URI.create("http://127.0.0.1:" + port));
+        return new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager);
     }
 
     private static HttpResponse<String> get(RunningServer server, String path, Map<String, String> headers)
@@ -627,6 +693,91 @@ class WebEndpointsIntegrationTest {
             Thread.sleep(100L);
         }
         return false;
+    }
+
+    private static void insertApprovalRequest(DataSource dataSource, String requestId, String nonceComposite, String state)
+            throws SQLException {
+        String sql = """
+                INSERT INTO approval_requests (
+                    id,
+                    coin,
+                    tool_name,
+                    nonce_uuid,
+                    payload_hash_sha256,
+                    nonce_composite,
+                    requested_at,
+                    expires_at,
+                    state,
+                    min_approvals_required
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """;
+
+        Instant now = Instant.now();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, requestId);
+            ps.setString(2, "bitcoin");
+            ps.setString(3, "bitcoin_send");
+            ps.setString(4, "nonce-uuid-" + requestId);
+            ps.setString(5, "sha256-" + requestId);
+            ps.setString(6, nonceComposite);
+            ps.setTimestamp(7, Timestamp.from(now));
+            ps.setTimestamp(8, Timestamp.from(now.plusSeconds(600)));
+            ps.setString(9, state);
+            ps.setInt(10, 1);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void insertCoinLockdown(DataSource dataSource, String coin, Instant lockdownUntil)
+            throws SQLException {
+        String sql = """
+                INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until)
+                VALUES (?, NULL, NULL, ?)
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, coin);
+            ps.setTimestamp(2, Timestamp.from(lockdownUntil));
+            ps.executeUpdate();
+        }
+    }
+
+    private static void insertApprovalChannel(DataSource dataSource, String channelId, String channelType)
+            throws SQLException {
+        String sql = """
+                INSERT INTO approval_channels (id, channel_type, display_name, enabled, config_fingerprint)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, channelId);
+            ps.setString(2, channelType);
+            ps.setString(3, channelId);
+            ps.setBoolean(4, true);
+            ps.setString(5, "test-fingerprint");
+            ps.executeUpdate();
+        }
+    }
+
+    private static void insertApprovalVote(DataSource dataSource, String requestId, String channelId, String decision)
+            throws SQLException {
+        String sql = """
+                INSERT INTO approval_votes (request_id, channel_id, decision, decision_reason, decided_by)
+                VALUES (?, ?, ?, ?, ?)
+                """;
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, requestId);
+            ps.setString(2, channelId);
+            ps.setString(3, decision);
+            ps.setString(4, "integration-test");
+            ps.setString(5, "test-actor");
+            ps.executeUpdate();
+        }
     }
 
     private static void waitForHealth(int port) throws Exception {
@@ -688,10 +839,17 @@ class WebEndpointsIntegrationTest {
         return path.toAbsolutePath().normalize().toString().replace("\\", "\\\\");
     }
 
-    private record RunningServer(KonkinWebServer server, URI baseUri) implements AutoCloseable {
+    private record RunningServer(KonkinWebServer server, URI baseUri, DatabaseManager dbManager) implements AutoCloseable {
+        private RunningServer(KonkinWebServer server, URI baseUri) {
+            this(server, baseUri, null);
+        }
+
         @Override
         public void close() {
             server.stop();
+            if (dbManager != null) {
+                dbManager.shutdown();
+            }
         }
     }
 }

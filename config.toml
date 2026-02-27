@@ -41,6 +41,10 @@ hosted-path = "/assets"
 enabled = true
 assets-enabled = true
 
+[debug]
+enabled = true
+seed-fake-data = false
+
 [telegram]
 enabled = true
 secret-file = "./secrets/telegram.secret"

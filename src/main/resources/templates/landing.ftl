@@ -28,93 +28,97 @@
 
 <main class="main-section"><div class="content">
     <h2 class="queue-title">Auth Queue</h2>
+
+    <#assign qSort = (queuePage.sortBy!'requested_at')>
+    <#assign qDir = (queuePage.sortDir!'desc')>
+    <#assign qPage = (queuePage.page!1)>
+    <#assign qPageSize = (queuePage.pageSize!25)>
+    <#assign qTotalRows = (queuePage.totalRows!0)>
+    <#assign qTotalPages = (queuePage.totalPages!0)>
+
+    <div class="table-toolbar">
+        <span class="table-meta">rows: ${qTotalRows} · page ${qPage} / ${qTotalPages}</span>
+    </div>
+
     <table class="queue-table">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Client</th>
-                <th>IP</th>
-                <th>Requested</th>
-                <th>Scope</th>
-                <th>Action</th>
+                <th>
+                    <a class="sort-link <#if qSort == 'id'>active</#if>" href="${queuePath}?queue_sort=id&queue_dir=<#if qSort == 'id' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        ID<#if qSort == 'id'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>
+                    <a class="sort-link <#if qSort == 'coin'>active</#if>" href="${queuePath}?queue_sort=coin&queue_dir=<#if qSort == 'coin' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        Coin<#if qSort == 'coin'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>
+                    <a class="sort-link <#if qSort == 'tool_name'>active</#if>" href="${queuePath}?queue_sort=tool_name&queue_dir=<#if qSort == 'tool_name' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        Tool<#if qSort == 'tool_name'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>
+                    <a class="sort-link <#if qSort == 'state'>active</#if>" href="${queuePath}?queue_sort=state&queue_dir=<#if qSort == 'state' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        State<#if qSort == 'state'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>
+                    <a class="sort-link <#if qSort == 'requested_at'>active</#if>" href="${queuePath}?queue_sort=requested_at&queue_dir=<#if qSort == 'requested_at' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        Requested<#if qSort == 'requested_at'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>
+                    <a class="sort-link <#if qSort == 'expires_at'>active</#if>" href="${queuePath}?queue_sort=expires_at&queue_dir=<#if qSort == 'expires_at' && qDir == 'asc'>desc<#else>asc</#if>&queue_page=1&queue_page_size=${qPageSize}">
+                        Expires<#if qSort == 'expires_at'><span class="sort-indicator"><#if qDir == 'asc'>↑<#else>↓</#if></span></#if>
+                    </a>
+                </th>
+                <th>Approvals</th>
+                <th>Session</th>
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td class="mono">a3f9c1</td>
-                <td>cursor/0.44.2</td>
-                <td class="mono">192.168.1.42</td>
-                <td>2025-02-26 08:14</td>
-                <td>read, write</td>
-                <td class="actions">
-                    <button class="btn-approve">approve</button>
-                    <button class="btn-cancel">cancel</button>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">b7d2e5</td>
-                <td>claude-code/1.2.0</td>
-                <td class="mono">10.0.0.7</td>
-                <td>2025-02-26 09:01</td>
-                <td>read</td>
-                <td class="actions">
-                    <span class="status approved">approved</span>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">c1a8f3</td>
-                <td>vscode/1.87.0</td>
-                <td class="mono">172.16.4.11</td>
-                <td>2025-02-26 09:33</td>
-                <td>read, write, admin</td>
-                <td class="actions">
-                    <span class="status cancelled">cancelled</span>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">d4e6b9</td>
-                <td>cursor/0.44.2</td>
-                <td class="mono">192.168.1.55</td>
-                <td>2025-02-26 10:02</td>
-                <td>read</td>
-                <td class="actions">
-                    <button class="btn-approve">approve</button>
-                    <button class="btn-cancel">cancel</button>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">e9c3d7</td>
-                <td>claude-code/1.1.9</td>
-                <td class="mono">10.0.0.3</td>
-                <td>2025-02-26 10:48</td>
-                <td>read, write</td>
-                <td class="actions">
-                    <span class="status cancelled">cancelled</span>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">f2b5a1</td>
-                <td>zed/0.139.0</td>
-                <td class="mono">192.168.1.99</td>
-                <td>2025-02-26 11:15</td>
-                <td>read</td>
-                <td class="actions">
-                    <button class="btn-approve">approve</button>
-                    <button class="btn-cancel">cancel</button>
-                </td>
-            </tr>
-            <tr>
-                <td class="mono">g8h4k2</td>
-                <td>vscode/1.87.0</td>
-                <td class="mono">172.16.4.22</td>
-                <td>2025-02-26 11:44</td>
-                <td>read, write</td>
-                <td class="actions">
-                    <span class="status approved">approved</span>
-                </td>
-            </tr>
+            <#if queueRows?size == 0>
+                <tr>
+                    <td colspan="8" class="empty-row">No approval requests found.</td>
+                </tr>
+            <#else>
+                <#list queueRows as row>
+                    <#assign stateLower = (row.state!'unknown')?lower_case>
+                    <#assign stateClass = 'pending'>
+                    <#if stateLower == 'completed' || stateLower == 'approved'>
+                        <#assign stateClass = 'approved'>
+                    <#elseif stateLower == 'failed' || stateLower == 'denied' || stateLower == 'cancelled' || stateLower == 'timed_out' || stateLower == 'rejected' || stateLower == 'expired'>
+                        <#assign stateClass = 'cancelled'>
+                    </#if>
+                    <tr>
+                        <td class="mono">${row.id!'-'}</td>
+                        <td>${row.coin!'-'}</td>
+                        <td>${row.toolName!'-'}</td>
+                        <td><span class="status ${stateClass}">${row.state!'-'}</span></td>
+                        <td class="mono">${row.requestedAt!'-'}</td>
+                        <td class="mono">${row.expiresAt!'-'}</td>
+                        <td>${row.approvalsGranted!0} / ${row.minApprovalsRequired!0} (${row.approvalsDenied!0} denied)</td>
+                        <td class="mono">${row.requestSessionId!'-'}</td>
+                    </tr>
+                </#list>
+            </#if>
         </tbody>
     </table>
+
+    <div class="pager">
+        <#if (queuePage.hasPrev!false)>
+            <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.prevPage!1}&queue_page_size=${qPageSize}">Prev</a>
+        <#else>
+            <span class="pager-link disabled">Prev</span>
+        </#if>
+        <span class="pager-info">Page ${qPage} of ${qTotalPages}</span>
+        <#if (queuePage.hasNext!false)>
+            <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.nextPage!1}&queue_page_size=${qPageSize}">Next</a>
+        <#else>
+            <span class="pager-link disabled">Next</span>
+        </#if>
+    </div>
 </div></main>
 
 <footer class="site-footer">
