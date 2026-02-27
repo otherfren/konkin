@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
+import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.service.LandingPageService;
@@ -54,6 +55,7 @@ public class LandingPageController {
     private final TelegramService telegramService;
     private final TelegramSecretService telegramSecretService;
     private final AuthQueueStore authQueueStore;
+    private final KonkinConfig config;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
@@ -65,7 +67,8 @@ public class LandingPageController {
             List<String> configuredTelegramChatIds,
             TelegramService telegramService,
             TelegramSecretService telegramSecretService,
-            AuthQueueStore authQueueStore
+            AuthQueueStore authQueueStore,
+            KonkinConfig config
     ) {
         if (passwordProtectionEnabled && passwordFileManager == null) {
             throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
@@ -73,6 +76,10 @@ public class LandingPageController {
 
         if (telegramEnabled && (telegramService == null || telegramSecretService == null)) {
             throw new IllegalArgumentException("telegramService and telegramSecretService are required when telegram is enabled");
+        }
+
+        if (config == null) {
+            throw new IllegalArgumentException("config is required");
         }
 
         this.landingPageService = landingPageService;
@@ -83,6 +90,7 @@ public class LandingPageController {
         this.telegramService = telegramService;
         this.telegramSecretService = telegramSecretService;
         this.authQueueStore = authQueueStore;
+        this.config = config;
     }
 
     public void handleRoot(Context ctx) {
@@ -139,6 +147,19 @@ public class LandingPageController {
         }
 
         renderLandingForPage(ctx, "telegram");
+    }
+
+    public void handleAuthDefinitionsPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthDefinitions(
+                passwordProtectionEnabled,
+                buildAuthDefinitionsModel()
+        ));
     }
 
     public void handleLoginPage(Context ctx) {
@@ -769,6 +790,66 @@ public class LandingPageController {
 
         long days = Math.max(1L, (hours + 23) / 24);
         return "in " + days + "d";
+    }
+
+    private Map<String, Object> buildAuthDefinitionsModel() {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("webUiEnabled", config.landingEnabled());
+        root.put("telegramEnabled", config.telegramEnabled());
+
+        List<Map<String, Object>> coins = new ArrayList<>();
+        coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
+        root.put("coins", List.copyOf(coins));
+        return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildCoinAuthDefinition(String coinId, KonkinConfig.CoinConfig coinConfig) {
+        Map<String, Object> coin = new LinkedHashMap<>();
+        KonkinConfig.CoinAuthConfig auth = coinConfig.auth();
+
+        Map<String, Object> channels = new LinkedHashMap<>();
+        channels.put("webUi", auth.webUi());
+        channels.put("restApi", auth.restApi());
+        channels.put("telegram", auth.telegram());
+
+        List<String> warnings = new ArrayList<>();
+        if (auth.webUi() && !config.landingEnabled()) {
+            warnings.add("web-ui channel is configured, but web-ui is globally disabled.");
+        }
+        if (auth.telegram() && !config.telegramEnabled()) {
+            warnings.add("telegram channel is configured, but telegram is globally disabled.");
+        }
+
+        coin.put("coin", coinId);
+        coin.put("enabled", coinConfig.enabled());
+        coin.put("mcp", safe(auth.mcp()));
+        coin.put("channels", Map.copyOf(channels));
+        coin.put("channelWarnings", List.copyOf(warnings));
+        coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));
+        coin.put("autoDenyRules", mapApprovalRules(auth.autoDeny()));
+        return Map.copyOf(coin);
+    }
+
+    private List<Map<String, Object>> mapApprovalRules(List<KonkinConfig.ApprovalRule> rules) {
+        List<Map<String, Object>> mappedRules = new ArrayList<>();
+        if (rules == null || rules.isEmpty()) {
+            return List.of();
+        }
+
+        int index = 1;
+        for (KonkinConfig.ApprovalRule rule : rules) {
+            KonkinConfig.ApprovalCriteria criteria = rule == null ? null : rule.criteria();
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("index", index++);
+            entry.put("type", criteria == null ? "-" : criteria.type().tomlValue());
+            entry.put("value", criteria == null ? "-" : Double.toString(criteria.value()));
+            entry.put("period", criteria == null || criteria.period() == null ? "-" : criteria.period().toString());
+            entry.put("requiresPeriod", criteria != null && criteria.type().requiresPeriod());
+            mappedRules.add(Map.copyOf(entry));
+        }
+
+        return List.copyOf(mappedRules);
     }
 
     private static String toPrettyJson(Map<String, Object> source) {

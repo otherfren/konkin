@@ -22,6 +22,7 @@ public class LandingPageService {
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
+    private static final String AUTH_DEFINITIONS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
 
     private final Configuration freemarker;
     private final String staticHostedPath;
@@ -79,6 +80,7 @@ public class LandingPageService {
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
         model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("authDefinitionsPath", "/auth_definitions");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);
@@ -105,6 +107,24 @@ public class LandingPageService {
         }
 
         return renderTemplate(selectedTemplate, model);
+    }
+
+    public String renderAuthDefinitions(boolean showLogout, Map<String, Object> authDefinitions) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/log");
+        model.put("telegramPath", "/telegram");
+        model.put("authDefinitionsPath", "/auth_definitions");
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", "auth_definitions");
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("authDefinitions", authDefinitions == null ? Map.of() : authDefinitions);
+
+        return renderTemplate(AUTH_DEFINITIONS_TEMPLATE_NAME, model);
     }
 
     public String renderLogin(boolean invalidPassword) {

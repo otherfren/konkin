@@ -76,6 +76,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> logPage = get(server, "/log", Map.of());
             assertEquals(404, logPage.statusCode());
 
+            HttpResponse<String> authDefinitions = get(server, "/auth_definitions", Map.of());
+            assertEquals(404, authDefinitions.statusCode());
+
             HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
             assertEquals(404, staticAsset.statusCode());
         }
@@ -138,6 +141,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> root = get(runningServer, "/", Map.of());
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
+
+            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            assertEquals(200, authDefinitions.statusCode());
+            assertTrue(authDefinitions.body().contains("Auth Definitions"));
+            assertTrue(authDefinitions.body().contains("BITCOIN"));
         }
     }
 
