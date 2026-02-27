@@ -112,6 +112,13 @@ body {
     font-weight: 400;
 }
 
+.queue-table-shell {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--bg-soft);
+    padding: 14px;
+}
+
 .table-toolbar {
     display: flex;
     justify-content: flex-end;
@@ -170,6 +177,7 @@ body {
     padding: 11px 12px;
     border-bottom: 1px solid var(--line);
     color: var(--text);
+    vertical-align: middle;
 }
 
 .queue-table tbody tr:hover {
@@ -246,6 +254,63 @@ body {
     color: #fbbf24;
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.24);
+}
+
+.quorum-meta {
+    display: inline-block;
+    margin-left: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+
+.action-cell {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.queue-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 92px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 8px;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    background: #0f1115;
+    color: var(--muted);
+    text-decoration: none;
+}
+
+.queue-action-btn:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+}
+
+.queue-action-approve {
+    border-color: rgba(74, 222, 128, 0.45);
+    color: #8ef0b1;
+}
+
+.queue-action-deny {
+    border-color: rgba(255, 96, 96, 0.5);
+    color: #ffb0b0;
+}
+
+.queue-action-details {
+    border-color: rgba(247, 147, 26, 0.55);
+    color: #fbc88a;
+}
+
+.queue-action-details:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(247, 147, 26, 0.08);
 }
 
 .empty-row {

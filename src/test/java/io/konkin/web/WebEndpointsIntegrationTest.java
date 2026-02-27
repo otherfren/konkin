@@ -629,6 +629,362 @@ class WebEndpointsIntegrationTest {
     }
 
     @Test
+    void telegramDiscoveredChatIdsAreNotAutoApprovedOnStartup() throws Exception {
+        int telegramApiPort = freePort();
+        AtomicReference<String> capturedPayload = new AtomicReference<>("");
+
+        String approvedChatId = "-100123456789";
+        String discoveredChatId = "-100987654321";
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/getUpdates", exchange -> {
+            try (exchange) {
+                if (!"GET".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                byte[] body = ("""
+                        {"ok":true,"result":[{"update_id":1,"message":{"chat":{"id":"%s","type":"private","username":"pending_user","first_name":"Pending"}}}]}
+                        """).formatted(discoveredChatId).getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.createContext("/bottest-bot-token/sendMessage", exchange -> {
+            try (exchange) {
+                if (!"POST".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                String payload = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                capturedPayload.set(payload);
+
+                byte[] body = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int port = freePort();
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram.secret");
+        Files.writeString(
+                secretFile,
+                "chat-ids=%s\nbot-token=test-bot-token\n".formatted(approvedChatId),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                port,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-no-auto-approve-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            assertEquals(200, telegramPage.statusCode());
+            assertTrue(telegramPage.body().contains(discoveredChatId));
+
+            HttpResponse<String> telegramSubmit = postForm(
+                    runningServer,
+                    "/telegram/send",
+                    "telegram_message=No+Auto+Approve",
+                    Map.of()
+            );
+            assertEquals(200, telegramSubmit.statusCode());
+            assertTrue(telegramSubmit.body().contains("Telegram message sent."));
+
+            String payload = capturedPayload.get();
+            assertTrue(payload.contains("chat_id=" + approvedChatId));
+            assertFalse(payload.contains("chat_id=" + discoveredChatId));
+
+            String secretContent = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretContent.contains("chat-ids=" + approvedChatId));
+            assertFalse(secretContent.contains(discoveredChatId));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
+    void telegramDiscoveredChatIdsAreNotAutoApprovedAfterReconnect() throws Exception {
+        int telegramApiPort = freePort();
+        AtomicReference<String> capturedPayload = new AtomicReference<>("");
+
+        String approvedChatId = "-100123456789";
+        String discoveredChatId = "-100987654321";
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/getUpdates", exchange -> {
+            try (exchange) {
+                if (!"GET".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                byte[] body = ("""
+                        {"ok":true,"result":[{"update_id":2,"message":{"chat":{"id":"%s","type":"private","username":"pending_user","first_name":"Pending"}}}]}
+                        """).formatted(discoveredChatId).getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.createContext("/bottest-bot-token/sendMessage", exchange -> {
+            try (exchange) {
+                if (!"POST".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                String payload = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                capturedPayload.set(payload);
+
+                byte[] body = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int firstPort = freePort();
+        int secondPort = freePort();
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram-reconnect.secret");
+        Files.writeString(
+                secretFile,
+                "chat-ids=%s\nbot-token=test-bot-token\n".formatted(approvedChatId),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String firstConfigToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                firstPort,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        String secondConfigToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = false
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                secondPort,
+                tomlPath(authQueuePasswordFile),
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path firstConfigFile = tempDir.resolve("config-telegram-reconnect-first-%d.toml".formatted(System.nanoTime()));
+        Path secondConfigFile = tempDir.resolve("config-telegram-reconnect-second-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(firstConfigFile, firstConfigToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        Files.writeString(secondConfigFile, secondConfigToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        try {
+            KonkinConfig firstConfig = KonkinConfig.load(firstConfigFile.toString());
+            KonkinWebServer firstServer = new KonkinWebServer(firstConfig, "test-version");
+            firstServer.start();
+
+            try (RunningServer runningServer = new RunningServer(firstServer, URI.create("http://127.0.0.1:" + firstPort))) {
+                waitForHealth(firstPort);
+
+                HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+                assertEquals(200, telegramPage.statusCode());
+                assertTrue(telegramPage.body().contains(discoveredChatId));
+
+                HttpResponse<String> telegramSubmit = postForm(
+                        runningServer,
+                        "/telegram/send",
+                        "telegram_message=First+Run",
+                        Map.of()
+                );
+                assertEquals(200, telegramSubmit.statusCode());
+                assertTrue(telegramSubmit.body().contains("Telegram message sent."));
+
+                String payload = capturedPayload.get();
+                assertTrue(payload.contains("chat_id=" + approvedChatId));
+                assertFalse(payload.contains("chat_id=" + discoveredChatId));
+            }
+
+            String secretAfterFirstRun = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretAfterFirstRun.contains("chat-ids=" + approvedChatId));
+            assertFalse(secretAfterFirstRun.contains(discoveredChatId));
+
+            capturedPayload.set("");
+
+            KonkinConfig secondConfig = KonkinConfig.load(secondConfigFile.toString());
+            KonkinWebServer secondServer = new KonkinWebServer(secondConfig, "test-version");
+            secondServer.start();
+
+            try (RunningServer runningServer = new RunningServer(secondServer, URI.create("http://127.0.0.1:" + secondPort))) {
+                waitForHealth(secondPort);
+
+                HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+                assertEquals(200, telegramPage.statusCode());
+                assertTrue(telegramPage.body().contains(discoveredChatId));
+
+                HttpResponse<String> telegramSubmit = postForm(
+                        runningServer,
+                        "/telegram/send",
+                        "telegram_message=Second+Run",
+                        Map.of()
+                );
+                assertEquals(200, telegramSubmit.statusCode());
+                assertTrue(telegramSubmit.body().contains("Telegram message sent."));
+
+                String payload = capturedPayload.get();
+                assertTrue(payload.contains("chat_id=" + approvedChatId));
+                assertFalse(payload.contains("chat_id=" + discoveredChatId));
+            }
+
+            String secretAfterSecondRun = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretAfterSecondRun.contains("chat-ids=" + approvedChatId));
+            assertFalse(secretAfterSecondRun.contains(discoveredChatId));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
     void landingProtectedSupportsFullPasswordSessionFlowForRootAndLog() throws Exception {
         String landingPassword = "landing-secret";
 

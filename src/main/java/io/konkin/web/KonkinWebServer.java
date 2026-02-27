@@ -97,17 +97,32 @@ public class KonkinWebServer {
                 return;
             }
 
-            List<String> mergedChatIds = TelegramSecretService.mergeChatIds(config.telegramChatIds(), secret.chatIds());
+            List<String> approvedChatIds = TelegramSecretService.mergeChatIds(config.telegramChatIds(), secret.chatIds());
+
+            if (!approvedChatIds.equals(secret.chatIds())) {
+                boolean persisted = telegramSecretService.writeSecret(
+                        new TelegramSecretService.TelegramSecret(secret.botToken(), approvedChatIds)
+                );
+                if (persisted) {
+                    log.info("Telegram approved chat IDs synced to secret file {}: {}",
+                            secretFile.toAbsolutePath().normalize(),
+                            approvedChatIds.isEmpty() ? "(none)" : String.join(",", approvedChatIds));
+                } else {
+                    log.warn("Failed to sync approved Telegram chat IDs to secret file {}", secretFile.toAbsolutePath().normalize());
+                }
+            }
+
             telegramService = new TelegramService(
                     config.telegramApiBaseUrl(),
                     secret.botToken(),
-                    mergedChatIds
+                    approvedChatIds
             );
 
-            if (mergedChatIds.isEmpty()) {
-                log.info("Telegram initialized with bot token but no approved chat IDs yet. Use /telegram to approve chats.");
+            if (approvedChatIds.isEmpty()) {
+                log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /telegram.",
+                        secretFile.toAbsolutePath().normalize());
             } else {
-                log.info("Telegram initialized with {} approved chat id(s).", mergedChatIds.size());
+                log.info("Telegram initialized with {} explicitly approved chat id(s): {}", approvedChatIds.size(), String.join(",", approvedChatIds));
             }
         }
 
