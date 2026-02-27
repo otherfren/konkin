@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -260,7 +261,7 @@ class WebEndpointsIntegrationTest {
                 port = %d
 
                 [web-ui]
-                enabled = false
+                enabled = true
 
                 [coins.bitcoin]
                 enabled = true
@@ -298,6 +299,92 @@ class WebEndpointsIntegrationTest {
                 () -> KonkinConfig.load(configFile.toString())
         );
         assertTrue(exception.getMessage().contains("contradictory auth criteria for coin 'bitcoin'"));
+    }
+
+    @Test
+    void bitcoinAuthWebUiChannelRequiresWebUiEnabledAtConfigLoad() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                false,
+                true,
+                false,
+                true,
+                false,
+                false
+        );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.web-ui=true requires web-ui.enabled=true"));
+    }
+
+    @Test
+    void bitcoinAuthRestApiChannelRequiresAuthQueueEnabledAtConfigLoad() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                false,
+                false,
+                false,
+                false,
+                true,
+                false
+        );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.rest-api=true requires auth_queue.enabled=true"));
+    }
+
+    @Test
+    void bitcoinAuthTelegramChannelRequiresTelegramEnabledAtConfigLoad() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                false,
+                false,
+                false,
+                false,
+                false,
+                true
+        );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.telegram=true requires telegram.enabled=true"));
+    }
+
+    @Test
+    void bitcoinAuthChannelsPassWhenAllRequiredGlobalChannelsAreEnabled() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+        );
+
+        assertDoesNotThrow(() -> KonkinConfig.load(configFile.toString()));
+    }
+
+    @Test
+    void bitcoinAuthInvalidMultipleChannelDependenciesFailsFastOnFirstViolation() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                false,
+                false,
+                false,
+                true,
+                true,
+                true
+        );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.web-ui=true requires web-ui.enabled=true"));
     }
 
     @Test
@@ -675,6 +762,76 @@ class WebEndpointsIntegrationTest {
             boolean observedUpdate = waitForBodyContains(runningServer, "/", "Auth Queue Reloaded", Duration.ofSeconds(5));
             assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
+    }
+
+    private Path writeBitcoinChannelValidationConfig(
+            boolean webUiEnabled,
+            boolean authQueueEnabled,
+            boolean telegramEnabled,
+            boolean coinWebUi,
+            boolean coinRestApi,
+            boolean coinTelegram
+    ) throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-%d.conf".formatted(System.nanoTime()));
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-%d.conf".formatted(System.nanoTime()));
+        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue-%d.password".formatted(System.nanoTime()));
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-%d.password".formatted(System.nanoTime()));
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [auth_queue]
+                enabled = %s
+
+                [auth_queue.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui]
+                enabled = %s
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [telegram]
+                enabled = %s
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = %s
+                rest-api = %s
+                telegram = %s
+                mcp = "btc-main"
+                """.formatted(
+                port,
+                authQueueEnabled,
+                tomlPath(authQueuePasswordFile),
+                webUiEnabled,
+                tomlPath(webUiPasswordFile),
+                telegramEnabled,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile),
+                coinWebUi,
+                coinRestApi,
+                coinTelegram
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-channel-validation-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        return configFile;
     }
 
     private RunningServer startServer(

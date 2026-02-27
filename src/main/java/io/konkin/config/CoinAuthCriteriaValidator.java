@@ -11,6 +11,32 @@ public final class CoinAuthCriteriaValidator {
     private CoinAuthCriteriaValidator() {
     }
 
+    public static void validateChannelAvailability(
+            String coinName,
+            KonkinConfig.CoinAuthConfig auth,
+            boolean webUiEnabled,
+            boolean restApiEnabled,
+            boolean telegramEnabled
+    ) {
+        if (auth.webUi() && !webUiEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth.web-ui=true requires web-ui.enabled=true."
+            );
+        }
+
+        if (auth.restApi() && !restApiEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth.rest-api=true requires auth_queue.enabled=true."
+            );
+        }
+
+        if (auth.telegram() && !telegramEnabled) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth.telegram=true requires telegram.enabled=true."
+            );
+        }
+    }
+
     public static void validateNoContradictions(String coinName, KonkinConfig.CoinAuthConfig auth) {
         List<KonkinConfig.ApprovalRule> autoAccept = auth.autoAccept();
         List<KonkinConfig.ApprovalRule> autoDeny = auth.autoDeny();

@@ -478,6 +478,13 @@ public class KonkinConfig {
             ensureRuleConsistency(rule, "coins.bitcoin.auth.auto-deny");
         }
 
+        CoinAuthCriteriaValidator.validateChannelAvailability(
+                "bitcoin",
+                auth,
+                landingEnabled,
+                authQueueEnabled,
+                telegramEnabled
+        );
         CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);
     }
 
