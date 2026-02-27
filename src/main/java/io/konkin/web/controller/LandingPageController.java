@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +43,7 @@ public class LandingPageController {
     private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'").withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter TS_MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter TS_LOG_MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyy MM dd HH:mm").withZone(ZoneOffset.UTC);
     private static final Set<String> SUPPORTED_COIN_ICONS = Set.of("bitcoin", "ethereum", "monero", "litecoin");
 
     private final LandingPageService landingPageService;
@@ -391,7 +393,17 @@ public class LandingPageController {
 
     private TablePageData loadLogQueuePageData(Context ctx) {
         if (authQueueStore == null) {
-            return emptyPageData("updated_at", "desc");
+            TablePageData empty = emptyPageData("updated_at", "desc");
+            Map<String, Object> pageMeta = new LinkedHashMap<>(empty.pageMeta());
+            pageMeta.put("filterQuery", "");
+            pageMeta.put("filterText", "");
+            pageMeta.put("filterCoin", "");
+            pageMeta.put("filterTool", "");
+            pageMeta.put("filterState", "");
+            pageMeta.put("filterCoins", List.of());
+            pageMeta.put("filterTools", List.of());
+            pageMeta.put("filterStates", List.of());
+            return new TablePageData(empty.rows(), Map.copyOf(pageMeta));
         }
 
         String sortBy = defaultIfBlank(ctx.queryParam("log_queue_sort"), "updated_at");
@@ -399,10 +411,36 @@ public class LandingPageController {
         int page = parsePositiveInt(ctx.queryParam("log_queue_page"), 1);
         int pageSize = parsePositiveInt(ctx.queryParam("log_queue_page_size"), 25);
 
-        AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
-                authQueueStore.pageNonPendingApprovalRequests(sortBy, sortDir, page, pageSize);
+        String filterText = defaultIfBlank(ctx.queryParam("log_queue_filter"), "").trim();
+        String filterCoin = defaultIfBlank(ctx.queryParam("log_queue_coin"), "").trim();
+        String filterTool = defaultIfBlank(ctx.queryParam("log_queue_tool"), "").trim();
+        String filterState = defaultIfBlank(ctx.queryParam("log_queue_state"), "").trim();
 
-        return mapApprovalPageData(result);
+        AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
+                authQueueStore.pageNonPendingApprovalRequests(
+                        sortBy,
+                        sortDir,
+                        page,
+                        pageSize,
+                        filterCoin,
+                        filterTool,
+                        filterState,
+                        filterText
+                );
+
+        AuthQueueStore.LogQueueFilterOptions options = authQueueStore.loadNonPendingFilterOptions();
+
+        TablePageData mapped = mapApprovalPageData(result);
+        Map<String, Object> pageMeta = new LinkedHashMap<>(mapped.pageMeta());
+        pageMeta.put("filterQuery", filterText);
+        pageMeta.put("filterText", filterText);
+        pageMeta.put("filterCoin", filterCoin);
+        pageMeta.put("filterTool", filterTool);
+        pageMeta.put("filterState", filterState);
+        pageMeta.put("filterCoins", options.coins());
+        pageMeta.put("filterTools", options.tools());
+        pageMeta.put("filterStates", options.states());
+        return new TablePageData(mapped.rows(), Map.copyOf(pageMeta));
     }
 
     private TablePageData mapApprovalPageData(AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result) {
@@ -429,8 +467,16 @@ public class LandingPageController {
                     new AuthQueueStore.RequestDependencies(List.of(), List.of(), List.of(), List.of())
             );
 
+            Set<String> deciders = new LinkedHashSet<>();
+            for (AuthQueueStore.VoteDetail vote : dependencies.votes()) {
+                if (vote.decidedBy() != null && !vote.decidedBy().isBlank()) {
+                    deciders.add(vote.decidedBy().trim());
+                }
+            }
+
             mapped.put("id", safe(row.id()));
             mapped.put("idShort", abbreviateId(row.id()));
+            mapped.put("idFirst5", firstFive(row.id()));
             mapped.put("coin", safe(row.coin()));
             mapped.put("coinIconName", coinIconName(row.coin()));
             mapped.put("toolName", safe(row.toolName()));
@@ -443,6 +489,8 @@ public class LandingPageController {
             mapped.put("approvalsGranted", approvalsGranted);
             mapped.put("approvalsDenied", row.approvalsDenied());
             mapped.put("quorumLabel", "pending " + approvalsGranted + "-of-" + minApprovalsRequired);
+            mapped.put("lastActionAt", formatLogMinute(row.updatedAt()));
+            mapped.put("deciders", deciders.isEmpty() ? "-" : String.join(", ", deciders));
             mapped.put("detailsJson", toPrettyJson(buildDetailsObject(row, dependencies)));
             rows.add(Map.copyOf(mapped));
         }
@@ -651,6 +699,14 @@ public class LandingPageController {
         return trimmed.substring(0, 5) + "...";
     }
 
+    private static String firstFive(String id) {
+        if (id == null || id.isBlank()) {
+            return "-";
+        }
+        String trimmed = id.trim();
+        return trimmed.length() <= 5 ? trimmed : trimmed.substring(0, 5);
+    }
+
     private static String coinIconName(String coin) {
         if (coin == null || coin.isBlank()) {
             return "";
@@ -678,6 +734,10 @@ public class LandingPageController {
 
     private static String formatInstantMinute(Instant instant) {
         return instant == null ? "-" : TS_MINUTE_FORMAT.format(instant);
+    }
+
+    private static String formatLogMinute(Instant instant) {
+        return instant == null ? "-" : TS_LOG_MINUTE_FORMAT.format(instant);
     }
 
     private static String formatInstant(Instant instant) {

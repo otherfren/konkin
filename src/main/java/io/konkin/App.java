@@ -14,7 +14,7 @@ import java.net.URL;
 
 /**
  * KONKIN MCP Server — main entry point.
- * Boots Javalin, H2 + Flyway, and exposes /api/v1/health and optional /api/v1/auth_queue.
+ * Boots Javalin, H2 + Flyway, and exposes /api/v1/health plus optional landing web routes.
  */
 public class App {
 

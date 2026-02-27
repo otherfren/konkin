@@ -45,7 +45,6 @@ abstract class WebIntegrationTestSupport {
 
     protected Path writeBitcoinChannelValidationConfig(
             boolean webUiEnabled,
-            boolean authQueueEnabled,
             boolean telegramEnabled,
             boolean coinWebUi,
             boolean coinRestApi,
@@ -55,7 +54,6 @@ abstract class WebIntegrationTestSupport {
 
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-%d.conf".formatted(System.nanoTime()));
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-%d.conf".formatted(System.nanoTime()));
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue-%d.password".formatted(System.nanoTime()));
         Path webUiPasswordFile = tempDir.resolve("unused-web-ui-%d.password".formatted(System.nanoTime()));
 
         String configToml = """
@@ -64,13 +62,6 @@ abstract class WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = %s
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [web-ui]
                 enabled = %s
@@ -96,8 +87,6 @@ abstract class WebIntegrationTestSupport {
                 mcp = "btc-main"
                 """.formatted(
                 port,
-                authQueueEnabled,
-                tomlPath(authQueuePasswordFile),
                 webUiEnabled,
                 tomlPath(webUiPasswordFile),
                 telegramEnabled,
@@ -114,19 +103,11 @@ abstract class WebIntegrationTestSupport {
     }
 
     protected RunningServer startServer(
-            boolean authQueueEnabled,
-            boolean authQueuePasswordProtected,
-            String authQueuePassword,
             boolean landingEnabled,
             boolean landingPasswordProtected,
             String landingPassword
     ) throws Exception {
         int port = freePort();
-
-        Path authQueuePasswordFile = tempDir.resolve("auth_queue.password");
-        if (authQueuePasswordProtected) {
-            writePasswordFile(authQueuePasswordFile, authQueuePassword);
-        }
 
         Path landingPasswordFile = tempDir.resolve("landing.password");
         if (landingPasswordProtected) {
@@ -151,13 +132,6 @@ abstract class WebIntegrationTestSupport {
                 password = "konkin"
                 pool-size = 5
 
-                [auth_queue]
-                enabled = %s
-
-                [auth_queue.password-protection]
-                enabled = %s
-                password-file = "%s"
-
                 [landing]
                 enabled = %s
 
@@ -178,9 +152,6 @@ abstract class WebIntegrationTestSupport {
                 """.formatted(
                 port,
                 dbUrl,
-                authQueueEnabled,
-                authQueuePasswordProtected,
-                tomlPath(authQueuePasswordFile),
                 landingEnabled,
                 landingPasswordProtected,
                 tomlPath(landingPasswordFile),

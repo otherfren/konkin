@@ -20,7 +20,7 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * Handles auth_queue password-file lifecycle:
+ * Handles web-ui password-file lifecycle:
  * - create hashed/salted password file if missing
  * - load/verify stored password hash
  */
@@ -50,7 +50,7 @@ public class PasswordFileManager {
     public static PasswordFileManager bootstrap(Path passwordFile) {
         ensureFileExists(passwordFile);
         Credentials credentials = loadCredentials(passwordFile);
-        log.info("auth_queue password hash file is ready at {}", passwordFile.toAbsolutePath());
+        log.info("web-ui password hash file is ready at {}", passwordFile.toAbsolutePath());
         return new PasswordFileManager(passwordFile, credentials);
     }
 
@@ -87,17 +87,17 @@ public class PasswordFileManager {
             // stdout only by requirement (never log cleartext to file logger)
             printApiKeyBanner(passwordFile, cleartextPassword);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to create auth_queue password file: " + passwordFile, e);
+            throw new IllegalStateException("Failed to create web-ui password file: " + passwordFile, e);
         }
     }
 
     private static void printApiKeyBanner(Path passwordFile, String cleartextPassword) {
         System.out.println();
         System.out.println("============================================================");
-        System.out.println("!!! KONKIN AUTH_QUEUE API KEY CREATED / RECREATED !!!");
+        System.out.println("!!! KONKIN WEB-UI PASSWORD CREATED / RECREATED !!!");
         System.out.println("============================================================");
         System.out.println("File: " + passwordFile.toAbsolutePath());
-        System.out.println("API Key (shown only once): " + cleartextPassword);
+        System.out.println("Password (shown only once): " + cleartextPassword);
         System.out.println("IMPORTANT: this cleartext key is never written to log files.");
         System.out.println("Rotate key by deleting the referenced file and restarting.");
         System.out.println("============================================================");
@@ -117,7 +117,7 @@ public class PasswordFileManager {
                 StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE
         )) {
-            writer.write("# KONKIN auth_queue password hash file\n");
+            writer.write("# KONKIN web-ui password hash file\n");
             writer.write("# rotate keys by deleting referenced file\n");
             props.store(writer, null);
         }
@@ -145,7 +145,7 @@ public class PasswordFileManager {
 
             return new Credentials(algorithm, iterations, salt, hash);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to load auth_queue password file: " + passwordFile, e);
+            throw new IllegalStateException("Failed to load web-ui password file: " + passwordFile, e);
         }
     }
 

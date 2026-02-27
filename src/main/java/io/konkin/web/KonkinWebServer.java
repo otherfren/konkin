@@ -6,10 +6,8 @@ import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
 import io.konkin.security.PasswordFileManager;
-import io.konkin.web.controller.AuthQueueController;
 import io.konkin.web.controller.HealthController;
 import io.konkin.web.controller.LandingPageController;
-import io.konkin.web.service.AuthQueueService;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.LandingResourceWatcher;
@@ -55,17 +53,6 @@ public class KonkinWebServer {
             DebugDataSeeder debugDataSeeder = new DebugDataSeeder(dataSource);
             debugDataSeeder.seedIfEnabled(config.debugEnabled(), config.debugSeedFakeData());
         }
-        AuthQueueService authQueueService = new AuthQueueService(authQueueStore);
-        PasswordFileManager authQueuePasswordFileManager = null;
-        if (config.authQueueEnabled() && config.authQueuePasswordProtectionEnabled()) {
-            authQueuePasswordFileManager = PasswordFileManager.bootstrap(Path.of(config.authQueuePasswordFile()));
-        }
-        AuthQueueController authQueueController = new AuthQueueController(
-                authQueueService,
-                config.authQueuePasswordProtectionEnabled(),
-                authQueuePasswordFileManager
-        );
-
         LandingPageController landingPageController = null;
         LandingPageService landingPageService = null;
         Path landingTemplateDirectory = null;
@@ -172,10 +159,6 @@ public class KonkinWebServer {
 
         app.get("/api/v1/health", healthController::handle);
 
-        if (config.authQueueEnabled()) {
-            app.get("/api/v1/auth_queue", authQueueController::handle);
-        }
-
         LandingPageController webUiPageControllerFinal = landingPageController;
         LandingPageService landingPageServiceFinal = landingPageService;
         Path landingTemplateDirectoryFinal = landingTemplateDirectory;
@@ -213,13 +196,6 @@ public class KonkinWebServer {
 
         log.info("KONKIN server running at http://{}:{}", config.host(), config.port());
         log.info("  /api/v1/health       — health check");
-        if (config.authQueueEnabled()) {
-            log.info("  /api/v1/auth_queue   — approval queue status (apiKeyProtected={})",
-                    config.authQueuePasswordProtectionEnabled());
-        } else {
-            log.info("  /api/v1/auth_queue   — disabled via config");
-        }
-
         if (config.landingEnabled()) {
             log.info("  /                    — landing page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /log                 — audit log page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());

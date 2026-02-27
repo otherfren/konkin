@@ -36,10 +36,6 @@ public class KonkinConfig {
     private final String dbPassword;
     private final int dbPoolSize;
 
-    private final boolean authQueueEnabled;
-    private final boolean authQueuePasswordProtectionEnabled;
-    private final String authQueuePasswordFile;
-
     private final boolean landingEnabled;
     private final boolean landingPasswordProtectionEnabled;
     private final String landingPasswordFile;
@@ -70,10 +66,6 @@ public class KonkinConfig {
     public String dbUser() { return dbUser; }
     public String dbPassword() { return dbPassword; }
     public int dbPoolSize() { return dbPoolSize; }
-
-    public boolean authQueueEnabled() { return authQueueEnabled; }
-    public boolean authQueuePasswordProtectionEnabled() { return authQueuePasswordProtectionEnabled; }
-    public String authQueuePasswordFile() { return authQueuePasswordFile; }
 
     public boolean landingEnabled() { return landingEnabled; }
     public boolean landingPasswordProtectionEnabled() { return landingPasswordProtectionEnabled; }
@@ -106,10 +98,6 @@ public class KonkinConfig {
         this.dbUser = toml.getOrElse("database.user", "konkin");
         this.dbPassword = toml.getOrElse("database.password", "konkin");
         this.dbPoolSize = toml.getIntOrElse("database.pool-size", 5);
-
-        this.authQueueEnabled = toml.getOrElse("auth_queue.enabled", true);
-        this.authQueuePasswordProtectionEnabled = toml.getOrElse("auth_queue.password-protection.enabled", true);
-        this.authQueuePasswordFile = toml.getOrElse("auth_queue.password-protection.password-file", "./secrets/auth_queue.password");
 
         this.landingEnabled = getOrElseWithFallback(toml, "web-ui.enabled", "landing.enabled", false);
         this.landingPasswordProtectionEnabled = getOrElseWithFallback(
@@ -219,7 +207,6 @@ public class KonkinConfig {
                     config.logLevel,
                     config.logFile,
                     config.logRotateMaxSizeMb);
-            log.info("Auth queue config — enabled={}, passwordProtection={}", config.authQueueEnabled, config.authQueuePasswordProtectionEnabled);
             log.info("Web UI config — enabled={}, passwordProtection={}, templateDir={}, staticDir={}",
                     config.landingEnabled,
                     config.landingPasswordProtectionEnabled,
@@ -254,19 +241,6 @@ public class KonkinConfig {
         if (debugSeedFakeData && !debugEnabled) {
             throw new IllegalStateException(
                     "Invalid config: debug.seed-fake-data=true requires debug.enabled=true.");
-        }
-
-        if (!authQueueEnabled && authQueuePasswordProtectionEnabled) {
-            throw new IllegalStateException(
-                    "Invalid config: auth_queue.password-protection.enabled=true requires auth_queue.enabled=true.");
-        }
-
-        if (authQueuePasswordProtectionEnabled) {
-            if (authQueuePasswordFile == null || authQueuePasswordFile.isBlank()) {
-                throw new IllegalStateException(
-                        "Invalid config: auth_queue.password-protection.password-file must be set when password protection is enabled.");
-            }
-            validatePath(authQueuePasswordFile, "auth_queue.password-protection.password-file");
         }
 
         if (!landingEnabled && landingPasswordProtectionEnabled) {
@@ -482,7 +456,6 @@ public class KonkinConfig {
                 "bitcoin",
                 auth,
                 landingEnabled,
-                authQueueEnabled,
                 telegramEnabled
         );
         CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);

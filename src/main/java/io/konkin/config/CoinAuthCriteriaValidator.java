@@ -15,18 +15,11 @@ public final class CoinAuthCriteriaValidator {
             String coinName,
             KonkinConfig.CoinAuthConfig auth,
             boolean webUiEnabled,
-            boolean restApiEnabled,
             boolean telegramEnabled
     ) {
         if (auth.webUi() && !webUiEnabled) {
             throw new IllegalStateException(
                     "Invalid config: coins." + coinName + ".auth.web-ui=true requires web-ui.enabled=true."
-            );
-        }
-
-        if (auth.restApi() && !restApiEnabled) {
-            throw new IllegalStateException(
-                    "Invalid config: coins." + coinName + ".auth.rest-api=true requires auth_queue.enabled=true."
             );
         }
 

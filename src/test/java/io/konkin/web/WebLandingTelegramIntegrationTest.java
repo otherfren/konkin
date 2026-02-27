@@ -11,6 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
@@ -27,7 +31,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void landingEnabledUnprotectedServesRootLogAndStaticAssets() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused", true, false, "unused")) {
+        try (RunningServer server = startServer(true, false, "unused")) {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
@@ -60,7 +64,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> telegramSubmit = postForm(server, "/telegram/send", "telegram_message=hello", Map.of());
             assertEquals(404, telegramSubmit.statusCode());
 
-            HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
+            HttpResponse<String> staticAsset = get(server, "/assets/img/bitcoin.svg", Map.of());
             assertEquals(200, staticAsset.statusCode());
             assertTrue(staticAsset.body().contains("<svg"));
         }
@@ -68,7 +72,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void queueDefaultsToExpiresAscendingWhenNoQueryParams() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", true, false, "unused")) {
+        try (RunningServer server = startServer(true, false, "unused")) {
             DataSource dataSource = server.dbManager().dataSource();
 
             insertApprovalRequest(dataSource, "req-exp-late", "nonce-exp-late", "PENDING");
@@ -102,7 +106,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void queueShowsPagerAtTopAndBottomWhenMoreThanEightRows() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", true, false, "unused")) {
+        try (RunningServer server = startServer(true, false, "unused")) {
             DataSource dataSource = server.dbManager().dataSource();
 
             for (int i = 1; i <= 9; i++) {
@@ -121,8 +125,116 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
+    void queueAndLogUseStateSplitAndLogSupportsSortAndExplicitFilters() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+
+            insertApprovalRequest(dataSource, "req-log-completed-11111", "nonce-log-completed", "COMPLETED");
+            insertApprovalRequest(dataSource, "req-log-denied-33333", "nonce-log-denied", "DENIED");
+            insertApprovalRequest(dataSource, "req-log-failed-55555", "nonce-log-failed", "FAILED");
+            insertApprovalRequest(dataSource, "req-log-pending-22222", "nonce-log-pending", "PENDING");
+            insertApprovalRequest(dataSource, "req-log-queued-44444", "nonce-log-queued", "QUEUED");
+
+            updateApprovalRequestCoinAndTool(dataSource, "req-log-denied-33333", "litecoin", "wallet_sweep");
+            updateApprovalRequestCoinAndTool(dataSource, "req-log-failed-55555", "litecoin", "wallet_sweep");
+
+            updateApprovalUpdatedAt(dataSource, "req-log-completed-11111", Instant.parse("2024-01-02T03:04:05Z"));
+
+            insertApprovalChannel(dataSource, "telegram.main", "telegram");
+            insertApprovalVote(dataSource, "req-log-completed-11111", "telegram.main", "approve");
+
+            HttpResponse<String> rootPage = get(server, "/", Map.of());
+            assertEquals(200, rootPage.statusCode());
+            assertTrue(rootPage.body().contains("req-log-pending-22222"));
+            assertTrue(rootPage.body().contains("req-log-queued-44444"));
+            assertFalse(rootPage.body().contains("req-log-completed-11111"));
+            assertFalse(rootPage.body().contains("req-log-denied-33333"));
+            assertFalse(rootPage.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> logPage = get(server, "/log", Map.of());
+            assertEquals(200, logPage.statusCode());
+
+            String body = logPage.body();
+            assertTrue(body.contains("Audit Log"));
+            assertTrue(body.contains("Resolved / Processed Requests"));
+            assertFalse(body.contains("State Transitions"));
+            assertEquals(1, countOccurrences(body, "<table class=\"queue-table\">"));
+
+            assertTrue(body.contains("class=\"pager pager-top\""));
+            assertEquals(1, countOccurrences(body, "<div class=\"pager"));
+
+            assertTrue(body.contains("name=\"log_queue_filter\""));
+            assertTrue(body.contains("name=\"log_queue_coin\""));
+            assertTrue(body.contains("name=\"log_queue_tool\""));
+            assertTrue(body.contains("name=\"log_queue_state\""));
+            assertTrue(body.contains("placeholder=\"Filter by id or decider\""));
+            assertTrue(body.contains("log_queue_sort=id"));
+            assertTrue(body.contains("log_queue_sort=coin"));
+            assertTrue(body.contains("log_queue_sort=tool_name"));
+            assertTrue(body.contains("log_queue_sort=state"));
+            assertTrue(body.contains("log_queue_sort=updated_at"));
+
+            assertFalse(body.contains("req-log-pending-22222"));
+            assertFalse(body.contains("req-log-queued-44444"));
+            assertTrue(body.contains("req-log-completed-11111"));
+            assertTrue(body.contains("req-log-denied-33333"));
+            assertTrue(body.contains("req-log-failed-55555"));
+            assertTrue(body.contains("2024 01 02 03:04"));
+            assertTrue(body.contains("test-actor"));
+            assertTrue(body.contains("queue-copy-btn"));
+            assertTrue(body.contains("queue-details-trigger"));
+
+            HttpResponse<String> byDecider = get(server, "/log?log_queue_filter=test-actor", Map.of());
+            assertEquals(200, byDecider.statusCode());
+            assertTrue(byDecider.body().contains("req-log-completed-11111"));
+            assertFalse(byDecider.body().contains("req-log-denied-33333"));
+            assertFalse(byDecider.body().contains("req-log-failed-55555"));
+            assertFalse(byDecider.body().contains("req-log-pending-22222"));
+            assertFalse(byDecider.body().contains("req-log-queued-44444"));
+
+            HttpResponse<String> byId = get(server, "/log?log_queue_filter=denied", Map.of());
+            assertEquals(200, byId.statusCode());
+            assertFalse(byId.body().contains("req-log-completed-11111"));
+            assertTrue(byId.body().contains("req-log-denied-33333"));
+            assertFalse(byId.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> byCoin = get(server, "/log?log_queue_coin=litecoin", Map.of());
+            assertEquals(200, byCoin.statusCode());
+            assertFalse(byCoin.body().contains("req-log-completed-11111"));
+            assertTrue(byCoin.body().contains("req-log-denied-33333"));
+            assertTrue(byCoin.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> byTool = get(server, "/log?log_queue_tool=wallet_sweep", Map.of());
+            assertEquals(200, byTool.statusCode());
+            assertFalse(byTool.body().contains("req-log-completed-11111"));
+            assertTrue(byTool.body().contains("req-log-denied-33333"));
+            assertTrue(byTool.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> byState = get(server, "/log?log_queue_state=DENIED", Map.of());
+            assertEquals(200, byState.statusCode());
+            assertFalse(byState.body().contains("req-log-completed-11111"));
+            assertTrue(byState.body().contains("req-log-denied-33333"));
+            assertFalse(byState.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> combined = get(
+                    server,
+                    "/log?log_queue_coin=litecoin&log_queue_tool=wallet_sweep&log_queue_state=DENIED",
+                    Map.of()
+            );
+            assertEquals(200, combined.statusCode());
+            assertFalse(combined.body().contains("req-log-completed-11111"));
+            assertTrue(combined.body().contains("req-log-denied-33333"));
+            assertFalse(combined.body().contains("req-log-failed-55555"));
+
+            HttpResponse<String> sortedByIdAsc = get(server, "/log?log_queue_sort=id&log_queue_dir=asc", Map.of());
+            assertEquals(200, sortedByIdAsc.statusCode());
+            assertTrue(sortedByIdAsc.body().contains("log_queue_sort=id&log_queue_dir=desc"));
+        }
+    }
+
+    @Test
     void queueProvidesNoJsDetailsFallbackLinkAndEndpoint() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", true, false, "unused")) {
+        try (RunningServer server = startServer(true, false, "unused")) {
             DataSource dataSource = server.dbManager().dataSource();
             insertApprovalRequest(dataSource, "req-details-fallback", "nonce-details-fallback", "PENDING");
 
@@ -142,7 +254,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void landingCssContainsResponsiveBurgerRulesWithoutJavaScript() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused", true, false, "unused")) {
+        try (RunningServer server = startServer(true, false, "unused")) {
             HttpResponse<String> css = get(server, "/assets/css/landing.css", Map.of());
             assertEquals(200, css.statusCode());
             assertTrue(css.body().contains("@media (max-width: 860px)"));
@@ -176,7 +288,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         telegramApi.start();
 
         int port = freePort();
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
         Path landingPasswordFile = tempDir.resolve("unused-landing.password");
         Path secretFile = tempDir.resolve("telegram.secret");
         Files.writeString(
@@ -195,13 +306,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [landing]
                 enabled = true
@@ -227,7 +331,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 api-base-url = "http://127.0.0.1:%d"
                 """.formatted(
                 port,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(landingPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
@@ -279,7 +382,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
     @Test
     void telegramSecretFileIsBootstrappedAndStartupStaysStoppedUntilReplaced() throws Exception {
         int port = freePort();
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
         Path landingPasswordFile = tempDir.resolve("unused-landing.password");
         Path secretFile = tempDir.resolve("secrets/telegram.secret");
 
@@ -292,13 +394,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [landing]
                 enabled = true
@@ -324,7 +419,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 api-base-url = "http://127.0.0.1:65534"
                 """.formatted(
                 port,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(landingPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
@@ -394,7 +488,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         telegramApi.start();
 
         int port = freePort();
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
         Path landingPasswordFile = tempDir.resolve("unused-landing.password");
         Path secretFile = tempDir.resolve("telegram.secret");
         Files.writeString(
@@ -413,13 +506,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [landing]
                 enabled = true
@@ -445,7 +531,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 api-base-url = "http://127.0.0.1:%d"
                 """.formatted(
                 port,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(landingPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
@@ -532,7 +617,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
         int firstPort = freePort();
         int secondPort = freePort();
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
         Path landingPasswordFile = tempDir.resolve("unused-landing.password");
         Path secretFile = tempDir.resolve("telegram-reconnect.secret");
         Files.writeString(
@@ -551,13 +635,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [landing]
                 enabled = true
@@ -583,7 +660,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 api-base-url = "http://127.0.0.1:%d"
                 """.formatted(
                 firstPort,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(landingPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
@@ -597,13 +673,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [landing]
                 enabled = true
@@ -629,7 +698,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 api-base-url = "http://127.0.0.1:%d"
                 """.formatted(
                 secondPort,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(landingPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
@@ -711,7 +779,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
     void landingProtectedSupportsFullPasswordSessionFlowForRootAndLog() throws Exception {
         String landingPassword = "landing-secret";
 
-        try (RunningServer server = startServer(false, false, "unused", true, true, landingPassword)) {
+        try (RunningServer server = startServer(true, true, landingPassword)) {
             HttpResponse<String> rootWithoutSession = get(server, "/", Map.of());
             assertEquals(200, rootWithoutSession.statusCode());
             assertTrue(rootWithoutSession.body().contains("Enter your landing password"));
@@ -780,13 +848,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 host = "127.0.0.1"
                 port = %d
 
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
-
                 [landing]
                 enabled = true
 
@@ -807,7 +868,6 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                 assets-enabled = true
                 """.formatted(
                 port,
-                tomlPath(tempDir.resolve("unused-auth-queue.password")),
                 tomlPath(tempDir.resolve("unused-landing.password")),
                 tomlPath(templateDir),
                 tomlPath(staticDir)
@@ -842,6 +902,29 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
     }
+    private static void updateApprovalRequestCoinAndTool(DataSource dataSource, String requestId, String coin, String toolName)
+            throws SQLException {
+        String sql = "UPDATE approval_requests SET coin = ?, tool_name = ? WHERE id = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, coin);
+            ps.setString(2, toolName);
+            ps.setString(3, requestId);
+            ps.executeUpdate();
+        }
+    }
+
+    private static void updateApprovalUpdatedAt(DataSource dataSource, String requestId, Instant updatedAt)
+            throws SQLException {
+        String sql = "UPDATE approval_requests SET updated_at = ? WHERE id = ?";
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setTimestamp(1, Timestamp.from(updatedAt));
+            ps.setString(2, requestId);
+            ps.executeUpdate();
+        }
+    }
+
     private static int countOccurrences(String source, String token) {
         int count = 0;
         int index = 0;

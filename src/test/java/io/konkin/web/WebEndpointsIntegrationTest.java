@@ -14,12 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,7 +25,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void healthEndpointReturnsHealthyStatus() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused", false, false, "unused")) {
+        try (RunningServer server = startServer(false, false, "unused")) {
             HttpResponse<String> response = get(server, "/api/v1/health", Map.of());
 
             assertEquals(200, response.statusCode());
@@ -40,71 +38,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void authQueueWhenEnabledAndUnprotectedReturnsQueueStatus() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
-            HttpResponse<String> response = get(server, "/api/v1/auth_queue", Map.of());
-
-            assertEquals(200, response.statusCode());
-
-            JsonNode json = JSON.readTree(response.body());
-            assertEquals(0, json.path("pending").asInt());
-            assertFalse(json.path("lockdown_active").asBoolean());
-            assertTrue(json.path("message").asText().contains("Authorization queue is empty"));
-        }
-    }
-
-    @Test
-    void authQueueWhenDisabledReturns404() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused", false, false, "unused")) {
-            HttpResponse<String> response = get(server, "/api/v1/auth_queue", Map.of());
-            assertEquals(404, response.statusCode());
-        }
-    }
-
-    @Test
-    void authQueueProtectedRejectsUnauthorizedAndAcceptsValidApiKey() throws Exception {
-        String password = "queue-secret";
-
-        try (RunningServer server = startServer(true, true, password, false, false, "unused")) {
-            HttpResponse<String> missingHeader = get(server, "/api/v1/auth_queue", Map.of());
-            assertEquals(401, missingHeader.statusCode());
-
-            JsonNode missingHeaderJson = JSON.readTree(missingHeader.body());
-            assertEquals("unauthorized", missingHeaderJson.path("error").asText());
-
-            HttpResponse<String> wrongHeader = get(server, "/api/v1/auth_queue", Map.of("X-Api-Key", "wrong"));
-            assertEquals(401, wrongHeader.statusCode());
-
-            HttpResponse<String> validHeader = get(server, "/api/v1/auth_queue", Map.of("X-Api-Key", password));
-            assertEquals(200, validHeader.statusCode());
-
-            JsonNode validJson = JSON.readTree(validHeader.body());
-            assertEquals(0, validJson.path("pending").asInt());
-        }
-    }
-
-    @Test
-    void authQueueStatusReflectsOpenRequestsAndLockdownFromDatabase() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
-            DataSource dataSource = server.dbManager().dataSource();
-
-            insertApprovalRequest(dataSource, "req-open", "nonce-open", "PENDING");
-            insertApprovalRequest(dataSource, "req-done", "nonce-done", "COMPLETED");
-            insertCoinLockdown(dataSource, "bitcoin", Instant.now().plusSeconds(120));
-
-            HttpResponse<String> response = get(server, "/api/v1/auth_queue", Map.of());
-            assertEquals(200, response.statusCode());
-
-            JsonNode json = JSON.readTree(response.body());
-            assertEquals(1, json.path("pending").asInt());
-            assertTrue(json.path("lockdown_active").asBoolean());
-            assertTrue(json.path("message").asText().contains("lockdown"));
-        }
-    }
-
-    @Test
     void approvalRequestsRejectDuplicateNonceComposite() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
+        try (RunningServer server = startServer(false, false, "unused")) {
             DataSource dataSource = server.dbManager().dataSource();
 
             insertApprovalRequest(dataSource, "req-1", "nonce-duplicate", "PENDING");
@@ -118,7 +53,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void approvalVotesRejectDuplicateVotePerRequestAndChannel() throws Exception {
-        try (RunningServer server = startServer(true, false, "unused", false, false, "unused")) {
+        try (RunningServer server = startServer(false, false, "unused")) {
             DataSource dataSource = server.dbManager().dataSource();
 
             insertApprovalRequest(dataSource, "req-votes", "nonce-votes", "PENDING");
@@ -134,7 +69,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void landingDisabledDoesNotExposeRootLogOrStaticAssets() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused", false, false, "unused")) {
+        try (RunningServer server = startServer(false, false, "unused")) {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(404, root.statusCode());
 
@@ -153,7 +88,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        Path authQueuePasswordFile = tempDir.resolve("unused-auth-queue.password");
         Path webUiPasswordFile = tempDir.resolve("unused-web-ui.password");
 
         String configToml = """
@@ -162,13 +96,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 [server]
                 host = "127.0.0.1"
                 port = %d
-
-                [auth_queue]
-                enabled = false
-
-                [auth_queue.password-protection]
-                enabled = false
-                password-file = "%s"
 
                 [web-ui]
                 enabled = true
@@ -190,7 +117,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 assets-enabled = false
                 """.formatted(
                 port,
-                tomlPath(authQueuePasswordFile),
                 tomlPath(webUiPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir)
@@ -274,7 +200,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void bitcoinAuthWebUiChannelRequiresWebUiEnabledAtConfigLoad() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
                 false,
-                true,
                 false,
                 true,
                 false,
@@ -289,27 +214,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void bitcoinAuthRestApiChannelRequiresAuthQueueEnabledAtConfigLoad() throws Exception {
-        Path configFile = writeBitcoinChannelValidationConfig(
-                false,
-                false,
-                false,
-                false,
-                true,
-                false
-        );
-
-        IllegalStateException exception = assertThrows(
-                IllegalStateException.class,
-                () -> KonkinConfig.load(configFile.toString())
-        );
-        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.rest-api=true requires auth_queue.enabled=true"));
-    }
-
-    @Test
     void bitcoinAuthTelegramChannelRequiresTelegramEnabledAtConfigLoad() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
-                false,
                 false,
                 false,
                 false,
@@ -331,7 +237,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 true,
                 true,
                 true,
-                true,
                 true
         );
 
@@ -341,7 +246,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     @Test
     void bitcoinAuthInvalidMultipleChannelDependenciesFailsFastOnFirstViolation() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
-                false,
                 false,
                 false,
                 true,

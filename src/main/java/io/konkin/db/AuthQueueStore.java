@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Read-side data access for auth queue status and landing/audit pages.
@@ -37,6 +39,7 @@ public class AuthQueueStore {
 
     private static final int DEFAULT_PAGE_SIZE = 25;
     private static final int MAX_PAGE_SIZE = 200;
+    private static final String NON_QUEUE_WHERE_SQL = "state NOT IN ('PENDING', 'QUEUED')";
 
     private static final Map<String, String> REQUEST_SORT_COLUMNS = Map.of(
             "id", "id",
@@ -99,11 +102,47 @@ public class AuthQueueStore {
     }
 
     public PageResult<ApprovalRequestRow> pagePendingApprovalRequests(String sortBy, String sortDir, int page, int pageSize) {
-        return pageApprovalRequestsWithStateFilter(sortBy, sortDir, page, pageSize, "state = 'PENDING'");
+        return pageApprovalRequestsWithStateFilter(sortBy, sortDir, page, pageSize, "state IN ('PENDING', 'QUEUED')");
     }
 
     public PageResult<ApprovalRequestRow> pageNonPendingApprovalRequests(String sortBy, String sortDir, int page, int pageSize) {
-        return pageApprovalRequestsWithStateFilter(sortBy, sortDir, page, pageSize, "state <> 'PENDING'");
+        return pageApprovalRequestsWithStateFilter(sortBy, sortDir, page, pageSize, NON_QUEUE_WHERE_SQL);
+    }
+
+    public PageResult<ApprovalRequestRow> pageNonPendingApprovalRequests(
+            String sortBy,
+            String sortDir,
+            int page,
+            int pageSize,
+            String coinFilter,
+            String toolFilter,
+            String stateFilter,
+            String textFilter
+    ) {
+        String normalizedCoin = normalizeExactFilter(coinFilter);
+        String normalizedTool = normalizeExactFilter(toolFilter);
+        String normalizedState = normalizeExactFilter(stateFilter);
+        String normalizedText = textFilter == null ? "" : textFilter.trim().toLowerCase();
+
+        if (
+                normalizedCoin.isEmpty()
+                        && normalizedTool.isEmpty()
+                        && normalizedState.isEmpty()
+                        && normalizedText.isEmpty()
+        ) {
+            return pageApprovalRequestsWithStateFilter(sortBy, sortDir, page, pageSize, NON_QUEUE_WHERE_SQL);
+        }
+
+        return pageApprovalRequestsWithFilter(
+                sortBy,
+                sortDir,
+                page,
+                pageSize,
+                normalizedCoin,
+                normalizedTool,
+                normalizedState,
+                normalizedText
+        );
     }
 
     private PageResult<ApprovalRequestRow> pageApprovalRequestsWithStateFilter(
@@ -177,6 +216,156 @@ public class AuthQueueStore {
         }
 
         return new PageResult<>(List.copyOf(rows), safePage, safePageSize, totalRows, totalPages, orderBy, direction.toLowerCase());
+    }
+
+    private PageResult<ApprovalRequestRow> pageApprovalRequestsWithFilter(
+            String sortBy,
+            String sortDir,
+            int page,
+            int pageSize,
+            String normalizedCoin,
+            String normalizedTool,
+            String normalizedState,
+            String normalizedText
+    ) {
+        String orderBy = REQUEST_SORT_COLUMNS.getOrDefault(sortBy, "updated_at");
+        String direction = normalizeSortDirection(sortDir);
+        int safePageSize = normalizePageSize(pageSize);
+
+        StringBuilder whereClause = new StringBuilder("WHERE ").append(NON_QUEUE_WHERE_SQL);
+        List<String> filterParams = new ArrayList<>();
+
+        if (!normalizedCoin.isEmpty()) {
+            whereClause.append(" AND LOWER(coin) = ?");
+            filterParams.add(normalizedCoin);
+        }
+        if (!normalizedTool.isEmpty()) {
+            whereClause.append(" AND LOWER(tool_name) = ?");
+            filterParams.add(normalizedTool);
+        }
+        if (!normalizedState.isEmpty()) {
+            whereClause.append(" AND LOWER(state) = ?");
+            filterParams.add(normalizedState);
+        }
+        if (!normalizedText.isEmpty()) {
+            whereClause.append("""
+                      AND (
+                          LOWER(id) LIKE ?
+                          OR EXISTS (
+                              SELECT 1
+                              FROM approval_votes v
+                              WHERE v.request_id = approval_requests.id
+                                AND LOWER(COALESCE(v.decided_by, '')) LIKE ?
+                          )
+                      )
+                    """);
+            String likeValue = "%" + normalizedText + "%";
+            filterParams.add(likeValue);
+            filterParams.add(likeValue);
+        }
+
+        String whereSql = whereClause.toString();
+        long totalRows = queryCount("SELECT COUNT(*) FROM approval_requests " + whereSql, filterParams);
+        int totalPages = totalRows == 0 ? 0 : (int) Math.ceil((double) totalRows / safePageSize);
+        int safePage = normalizePage(page, totalPages);
+        int offset = (safePage - 1) * safePageSize;
+
+        String sql = """
+                SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       requested_at, expires_at, state, state_reason_code, state_reason_text,
+                       min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
+                       created_at, updated_at, resolved_at
+                FROM approval_requests
+                %s
+                ORDER BY %s %s
+                LIMIT ? OFFSET ?
+                """.formatted(whereSql, orderBy, direction);
+
+        List<ApprovalRequestRow> rows = new ArrayList<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            int paramIndex = 1;
+            for (String filterParam : filterParams) {
+                ps.setString(paramIndex++, filterParam);
+            }
+            ps.setInt(paramIndex++, safePageSize);
+            ps.setInt(paramIndex, Math.max(offset, 0));
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new ApprovalRequestRow(
+                            rs.getString("id"),
+                            rs.getString("coin"),
+                            rs.getString("tool_name"),
+                            rs.getString("request_session_id"),
+                            rs.getString("nonce_uuid"),
+                            rs.getString("payload_hash_sha256"),
+                            rs.getString("nonce_composite"),
+                            rs.getString("to_address"),
+                            rs.getString("amount_native"),
+                            rs.getString("fee_policy"),
+                            rs.getString("fee_cap_native"),
+                            rs.getString("memo"),
+                            toInstant(rs.getTimestamp("requested_at")),
+                            toInstant(rs.getTimestamp("expires_at")),
+                            rs.getString("state"),
+                            rs.getString("state_reason_code"),
+                            rs.getString("state_reason_text"),
+                            rs.getInt("min_approvals_required"),
+                            rs.getInt("approvals_granted"),
+                            rs.getInt("approvals_denied"),
+                            rs.getString("policy_action_at_creation"),
+                            toInstant(rs.getTimestamp("created_at")),
+                            toInstant(rs.getTimestamp("updated_at")),
+                            toInstant(rs.getTimestamp("resolved_at"))
+                    ));
+                }
+            }
+        } catch (SQLException e) {
+            log.error("Failed to page filtered non-pending approval requests", e);
+            throw new IllegalStateException("Failed to page filtered approval_requests", e);
+        }
+
+        return new PageResult<>(List.copyOf(rows), safePage, safePageSize, totalRows, totalPages, orderBy, direction.toLowerCase());
+    }
+
+    public LogQueueFilterOptions loadNonPendingFilterOptions() {
+        String sql = """
+                SELECT coin, tool_name, state
+                FROM approval_requests
+                WHERE state NOT IN ('PENDING', 'QUEUED')
+                """;
+
+        Set<String> coins = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Set<String> tools = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        Set<String> states = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String coin = rs.getString("coin");
+                if (coin != null && !coin.isBlank()) {
+                    coins.add(coin.trim());
+                }
+
+                String tool = rs.getString("tool_name");
+                if (tool != null && !tool.isBlank()) {
+                    tools.add(tool.trim());
+                }
+
+                String state = rs.getString("state");
+                if (state != null && !state.isBlank()) {
+                    states.add(state.trim().toUpperCase());
+                }
+            }
+        } catch (SQLException e) {
+            log.error("Failed to load non-pending filter options", e);
+            throw new IllegalStateException("Failed to query non-pending filter options", e);
+        }
+
+        return new LogQueueFilterOptions(List.copyOf(coins), List.copyOf(tools), List.copyOf(states));
     }
 
     public ApprovalRequestRow findApprovalRequestById(String requestId) {
@@ -482,13 +671,23 @@ public class AuthQueueStore {
     }
 
     private long queryCount(String sql) {
+        return queryCount(sql, List.of());
+    }
+
+    private long queryCount(String sql, List<String> params) {
         try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return rs.getLong(1);
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            int paramIndex = 1;
+            for (String param : params) {
+                ps.setString(paramIndex++, param);
             }
-            return 0L;
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+                return 0L;
+            }
         } catch (SQLException e) {
             log.error("Failed to query count using sql={}", sql, e);
             throw new IllegalStateException("Failed count query", e);
@@ -514,6 +713,10 @@ public class AuthQueueStore {
 
     private static String normalizeSortDirection(String sortDir) {
         return "asc".equalsIgnoreCase(sortDir) ? "ASC" : "DESC";
+    }
+
+    private static String normalizeExactFilter(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
     }
 
     private static Instant toInstant(Timestamp timestamp) {
@@ -617,6 +820,13 @@ public class AuthQueueStore {
             List<RequestChannelDetail> channels,
             List<VoteDetail> votes,
             List<ExecutionAttemptDetail> executionAttempts
+    ) {
+    }
+
+    public record LogQueueFilterOptions(
+            List<String> coins,
+            List<String> tools,
+            List<String> states
     ) {
     }
 
