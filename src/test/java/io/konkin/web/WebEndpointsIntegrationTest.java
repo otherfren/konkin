@@ -3,6 +3,7 @@ package io.konkin.web;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.net.httpserver.HttpServer;
 import io.konkin.config.KonkinConfig;
+import io.konkin.db.DatabaseManager;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
@@ -15,6 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.sql.SQLException;
 import java.util.Map;
+import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -226,6 +228,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void bitcoinAuthWebUiChannelRequiresWebUiEnabledAtConfigLoad() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
                 false,
+                true,
                 false,
                 true,
                 false,
@@ -243,6 +246,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void bitcoinAuthTelegramChannelRequiresTelegramEnabledAtConfigLoad() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
                 false,
+                true,
                 false,
                 false,
                 false,
@@ -259,6 +263,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     @Test
     void bitcoinAuthChannelsPassWhenAllRequiredGlobalChannelsAreEnabled() throws Exception {
         Path configFile = writeBitcoinChannelValidationConfig(
+                true,
                 true,
                 true,
                 true,
@@ -498,6 +503,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path configFile = writeBitcoinChannelValidationConfig(
                 false,
                 false,
+                false,
                 true,
                 true,
                 true
@@ -508,5 +514,170 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 () -> KonkinConfig.load(configFile.toString())
         );
         assertTrue(exception.getMessage().contains("coins.bitcoin.auth.web-ui=true requires web-ui.enabled=true"));
+    }
+
+    @Test
+    void bitcoinAuthRestApiChannelRequiresRestApiEnabledAtConfigLoad() throws Exception {
+        Path configFile = writeBitcoinChannelValidationConfig(
+                true,
+                false,
+                false,
+                false,
+                true,
+                false
+        );
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.rest-api=true requires rest-api.enabled=true"));
+    }
+
+    @Test
+    void restApiSecretFileIsGeneratedWithApiKeyWhenMissing() throws Exception {
+        int port = freePort();
+        Path restApiSecretFile = tempDir.resolve("secrets/rest-api-generated.secret");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+                """.formatted(port, tomlPath(restApiSecretFile));
+
+        Path configFile = tempDir.resolve("config-rest-api-secret-generation-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig.load(configFile.toString());
+
+        assertTrue(Files.exists(restApiSecretFile));
+
+        Properties secretProps = new Properties();
+        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
+            secretProps.load(reader);
+        }
+
+        String apiKey = secretProps.getProperty("api-key", "").trim();
+        assertTrue(!apiKey.isEmpty());
+    }
+
+    @Test
+    void restApiProtectedRoutesRejectMissingOrWrongApiKey() throws Exception {
+        int port = freePort();
+        Path restApiSecretFile = tempDir.resolve("secrets/rest-api-protected.secret");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [database]
+                url = "jdbc:h2:%s"
+                user = "konkin"
+                password = "konkin"
+                pool-size = 5
+
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+
+                [web-ui]
+                enabled = false
+                """.formatted(
+                port,
+                tomlPath(tempDir.resolve("db-rest-api-protected-" + System.nanoTime() + "/konkin")),
+                tomlPath(restApiSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-rest-api-protected-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+
+        Properties secretProps = new Properties();
+        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
+            secretProps.load(reader);
+        }
+        String correctApiKey = secretProps.getProperty("api-key", "").trim();
+        assertTrue(!correctApiKey.isEmpty());
+
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            HttpResponse<String> missingKey = get(runningServer, "/api/v1/protected-probe", Map.of());
+            assertEquals(401, missingKey.statusCode());
+
+            HttpResponse<String> wrongKey = get(runningServer, "/api/v1/protected-probe", Map.of("X-API-Key", "wrong-key"));
+            assertEquals(401, wrongKey.statusCode());
+        }
+    }
+
+    @Test
+    void restApiProtectedRoutesAllowCorrectApiKeyAndHealthWithoutKey() throws Exception {
+        int port = freePort();
+        Path restApiSecretFile = tempDir.resolve("secrets/rest-api-allowed.secret");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [database]
+                url = "jdbc:h2:%s"
+                user = "konkin"
+                password = "konkin"
+                pool-size = 5
+
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+
+                [web-ui]
+                enabled = false
+                """.formatted(
+                port,
+                tomlPath(tempDir.resolve("db-rest-api-allowed-" + System.nanoTime() + "/konkin")),
+                tomlPath(restApiSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-rest-api-allowed-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+
+        Properties secretProps = new Properties();
+        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
+            secretProps.load(reader);
+        }
+        String correctApiKey = secretProps.getProperty("api-key", "").trim();
+        assertTrue(!correctApiKey.isEmpty());
+
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            HttpResponse<String> allowedProbe = get(runningServer, "/api/v1/protected-probe", Map.of("X-API-Key", correctApiKey));
+            assertEquals(404, allowedProbe.statusCode());
+
+            HttpResponse<String> healthWithoutKey = get(runningServer, "/api/v1/health", Map.of());
+            assertEquals(200, healthWithoutKey.statusCode());
+        }
     }
 }

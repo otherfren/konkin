@@ -1,4 +1,4 @@
-package io.konkin.web.controller;
+package io.konkin.api;
 
 import io.javalin.http.Context;
 import io.konkin.web.service.HealthService;

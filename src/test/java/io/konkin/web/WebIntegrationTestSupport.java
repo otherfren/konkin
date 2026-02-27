@@ -45,6 +45,7 @@ abstract class WebIntegrationTestSupport {
 
     protected Path writeBitcoinChannelValidationConfig(
             boolean webUiEnabled,
+            boolean restApiEnabled,
             boolean telegramEnabled,
             boolean coinWebUi,
             boolean coinRestApi,
@@ -70,6 +71,9 @@ abstract class WebIntegrationTestSupport {
                 enabled = false
                 password-file = "%s"
 
+                [rest-api]
+                enabled = %s
+
                 [telegram]
                 enabled = %s
 
@@ -89,6 +93,7 @@ abstract class WebIntegrationTestSupport {
                 port,
                 webUiEnabled,
                 tomlPath(webUiPasswordFile),
+                restApiEnabled,
                 telegramEnabled,
                 tomlPath(daemonSecretFile),
                 tomlPath(walletSecretFile),

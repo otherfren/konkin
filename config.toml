@@ -32,6 +32,11 @@ hosted-path = "/assets"
 enabled = true
 assets-enabled = true
 
+[rest-api]
+enabled = true
+# auto-generated when missing
+secret-file = "./secrets/rest-api.secret"
+
 [debug]
 enabled = true
 seed-fake-data = true

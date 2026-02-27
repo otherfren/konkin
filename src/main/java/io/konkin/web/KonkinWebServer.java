@@ -1,12 +1,14 @@
 package io.konkin.web;
 
 import io.javalin.Javalin;
+import io.javalin.http.NotFoundResponse;
+import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.staticfiles.Location;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
 import io.konkin.security.PasswordFileManager;
-import io.konkin.web.controller.HealthController;
+import io.konkin.api.HealthController;
 import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
@@ -17,8 +19,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Properties;
 
 public class KonkinWebServer {
 
@@ -157,6 +163,31 @@ public class KonkinWebServer {
             }
         });
 
+        if (config.restApiEnabled()) {
+            Path restApiSecretFile = Path.of(config.restApiSecretFile());
+            String expectedApiKey = readRestApiKey(restApiSecretFile);
+            app.before(ctx -> {
+                String path = ctx.path();
+                boolean apiRequest = "/api/v1".equals(path) || path.startsWith("/api/v1/");
+                if (!apiRequest || "/api/v1/health".equals(path)) {
+                    return;
+                }
+
+                String providedApiKey = ctx.header("X-API-Key");
+                if (providedApiKey == null || !providedApiKey.equals(expectedApiKey)) {
+                    throw new UnauthorizedResponse();
+                }
+            });
+        } else {
+            app.before(ctx -> {
+                String path = ctx.path();
+                boolean apiRequest = "/api/v1".equals(path) || path.startsWith("/api/v1/");
+                if (apiRequest && !"/api/v1/health".equals(path)) {
+                    throw new NotFoundResponse();
+                }
+            });
+        }
+
         app.get("/api/v1/health", healthController::handle);
 
         LandingPageController webUiPageControllerFinal = landingPageController;
@@ -198,6 +229,11 @@ public class KonkinWebServer {
 
         log.info("KONKIN server running at http://{}:{}", config.host(), config.port());
         log.info("  /api/v1/health       — health check");
+        if (config.restApiEnabled()) {
+            log.info("  /api/v1/*            — REST API endpoints enabled");
+        } else {
+            log.info("  /api/v1/*            — disabled via config (except /api/v1/health)");
+        }
         if (config.landingEnabled()) {
             log.info("  /                    — landing page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /log                 — audit log page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
@@ -232,6 +268,27 @@ public class KonkinWebServer {
             log.info("  /telegram/approve    — disabled via config (landing disabled)");
             log.info("  /telegram/send       — disabled via config (landing disabled)");
         }
+    }
+
+    private String readRestApiKey(Path secretFile) {
+        Properties properties = new Properties();
+        try (var reader = Files.newBufferedReader(secretFile, StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Failed to read REST API secret file: " + secretFile.toAbsolutePath().normalize(),
+                    e
+            );
+        }
+
+        String apiKey = properties.getProperty("api-key", "").trim();
+        if (apiKey.isEmpty()) {
+            throw new IllegalStateException(
+                    "Invalid REST API secret file: missing non-empty 'api-key' in " + secretFile.toAbsolutePath().normalize()
+            );
+        }
+
+        return apiKey;
     }
 
     private void logTelegramStartupAction(String reason, String actionTaken, Path secretFile) {

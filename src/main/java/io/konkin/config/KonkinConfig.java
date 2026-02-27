@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -53,6 +55,9 @@ public class KonkinConfig {
     private final boolean debugEnabled;
     private final boolean debugSeedFakeData;
 
+    private final boolean restApiEnabled;
+    private final String restApiSecretFile;
+
     private final boolean telegramEnabled;
     private final String telegramSecretFile;
     private final String telegramApiBaseUrl;
@@ -84,6 +89,9 @@ public class KonkinConfig {
 
     public boolean debugEnabled() { return debugEnabled; }
     public boolean debugSeedFakeData() { return debugSeedFakeData; }
+
+    public boolean restApiEnabled() { return restApiEnabled; }
+    public String restApiSecretFile() { return restApiSecretFile; }
 
     public boolean telegramEnabled() { return telegramEnabled; }
     public String telegramSecretFile() { return telegramSecretFile; }
@@ -153,6 +161,9 @@ public class KonkinConfig {
         this.debugEnabled = toml.getOrElse("debug.enabled", false);
         this.debugSeedFakeData = toml.getOrElse("debug.seed-fake-data", false);
 
+        this.restApiEnabled = toml.getOrElse("rest-api.enabled", false);
+        this.restApiSecretFile = toml.getOrElse("rest-api.secret-file", "./secrets/rest-api.secret");
+
         this.telegramEnabled = toml.getOrElse("telegram.enabled", false);
         this.telegramSecretFile = toml.getOrElse("telegram.secret-file", "./secrets/telegram.secret");
         this.telegramApiBaseUrl = toml.getOrElse("telegram.api-base-url", "https://api.telegram.org");
@@ -217,6 +228,9 @@ public class KonkinConfig {
                     config.landingStaticDirectory
             );
             log.info("Debug config — enabled={}, seedFakeData={}", config.debugEnabled, config.debugSeedFakeData);
+            log.info("REST API config — enabled={}, secretFile={}",
+                    config.restApiEnabled,
+                    config.restApiSecretFile);
             log.info("Telegram config — enabled={}, secretFile={}, configuredChatIds={}",
                     config.telegramEnabled,
                     config.telegramSecretFile,
@@ -267,6 +281,14 @@ public class KonkinConfig {
                 }
                 validatePath(landingPasswordFile, "web-ui.password-protection.password-file");
             }
+        }
+
+        if (restApiEnabled) {
+            if (restApiSecretFile == null || restApiSecretFile.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: rest-api.secret-file must be set when rest-api.enabled=true.");
+            }
+            validatePath(restApiSecretFile, "rest-api.secret-file");
         }
 
         if (telegramEnabled) {
@@ -591,6 +613,7 @@ public class KonkinConfig {
                 "bitcoin",
                 auth,
                 landingEnabled,
+                restApiEnabled,
                 telegramEnabled
         );
         CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);
@@ -625,6 +648,7 @@ public class KonkinConfig {
                 coinName,
                 auth,
                 landingEnabled,
+                restApiEnabled,
                 telegramEnabled
         );
         CoinAuthCriteriaValidator.validateNoContradictions(coinName, auth);
@@ -649,20 +673,22 @@ public class KonkinConfig {
     }
 
     private void bootstrapSecretFiles() {
-        if (!bitcoin.enabled()) {
-            return;
+        if (restApiEnabled) {
+            ensureRestApiSecretFileExists(Path.of(restApiSecretFile));
         }
 
-        ensureSecretFileExists(
-                Path.of(bitcoin.bitcoinDaemonConfigSecretFile()),
-                "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
-                defaultBitcoinDaemonSecretContent()
-        );
-        ensureSecretFileExists(
-                Path.of(bitcoin.bitcoinWalletConfigSecretFile()),
-                "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
-                defaultBitcoinWalletSecretContent()
-        );
+        if (bitcoin.enabled()) {
+            ensureSecretFileExists(
+                    Path.of(bitcoin.bitcoinDaemonConfigSecretFile()),
+                    "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
+                    defaultBitcoinDaemonSecretContent()
+            );
+            ensureSecretFileExists(
+                    Path.of(bitcoin.bitcoinWalletConfigSecretFile()),
+                    "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
+                    defaultBitcoinWalletSecretContent()
+            );
+        }
     }
 
     private void ensureSecretFileExists(Path secretFile, String keyName, String content) {
@@ -680,6 +706,39 @@ public class KonkinConfig {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to create secret file for " + keyName + ": " + secretFile, e);
         }
+    }
+
+    private void ensureRestApiSecretFileExists(Path secretFile) {
+        if (Files.exists(secretFile)) {
+            return;
+        }
+
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            String apiKey = generateApiKey();
+            Files.writeString(secretFile, "api-key=" + apiKey + System.lineSeparator(), StandardCharsets.UTF_8);
+            log.warn("Created missing rest-api secret file at {}", secretFile.toAbsolutePath());
+            // stdout only — never log cleartext to file logger
+            printRestApiKeyBanner(secretFile, apiKey);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create rest-api secret file: " + secretFile, e);
+        }
+    }
+
+    private static void printRestApiKeyBanner(Path secretFile, String apiKey) {
+        System.out.println();
+        System.out.println("============================================================");
+        System.out.println("!!! KONKIN REST API KEY CREATED !!!");
+        System.out.println("============================================================");
+        System.out.println("File: " + secretFile.toAbsolutePath());
+        System.out.println("API key (shown only once): " + apiKey);
+        System.out.println("IMPORTANT: this cleartext key is never written to log files.");
+        System.out.println("Rotate key by deleting the referenced file and restarting.");
+        System.out.println("============================================================");
+        System.out.println();
     }
 
     private String defaultBitcoinDaemonSecretContent() {
@@ -700,6 +759,12 @@ public class KonkinConfig {
                 wallet=REPLACE_WITH_BITCOIN_WALLET_NAME
                 wallet-passphrase=REPLACE_WITH_BITCOIN_WALLET_PASSPHRASE
                 """;
+    }
+
+    private static String generateApiKey() {
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 
     private static String normalizeString(Object value) {
