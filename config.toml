@@ -23,7 +23,6 @@ password-file = "./secrets/web-ui.password"
 
 [web-ui.template]
 directory = "./src/main/resources/templates"
-name = "landing.ftl"
 
 [web-ui.static]
 directory = "./src/main/resources/static"
@@ -43,6 +42,12 @@ secret-file = "./secrets/telegram.secret"
 api-base-url = "https://api.telegram.org"
 
 [coins.bitcoin]
+enabled = true
+
+[coins.litecoin]
+enabled = false
+
+[coins.monero]
 enabled = true
 
 [coins.bitcoin.secret-files]

@@ -124,7 +124,6 @@ public class KonkinWebServer {
 
             landingPageService = new LandingPageService(
                     landingTemplateDirectory,
-                    config.landingTemplateName(),
                     config.landingStaticHostedPath(),
                     config.landingAutoReloadEnabled(),
                     config.telegramEnabled() && config.landingEnabled()

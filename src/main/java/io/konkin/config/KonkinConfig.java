@@ -40,7 +40,6 @@ public class KonkinConfig {
     private final boolean landingPasswordProtectionEnabled;
     private final String landingPasswordFile;
     private final String landingTemplateDirectory;
-    private final String landingTemplateName;
     private final String landingStaticDirectory;
     private final String landingStaticHostedPath;
     private final boolean landingAutoReloadEnabled;
@@ -71,7 +70,6 @@ public class KonkinConfig {
     public boolean landingPasswordProtectionEnabled() { return landingPasswordProtectionEnabled; }
     public String landingPasswordFile() { return landingPasswordFile; }
     public String landingTemplateDirectory() { return landingTemplateDirectory; }
-    public String landingTemplateName() { return landingTemplateName; }
     public String landingStaticDirectory() { return landingStaticDirectory; }
     public String landingStaticHostedPath() { return landingStaticHostedPath; }
     public boolean landingAutoReloadEnabled() { return landingAutoReloadEnabled; }
@@ -117,12 +115,6 @@ public class KonkinConfig {
                 "web-ui.template.directory",
                 "landing.template.directory",
                 "./src/main/resources/templates"
-        );
-        this.landingTemplateName = getOrElseWithFallback(
-                toml,
-                "web-ui.template.name",
-                "landing.template.name",
-                "landing.ftl"
         );
         this.landingStaticDirectory = getOrElseWithFallback(
                 toml,
@@ -249,9 +241,6 @@ public class KonkinConfig {
         }
 
         if (landingEnabled) {
-            if (landingTemplateName == null || landingTemplateName.isBlank()) {
-                throw new IllegalStateException("Invalid config: web-ui.template.name must not be blank when web-ui.enabled=true.");
-            }
             if (landingStaticHostedPath == null || landingStaticHostedPath.isBlank() || !landingStaticHostedPath.startsWith("/")) {
                 throw new IllegalStateException("Invalid config: web-ui.static.hosted-path must start with '/' when web-ui.enabled=true.");
             }

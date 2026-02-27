@@ -18,24 +18,22 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class LandingPageService {
 
+    private static final String MAIN_TEMPLATE_NAME = "landing.ftl";
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
 
     private final Configuration freemarker;
-    private final String templateName;
     private final String staticHostedPath;
     private final AtomicLong staticAssetsVersion;
     private final boolean telegramEnabled;
 
     public LandingPageService(
             Path templateDirectory,
-            String templateName,
             String staticHostedPath,
             boolean autoReloadEnabled,
             boolean telegramEnabled
     ) {
-        this.templateName = templateName;
         this.staticHostedPath = staticHostedPath;
         this.staticAssetsVersion = new AtomicLong(1L);
         this.telegramEnabled = telegramEnabled;
@@ -103,7 +101,7 @@ public class LandingPageService {
         } else if ("telegram".equals(activePage)) {
             selectedTemplate = TELEGRAM_TEMPLATE_NAME;
         } else {
-            selectedTemplate = templateName;
+            selectedTemplate = MAIN_TEMPLATE_NAME;
         }
 
         return renderTemplate(selectedTemplate, model);
