@@ -27,7 +27,7 @@
 </header>
 
 <main class="main-section"><div class="content">
-    <h2 class="queue-title">Auth Queue</h2>
+    <h2 class="queue-title">Authorization Queue</h2>
 
     <#assign qSort = (queuePage.sortBy!'requested_at')>
     <#assign qDir = (queuePage.sortDir!'desc')>
@@ -50,9 +50,9 @@
                     <th>Quorum Status</th>
                     <th>Requested</th>
                     <th>Expires</th>
-                    <th>approve-button</th>
-                    <th>deny-button</th>
-                    <th>details-button</th>
+                    <th class="action-header"></th>
+                    <th class="action-header"></th>
+                    <th class="action-header"></th>
                 </tr>
             </thead>
             <tbody>
@@ -62,34 +62,49 @@
                     </tr>
                 <#else>
                     <#list queueRows as row>
-                        <#assign approvalsGranted = row.approvalsGranted!0>
-                        <#assign minApprovalsRequired = row.minApprovalsRequired!0>
-                        <#assign approvalsDenied = row.approvalsDenied!0>
-                        <#assign quorumMet = approvalsGranted gte minApprovalsRequired>
-                        <#assign quorumClass = 'pending'>
-                        <#assign quorumLabel = 'pending'>
-                        <#if quorumMet>
-                            <#assign quorumClass = 'approved'>
-                            <#assign quorumLabel = 'quorum met'>
-                        </#if>
                         <tr>
-                            <td class="mono">${row.id!'-'}</td>
-                            <td>${row.coin!'-'}</td>
-                            <td>${row.toolName!'-'}</td>
-                            <td>
-                                <span class="status ${quorumClass}">${quorumLabel}</span>
-                                <span class="quorum-meta">${approvalsGranted} / ${minApprovalsRequired} · denied ${approvalsDenied}</span>
+                            <td class="queue-id-cell">
+                                <span class="mono queue-id-short">${row.idShort!'-'}</span>
+                                <#if (row.id!'-') != '-'>
+                                    <button
+                                        type="button"
+                                        class="queue-action-btn queue-copy-btn"
+                                        hidden
+                                        data-copy-value="${(row.id!'')?html}"
+                                    >copy</button>
+                                </#if>
                             </td>
-                            <td class="mono">${row.requestedAt!'-'}</td>
-                            <td class="mono">${row.expiresAt!'-'}</td>
+                            <td class="coin-cell">
+                                <#if (row.coinIconName!'')?has_content>
+                                    <img
+                                        class="coin-icon"
+                                        src="${assetsPath}/img/${row.coinIconName}.svg?v=${assetsVersion}"
+                                        alt="${row.coin!'coin'} icon"
+                                        title="${row.coin!'-'}"
+                                    >
+                                <#else>
+                                    <span class="mono queue-small-text" title="${row.coin!'-'}">${row.coin!'-'}</span>
+                                </#if>
+                            </td>
+                            <td class="queue-tool-cell">${row.toolName!'-'}</td>
+                            <td class="queue-status-cell">
+                                <span class="status ${row.statusClass!'pending'}">${row.quorumLabel!'pending 0-of-0'}</span>
+                            </td>
+                            <td class="mono queue-nowrap queue-small-text">${row.requestedAt!'-'}</td>
+                            <td class="mono queue-nowrap queue-small-text">${row.expiresIn!'-'}</td>
                             <td class="action-cell">
                                 <button type="button" class="queue-action-btn queue-action-approve" disabled>approve</button>
                             </td>
                             <td class="action-cell">
                                 <button type="button" class="queue-action-btn queue-action-deny" disabled>deny</button>
                             </td>
-                            <td class="action-cell">
-                                <a class="queue-action-btn queue-action-details" href="${auditLogPath}">details</a>
+                            <td class="action-cell details-cell">
+                                <a
+                                    class="queue-action-btn queue-action-details queue-details-trigger"
+                                    href="/details?id=${(row.id!'')?url('UTF-8')}"
+                                    data-details-source-id="details-source-${row?index}"
+                                >details</a>
+                                <pre id="details-source-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')?html}</pre>
                             </td>
                         </tr>
                     </#list>
@@ -112,6 +127,100 @@
         </div>
     </div>
 </div></main>
+
+<script>
+(() => {
+    const copyButtons = document.querySelectorAll('.queue-copy-btn[data-copy-value]');
+
+    const setMessage = (button, text) => {
+        const original = button.dataset.originalLabel || 'copy';
+        button.textContent = text;
+        window.setTimeout(() => {
+            button.textContent = original;
+        }, 1200);
+    };
+
+    for (const button of copyButtons) {
+        button.dataset.originalLabel = button.textContent || 'copy';
+
+        if (!navigator.clipboard || !navigator.clipboard.writeText) {
+            continue;
+        }
+
+        button.hidden = false;
+        button.addEventListener('click', async () => {
+            const value = button.getAttribute('data-copy-value') || '';
+            try {
+                await navigator.clipboard.writeText(value);
+                setMessage(button, 'copied');
+            } catch (err) {
+                setMessage(button, 'failed');
+            }
+        });
+    }
+
+    const detailTriggers = document.querySelectorAll('.queue-details-trigger[data-details-source-id]');
+    let expandedRow = null;
+    let expandedTrigger = null;
+
+    const collapseExpanded = () => {
+        if (expandedRow) {
+            expandedRow.remove();
+            expandedRow = null;
+        }
+        if (expandedTrigger) {
+            expandedTrigger.classList.remove('is-open');
+            expandedTrigger = null;
+        }
+    };
+
+    for (const trigger of detailTriggers) {
+        trigger.addEventListener('click', event => {
+            event.preventDefault();
+
+            if (expandedTrigger === trigger) {
+                collapseExpanded();
+                return;
+            }
+
+            const sourceId = trigger.getAttribute('data-details-source-id');
+            const sourceElement = sourceId ? document.getElementById(sourceId) : null;
+            if (!sourceElement) {
+                window.location.href = trigger.getAttribute('href') || '/';
+                return;
+            }
+
+            const parentRow = trigger.closest('tr');
+            if (!parentRow) {
+                return;
+            }
+
+            collapseExpanded();
+
+            const detailsRow = document.createElement('tr');
+            detailsRow.className = 'details-expanded-row';
+
+            const detailsCell = document.createElement('td');
+            detailsCell.colSpan = parentRow.children.length || 9;
+
+            const detailsBox = document.createElement('div');
+            detailsBox.className = 'details-box details-box-expanded';
+
+            const detailsPre = document.createElement('pre');
+            detailsPre.textContent = sourceElement.textContent || '{}';
+
+            detailsBox.appendChild(detailsPre);
+            detailsCell.appendChild(detailsBox);
+            detailsRow.appendChild(detailsCell);
+            parentRow.insertAdjacentElement('afterend', detailsRow);
+
+            expandedRow = detailsRow;
+            expandedTrigger = trigger;
+            expandedTrigger.classList.add('is-open');
+        });
+    }
+})();
+</script>
 
 <footer class="site-footer">
     <div class="site-footer-inner">

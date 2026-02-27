@@ -393,14 +393,14 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> root = get(server, "/", Map.of());
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
-            assertTrue(root.body().contains("Auth Queue"));
+            assertTrue(root.body().contains("Authorization Queue"));
             assertFalse(root.body().contains("Audit Log"));
 
             HttpResponse<String> logPage = get(server, "/log", Map.of());
             assertEquals(200, logPage.statusCode());
             assertTrue(logPage.body().contains("KONKIN"));
             assertTrue(logPage.body().contains("Audit Log"));
-            assertFalse(logPage.body().contains("Auth Queue"));
+            assertFalse(logPage.body().contains("Authorization Queue"));
             assertTrue(logPage.body().contains("menu-active\">audit<"));
 
             HttpResponse<String> loginGet = get(server, "/login", Map.of());
@@ -1013,14 +1013,14 @@ class WebEndpointsIntegrationTest {
             HttpResponse<String> rootWithSession = get(server, "/", Map.of("Cookie", sessionCookie));
             assertEquals(200, rootWithSession.statusCode());
             assertTrue(rootWithSession.body().contains("logout"));
-            assertTrue(rootWithSession.body().contains("Auth Queue"));
+            assertTrue(rootWithSession.body().contains("Authorization Queue"));
             assertFalse(rootWithSession.body().contains("Audit Log"));
 
             HttpResponse<String> logWithSession = get(server, "/log", Map.of("Cookie", sessionCookie));
             assertEquals(200, logWithSession.statusCode());
             assertTrue(logWithSession.body().contains("logout"));
             assertTrue(logWithSession.body().contains("Audit Log"));
-            assertFalse(logWithSession.body().contains("Auth Queue"));
+            assertFalse(logWithSession.body().contains("Authorization Queue"));
             assertTrue(logWithSession.body().contains("menu-active\">audit<"));
 
             HttpResponse<String> logout = postForm(server, "/logout", "", Map.of("Cookie", sessionCookie));
@@ -1102,11 +1102,11 @@ class WebEndpointsIntegrationTest {
 
             HttpResponse<String> initial = get(runningServer, "/", Map.of());
             assertEquals(200, initial.statusCode());
-            assertTrue(initial.body().contains("Auth Queue"));
+            assertTrue(initial.body().contains("Authorization Queue"));
 
             Path landingTemplate = templateDir.resolve("landing.ftl");
             String currentTemplate = Files.readString(landingTemplate, StandardCharsets.UTF_8);
-            String updatedTemplate = currentTemplate.replace("Auth Queue", "Auth Queue Reloaded");
+            String updatedTemplate = currentTemplate.replace("Authorization Queue", "Authorization Queue Reloaded");
             Files.writeString(
                     landingTemplate,
                     updatedTemplate,
@@ -1115,7 +1115,7 @@ class WebEndpointsIntegrationTest {
                     StandardOpenOption.WRITE
             );
 
-            boolean observedUpdate = waitForBodyContains(runningServer, "/", "Auth Queue Reloaded", Duration.ofSeconds(5));
+            boolean observedUpdate = waitForBodyContains(runningServer, "/", "Authorization Queue Reloaded", Duration.ofSeconds(5));
             assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
     }

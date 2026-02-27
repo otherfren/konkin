@@ -56,7 +56,7 @@ public class LandingPageService {
     }
 
     public String renderLanding(boolean showLogout, String activePage) {
-        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of());
+        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of(), List.of(), Map.of());
     }
 
     public String renderLanding(
@@ -70,7 +70,9 @@ public class LandingPageService {
             List<Map<String, Object>> queueRows,
             Map<String, Object> queuePage,
             List<Map<String, Object>> auditRows,
-            Map<String, Object> auditPage
+            Map<String, Object> auditPage,
+            List<Map<String, Object>> logQueueRows,
+            Map<String, Object> logQueuePage
     ) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
@@ -92,6 +94,8 @@ public class LandingPageService {
         model.put("queuePage", queuePage == null ? Map.of() : queuePage);
         model.put("auditRows", auditRows == null ? List.of() : auditRows);
         model.put("auditPage", auditPage == null ? Map.of() : auditPage);
+        model.put("logQueueRows", logQueueRows == null ? List.of() : logQueueRows);
+        model.put("logQueuePage", logQueuePage == null ? Map.of() : logQueuePage);
 
         String selectedTemplate;
         if ("log".equals(activePage)) {

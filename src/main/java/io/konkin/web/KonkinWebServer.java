@@ -183,6 +183,7 @@ public class KonkinWebServer {
         if (config.landingEnabled()) {
             app.get("/", webUiPageControllerFinal::handleRoot);
             app.get("/log", webUiPageControllerFinal::handleLog);
+            app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);
@@ -222,6 +223,7 @@ public class KonkinWebServer {
         if (config.landingEnabled()) {
             log.info("  /                    — landing page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /log                 — audit log page (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
+            log.info("  /details             — request details cleartext (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             if (config.telegramEnabled()) {
                 log.info("  /telegram            — telegram onboarding and manual send page");
                 log.info("  /telegram/approve    — approve discovered telegram chat request");
@@ -243,6 +245,7 @@ public class KonkinWebServer {
         } else {
             log.info("  /                    — disabled via config");
             log.info("  /log                 — disabled via config");
+            log.info("  /details             — disabled via config");
             log.info("  /telegram            — disabled via config (landing disabled)");
             log.info("  /telegram/approve    — disabled via config (landing disabled)");
             log.info("  /telegram/send       — disabled via config (landing disabled)");

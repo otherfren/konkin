@@ -1,5 +1,8 @@
 package io.konkin.web.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
@@ -21,6 +24,7 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,7 +39,10 @@ public class LandingPageController {
     private static final String SESSION_COOKIE_NAME = "konkin_landing_session";
     private static final Duration SESSION_TTL = Duration.ofHours(12);
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
     private static final DateTimeFormatter TS_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'").withZone(ZoneOffset.UTC);
+    private static final DateTimeFormatter TS_MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC);
+    private static final Set<String> SUPPORTED_COIN_ICONS = Set.of("bitcoin", "ethereum", "monero", "litecoin");
 
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
@@ -82,6 +89,45 @@ public class LandingPageController {
 
     public void handleLog(Context ctx) {
         renderLandingForPage(ctx, "log");
+    }
+
+    public void handleDetailsPage(Context ctx) {
+        if (authQueueStore == null) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String requestId = defaultIfBlank(ctx.queryParam("id"), "").trim();
+        if (requestId.isEmpty()) {
+            ctx.status(400);
+            ctx.contentType("text/plain; charset=UTF-8");
+            ctx.result("Missing required query parameter: id");
+            return;
+        }
+
+        AuthQueueStore.ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
+        if (row == null) {
+            ctx.status(404);
+            ctx.contentType("text/plain; charset=UTF-8");
+            ctx.result("No approval request found for id: " + requestId);
+            return;
+        }
+
+        Map<String, AuthQueueStore.RequestDependencies> dependenciesByRequestId =
+                authQueueStore.loadRequestDependencies(List.of(requestId));
+
+        AuthQueueStore.RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
+                requestId,
+                new AuthQueueStore.RequestDependencies(List.of(), List.of(), List.of(), List.of())
+        );
+
+        ctx.contentType("text/plain; charset=UTF-8");
+        ctx.result(toPrettyJson(buildDetailsObject(row, dependencies)));
     }
 
     public void handleTelegramPage(Context ctx) {
@@ -226,6 +272,7 @@ public class LandingPageController {
             TelegramPageData telegramPageData = loadTelegramPageData();
             TablePageData queuePageData = loadQueuePageData(ctx);
             TablePageData auditPageData = loadAuditPageData(ctx);
+            TablePageData logQueuePageData = loadLogQueuePageData(ctx);
 
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(landingPageService.renderLanding(
@@ -239,7 +286,9 @@ public class LandingPageController {
                     queuePageData.rows(),
                     queuePageData.pageMeta(),
                     auditPageData.rows(),
-                    auditPageData.pageMeta()));
+                    auditPageData.pageMeta(),
+                    logQueuePageData.rows(),
+                    logQueuePageData.pageMeta()));
             return;
         }
 
@@ -335,27 +384,173 @@ public class LandingPageController {
         int pageSize = parsePositiveInt(ctx.queryParam("queue_page_size"), 25);
 
         AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
-                authQueueStore.pageApprovalRequests(sortBy, sortDir, page, pageSize);
+                authQueueStore.pagePendingApprovalRequests(sortBy, sortDir, page, pageSize);
+
+        return mapApprovalPageData(result);
+    }
+
+    private TablePageData loadLogQueuePageData(Context ctx) {
+        if (authQueueStore == null) {
+            return emptyPageData("updated_at", "desc");
+        }
+
+        String sortBy = defaultIfBlank(ctx.queryParam("log_queue_sort"), "updated_at");
+        String sortDir = defaultIfBlank(ctx.queryParam("log_queue_dir"), "desc");
+        int page = parsePositiveInt(ctx.queryParam("log_queue_page"), 1);
+        int pageSize = parsePositiveInt(ctx.queryParam("log_queue_page_size"), 25);
+
+        AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
+                authQueueStore.pageNonPendingApprovalRequests(sortBy, sortDir, page, pageSize);
+
+        return mapApprovalPageData(result);
+    }
+
+    private TablePageData mapApprovalPageData(AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result) {
+        List<String> requestIds = new ArrayList<>();
+        for (AuthQueueStore.ApprovalRequestRow row : result.rows()) {
+            if (row.id() != null && !row.id().isBlank()) {
+                requestIds.add(row.id());
+            }
+        }
+
+        Map<String, AuthQueueStore.RequestDependencies> dependenciesByRequestId = authQueueStore.loadRequestDependencies(requestIds);
+        Instant now = Instant.now();
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (AuthQueueStore.ApprovalRequestRow row : result.rows()) {
             Map<String, Object> mapped = new LinkedHashMap<>();
-            mapped.put("id", row.id());
-            mapped.put("coin", row.coin());
-            mapped.put("toolName", row.toolName());
-            mapped.put("requestSessionId", row.requestSessionId() == null ? "-" : row.requestSessionId());
-            mapped.put("nonceComposite", row.nonceComposite());
-            mapped.put("requestedAt", formatInstant(row.requestedAt()));
-            mapped.put("expiresAt", formatInstant(row.expiresAt()));
-            mapped.put("state", row.state());
-            mapped.put("minApprovalsRequired", row.minApprovalsRequired());
-            mapped.put("approvalsGranted", row.approvalsGranted());
+            String state = normalizeState(row.state());
+            String stateLower = state.toLowerCase(Locale.ROOT);
+            int approvalsGranted = row.approvalsGranted();
+            int minApprovalsRequired = row.minApprovalsRequired();
+
+            AuthQueueStore.RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
+                    row.id(),
+                    new AuthQueueStore.RequestDependencies(List.of(), List.of(), List.of(), List.of())
+            );
+
+            mapped.put("id", safe(row.id()));
+            mapped.put("idShort", abbreviateId(row.id()));
+            mapped.put("coin", safe(row.coin()));
+            mapped.put("coinIconName", coinIconName(row.coin()));
+            mapped.put("toolName", safe(row.toolName()));
+            mapped.put("requestedAt", formatInstantMinute(row.requestedAt()));
+            mapped.put("expiresIn", formatRemaining(row.expiresAt(), now));
+            mapped.put("state", state);
+            mapped.put("stateLower", stateLower);
+            mapped.put("statusClass", toStatusClass(stateLower));
+            mapped.put("minApprovalsRequired", minApprovalsRequired);
+            mapped.put("approvalsGranted", approvalsGranted);
             mapped.put("approvalsDenied", row.approvalsDenied());
-            mapped.put("updatedAt", formatInstant(row.updatedAt()));
+            mapped.put("quorumLabel", "pending " + approvalsGranted + "-of-" + minApprovalsRequired);
+            mapped.put("detailsJson", toPrettyJson(buildDetailsObject(row, dependencies)));
             rows.add(Map.copyOf(mapped));
         }
 
         return new TablePageData(List.copyOf(rows), pageMetaFrom(result));
+    }
+
+    private Map<String, Object> buildDetailsObject(
+            AuthQueueStore.ApprovalRequestRow row,
+            AuthQueueStore.RequestDependencies dependencies
+    ) {
+        Map<String, Object> root = new LinkedHashMap<>();
+
+        Map<String, Object> request = new LinkedHashMap<>();
+        request.put("id", safe(row.id()));
+        request.put("coin", safe(row.coin()));
+        request.put("toolName", safe(row.toolName()));
+        request.put("requestSessionId", safe(row.requestSessionId()));
+        request.put("nonceUuid", safe(row.nonceUuid()));
+        request.put("payloadHashSha256", safe(row.payloadHashSha256()));
+        request.put("nonceComposite", safe(row.nonceComposite()));
+        request.put("toAddress", safe(row.toAddress()));
+        request.put("amountNative", safe(row.amountNative()));
+        request.put("feePolicy", safe(row.feePolicy()));
+        request.put("feeCapNative", safe(row.feeCapNative()));
+        request.put("memo", safe(row.memo()));
+        request.put("requestedAt", formatInstant(row.requestedAt()));
+        request.put("expiresAt", formatInstant(row.expiresAt()));
+        request.put("state", safe(row.state()));
+        request.put("stateReasonCode", safe(row.stateReasonCode()));
+        request.put("stateReasonText", safe(row.stateReasonText()));
+        request.put("minApprovalsRequired", row.minApprovalsRequired());
+        request.put("approvalsGranted", row.approvalsGranted());
+        request.put("approvalsDenied", row.approvalsDenied());
+        request.put("policyActionAtCreation", safe(row.policyActionAtCreation()));
+        request.put("createdAt", formatInstant(row.createdAt()));
+        request.put("updatedAt", formatInstant(row.updatedAt()));
+        request.put("resolvedAt", formatInstant(row.resolvedAt()));
+        root.put("request", Map.copyOf(request));
+
+        List<Map<String, Object>> history = new ArrayList<>();
+        for (AuthQueueStore.StateTransitionDetail transition : dependencies.transitions()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", transition.id());
+            item.put("requestId", safe(transition.requestId()));
+            item.put("fromState", safe(transition.fromState()));
+            item.put("toState", safe(transition.toState()));
+            item.put("actorType", safe(transition.actorType()));
+            item.put("actorId", safe(transition.actorId()));
+            item.put("reasonCode", safe(transition.reasonCode()));
+            item.put("reasonText", safe(transition.reasonText()));
+            item.put("metadataJson", safe(transition.metadataJson()));
+            item.put("createdAt", formatInstant(transition.createdAt()));
+            history.add(Map.copyOf(item));
+        }
+        root.put("history", List.copyOf(history));
+
+        Map<String, Object> allDependencies = new LinkedHashMap<>();
+
+        List<Map<String, Object>> channels = new ArrayList<>();
+        for (AuthQueueStore.RequestChannelDetail channel : dependencies.channels()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", channel.id());
+            item.put("requestId", safe(channel.requestId()));
+            item.put("channelId", safe(channel.channelId()));
+            item.put("deliveryState", safe(channel.deliveryState()));
+            item.put("firstSentAt", formatInstant(channel.firstSentAt()));
+            item.put("lastAttemptAt", formatInstant(channel.lastAttemptAt()));
+            item.put("attemptCount", channel.attemptCount());
+            item.put("lastError", safe(channel.lastError()));
+            item.put("createdAt", formatInstant(channel.createdAt()));
+            channels.add(Map.copyOf(item));
+        }
+        allDependencies.put("channels", List.copyOf(channels));
+
+        List<Map<String, Object>> votes = new ArrayList<>();
+        for (AuthQueueStore.VoteDetail vote : dependencies.votes()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", vote.id());
+            item.put("requestId", safe(vote.requestId()));
+            item.put("channelId", safe(vote.channelId()));
+            item.put("decision", safe(vote.decision()));
+            item.put("decisionReason", safe(vote.decisionReason()));
+            item.put("decidedBy", safe(vote.decidedBy()));
+            item.put("decidedAt", formatInstant(vote.decidedAt()));
+            votes.add(Map.copyOf(item));
+        }
+        allDependencies.put("votes", List.copyOf(votes));
+
+        List<Map<String, Object>> executionAttempts = new ArrayList<>();
+        for (AuthQueueStore.ExecutionAttemptDetail execution : dependencies.executionAttempts()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", execution.id());
+            item.put("requestId", safe(execution.requestId()));
+            item.put("attemptNo", execution.attemptNo());
+            item.put("startedAt", formatInstant(execution.startedAt()));
+            item.put("finishedAt", formatInstant(execution.finishedAt()));
+            item.put("result", safe(execution.result()));
+            item.put("errorClass", safe(execution.errorClass()));
+            item.put("errorMessage", safe(execution.errorMessage()));
+            item.put("txid", safe(execution.txid()));
+            item.put("daemonFeeNative", safe(execution.daemonFeeNative()));
+            executionAttempts.add(Map.copyOf(item));
+        }
+        allDependencies.put("executionAttempts", List.copyOf(executionAttempts));
+
+        root.put("dependencies", Map.copyOf(allDependencies));
+        return Map.copyOf(root);
     }
 
     private TablePageData loadAuditPageData(Context ctx) {
@@ -434,8 +629,94 @@ public class LandingPageController {
         return (value == null || value.isBlank()) ? fallback : value;
     }
 
+    private static String safe(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private static String normalizeState(String state) {
+        if (state == null || state.isBlank()) {
+            return "UNKNOWN";
+        }
+        return state.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String abbreviateId(String id) {
+        if (id == null || id.isBlank()) {
+            return "-";
+        }
+        String trimmed = id.trim();
+        if (trimmed.length() <= 5) {
+            return trimmed;
+        }
+        return trimmed.substring(0, 5) + "...";
+    }
+
+    private static String coinIconName(String coin) {
+        if (coin == null || coin.isBlank()) {
+            return "";
+        }
+        String normalized = coin.trim().toLowerCase(Locale.ROOT);
+        return SUPPORTED_COIN_ICONS.contains(normalized) ? normalized : "";
+    }
+
+    private static String toStatusClass(String stateLower) {
+        if ("completed".equals(stateLower) || "approved".equals(stateLower)) {
+            return "approved";
+        }
+        if (
+                "failed".equals(stateLower)
+                        || "denied".equals(stateLower)
+                        || "cancelled".equals(stateLower)
+                        || "timed_out".equals(stateLower)
+                        || "rejected".equals(stateLower)
+                        || "expired".equals(stateLower)
+        ) {
+            return "cancelled";
+        }
+        return "pending";
+    }
+
+    private static String formatInstantMinute(Instant instant) {
+        return instant == null ? "-" : TS_MINUTE_FORMAT.format(instant);
+    }
+
     private static String formatInstant(Instant instant) {
         return instant == null ? "-" : TS_FORMAT.format(instant);
+    }
+
+    private static String formatRemaining(Instant expiresAt, Instant now) {
+        if (expiresAt == null) {
+            return "-";
+        }
+
+        long seconds = Duration.between(now, expiresAt).getSeconds();
+        if (seconds <= 0) {
+            return "expired";
+        }
+        if (seconds < 60) {
+            return "in " + seconds + "sec";
+        }
+
+        long minutes = Math.max(1L, (seconds + 59) / 60);
+        if (minutes < 60) {
+            return "in " + minutes + "min";
+        }
+
+        long hours = Math.max(1L, (minutes + 59) / 60);
+        if (hours < 48) {
+            return "in " + hours + "h";
+        }
+
+        long days = Math.max(1L, (hours + 23) / 24);
+        return "in " + days + "d";
+    }
+
+    private static String toPrettyJson(Map<String, Object> source) {
+        try {
+            return JSON.writeValueAsString(source);
+        } catch (JsonProcessingException e) {
+            return "{\n  \"error\": \"failed to render details\"\n}";
+        }
     }
 
     private record TelegramPageData(List<Map<String, String>> chatRequests, List<Map<String, String>> approvedChats) {
