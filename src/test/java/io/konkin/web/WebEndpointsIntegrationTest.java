@@ -79,6 +79,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authDefinitions = get(server, "/auth_definitions", Map.of());
             assertEquals(404, authDefinitions.statusCode());
 
+            HttpResponse<String> coinsPage = get(server, "/coins", Map.of());
+            assertEquals(404, coinsPage.statusCode());
+
             HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
             assertEquals(404, staticAsset.statusCode());
         }
@@ -151,6 +154,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
+
+            HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
+            assertEquals(200, coinsPage.statusCode());
+            assertTrue(coinsPage.body().contains("Wallet status overview for coins configured in config.toml."));
+            assertTrue(coinsPage.body().contains("BITCOIN"));
+            assertTrue(coinsPage.body().contains("LITECOIN"));
+            assertTrue(coinsPage.body().contains("MONERO"));
+            assertTrue(coinsPage.body().contains("/assets/img/bitcoin.svg"));
+            assertTrue(coinsPage.body().contains("/assets/img/litecoin.svg"));
+            assertTrue(coinsPage.body().contains("/assets/img/monero.svg"));
         }
     }
 
@@ -396,6 +409,87 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("data-secret-value=\"btc-backup\""));
             assertTrue(authDefinitions.body().contains(">***<"));
             assertTrue(authDefinitions.body().contains("aria-label=\"Reveal MCP value\""));
+        }
+    }
+
+    @Test
+    void coinsPageShowsMaskedBalanceWithRevealButton() throws Exception {
+        int port = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-coins.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-coins.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-coins.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = false
+                telegram = false
+                mcp-auth-channels = ["btc-main", "btc-backup"]
+                """.formatted(
+                port,
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-coins-page-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
+            assertEquals(200, coinsPage.statusCode());
+            assertTrue(coinsPage.body().contains("Coins"));
+            assertTrue(coinsPage.body().contains("BITCOIN"));
+            assertTrue(coinsPage.body().contains("LITECOIN"));
+            assertTrue(coinsPage.body().contains("MONERO"));
+            assertTrue(coinsPage.body().contains("data-balance-value=\"unknown\""));
+            assertTrue(coinsPage.body().contains(">***<"));
+            assertTrue(coinsPage.body().contains("aria-label=\"Reveal balance\""));
+            assertTrue(coinsPage.body().contains("connected"));
+            assertTrue(coinsPage.body().contains("read"));
+            assertTrue(coinsPage.body().contains("write"));
         }
     }
 

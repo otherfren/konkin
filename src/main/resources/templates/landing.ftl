@@ -20,6 +20,7 @@
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
         <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>
         <#if activePage == "auth_definitions"><span class="menu-active">auth defs</span><#else><a href="${authDefinitionsPath}">auth defs</a></#if>
+        <#if activePage == "coins"><span class="menu-active">coins</span><#else><a href="${coinsPath}">coins</a></#if>
         <#if telegramPageAvailable>
             <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
         </#if>

@@ -592,6 +592,171 @@ p {
     font-size: 0.9rem;
 }
 
+.coins-content {
+    display: grid;
+    gap: 16px;
+}
+
+.coins-subtitle {
+    margin: 8px 0 0;
+    color: #d5dcff;
+    font-size: 0.94rem;
+}
+
+.coins-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.coins-card {
+    border: 1px solid rgba(92, 107, 255, 0.26);
+    border-radius: 12px;
+    background: radial-gradient(circle at top right, rgba(84, 66, 196, 0.17), rgba(23, 26, 33, 0.94) 45%);
+    padding: 14px;
+}
+
+.coins-card-empty {
+    border-color: var(--line);
+    background: rgba(23, 26, 33, 0.88);
+}
+
+.coins-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.coins-coin-title {
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.94rem;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #c3d0ff;
+    font-weight: 400;
+}
+
+.coins-coin-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
+.coins-enabled-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.coins-enabled-on {
+    color: #9cfcc2;
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.12);
+}
+
+.coins-enabled-off {
+    color: #ffc3c3;
+    border-color: rgba(255, 96, 96, 0.35);
+    background: rgba(255, 96, 96, 0.12);
+}
+
+.coins-status-grid {
+    margin-top: 12px;
+    display: grid;
+    gap: 8px;
+}
+
+.coins-status-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(58, 66, 86, 0.9);
+    border-radius: 10px;
+    background: rgba(12, 15, 20, 0.7);
+    padding: 8px 10px;
+}
+
+.coins-status-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.coins-state {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    padding: 2px 8px;
+}
+
+.coins-state-on {
+    color: #9cfcc2;
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.12);
+}
+
+.coins-state-off {
+    color: #ffc3c3;
+    border-color: rgba(255, 96, 96, 0.35);
+    background: rgba(255, 96, 96, 0.12);
+}
+
+.coins-balance-item {
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.coins-balance-value {
+    color: #e6ebff;
+    letter-spacing: 0.08em;
+}
+
+.coins-balance-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+    border: 1px solid rgba(124, 146, 255, 0.45);
+    border-radius: 6px;
+    background: rgba(124, 146, 255, 0.1);
+    color: #cdd8ff;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 0.85rem;
+    padding: 0;
+}
+
+.coins-balance-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(247, 147, 26, 0.08);
+}
+
+.coins-balance-toggle.is-revealed {
+    border-color: rgba(74, 222, 128, 0.5);
+    color: #9cfcc2;
+    background: rgba(74, 222, 128, 0.12);
+}
+
 .auth-definitions-content {
     display: grid;
     gap: 16px;

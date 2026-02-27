@@ -162,6 +162,19 @@ public class LandingPageController {
         ));
     }
 
+    public void handleCoinsPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderCoins(
+                passwordProtectionEnabled,
+                buildCoinsModel()
+        ));
+    }
+
     public void handleLoginPage(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
@@ -790,6 +803,37 @@ public class LandingPageController {
 
         long days = Math.max(1L, (hours + 23) / 24);
         return "in " + days + "d";
+    }
+
+    private Map<String, Object> buildCoinsModel() {
+        Map<String, Object> root = new LinkedHashMap<>();
+
+        List<Map<String, Object>> coins = new ArrayList<>();
+        coins.add(buildCoinWalletStatus("bitcoin", config.bitcoin()));
+        coins.add(buildCoinWalletStatus("litecoin", config.litecoin()));
+        coins.add(buildCoinWalletStatus("monero", config.monero()));
+
+        root.put("coins", List.copyOf(coins));
+        return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildCoinWalletStatus(String coinId, KonkinConfig.CoinConfig coinConfig) {
+        KonkinConfig.CoinAuthConfig auth = coinConfig.auth();
+
+        boolean connected = coinConfig.enabled();
+        boolean readable = coinConfig.enabled() && (auth.webUi() || auth.restApi() || auth.telegram());
+        boolean writable = coinConfig.enabled() && auth.restApi();
+        String balanceValue = coinConfig.enabled() ? "unknown" : "-";
+
+        Map<String, Object> coin = new LinkedHashMap<>();
+        coin.put("coin", coinId);
+        coin.put("coinIconName", coinIconName(coinId));
+        coin.put("enabled", coinConfig.enabled());
+        coin.put("connected", connected);
+        coin.put("readable", readable);
+        coin.put("writable", writable);
+        coin.put("balanceValue", balanceValue);
+        return Map.copyOf(coin);
     }
 
     private Map<String, Object> buildAuthDefinitionsModel() {
