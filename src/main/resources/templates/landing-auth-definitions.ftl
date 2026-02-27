@@ -80,26 +80,30 @@
                     </span>
                 </div>
 
+                <#assign mcpAuthChannels = (coin.mcpAuthChannels![])>
                 <div class="auth-meta-grid">
-                    <div class="auth-meta-item">
-                        <span class="auth-meta-label">MCP</span>
-                        <#assign mcpValue = (coin.mcp!'-')>
-                        <#if mcpValue == "-">
+                    <section class="auth-meta-item auth-mcp-panel" aria-labelledby="auth-mcp-${coin?index}">
+                        <h4 id="auth-mcp-${coin?index}" class="auth-meta-label auth-mcp-title">MCP auth channels</h4>
+                        <#if mcpAuthChannels?size == 0>
                             <span class="mono auth-meta-value">-</span>
                         <#else>
-                            <div class="auth-secret">
-                                <span class="mono auth-meta-value auth-secret-value" data-secret-value="${mcpValue?html}" data-masked="true">***</span>
-                                <button
-                                    type="button"
-                                    class="auth-secret-toggle"
-                                    aria-label="Reveal MCP value"
-                                    title="Reveal secret"
-                                >
-                                    <span aria-hidden="true">👁</span>
-                                </button>
+                            <div class="auth-mcp-list">
+                                <#list mcpAuthChannels as mcpValue>
+                                    <div class="auth-mcp-item">
+                                        <span class="mono auth-meta-value auth-secret-value" data-secret-value="${mcpValue?html}" data-masked="true">***</span>
+                                        <button
+                                            type="button"
+                                            class="auth-secret-toggle"
+                                            aria-label="Reveal MCP value"
+                                            title="Reveal secret"
+                                        >
+                                            <span aria-hidden="true">👁</span>
+                                        </button>
+                                    </div>
+                                </#list>
                             </div>
                         </#if>
-                    </div>
+                    </section>
                 </div>
 
                 <div class="auth-channel-grid">
@@ -189,7 +193,7 @@
     const secretValues = document.querySelectorAll('.auth-secret-value[data-secret-value]');
 
     for (const valueEl of secretValues) {
-        const container = valueEl.closest('.auth-secret');
+        const container = valueEl.closest('.auth-mcp-item, .auth-secret');
         const toggle = container ? container.querySelector('.auth-secret-toggle') : null;
         if (!toggle) {
             continue;

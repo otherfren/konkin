@@ -822,10 +822,16 @@ public class LandingPageController {
             warnings.add("telegram channel is configured, but telegram is globally disabled.");
         }
 
+        List<String> mcpAuthChannels = new ArrayList<>();
+        for (String mcpAuthChannel : auth.mcpAuthChannels()) {
+            mcpAuthChannels.add(safe(mcpAuthChannel));
+        }
+
         coin.put("coin", coinId);
         coin.put("coinIconName", coinIconName(coinId));
         coin.put("enabled", coinConfig.enabled());
         coin.put("mcp", safe(auth.mcp()));
+        coin.put("mcpAuthChannels", List.copyOf(mcpAuthChannels));
         coin.put("channels", Map.copyOf(channels));
         coin.put("channelWarnings", List.copyOf(warnings));
         coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));

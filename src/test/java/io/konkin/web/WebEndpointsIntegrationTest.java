@@ -356,7 +356,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 web-ui = true
                 rest-api = false
                 telegram = false
-                mcp = "btc-main"
+                mcp-auth-channels = ["btc-main", "btc-backup"]
 
                 [[coins.bitcoin.auth.auto-deny]]
                 [coins.bitcoin.auth.auto-deny.criteria]
@@ -391,6 +391,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
+            assertTrue(authDefinitions.body().contains("MCP auth channels"));
+            assertTrue(authDefinitions.body().contains("data-secret-value=\"btc-main\""));
+            assertTrue(authDefinitions.body().contains("data-secret-value=\"btc-backup\""));
             assertTrue(authDefinitions.body().contains(">***<"));
             assertTrue(authDefinitions.body().contains("aria-label=\"Reveal MCP value\""));
         }

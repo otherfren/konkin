@@ -221,7 +221,7 @@ public class KonkinConfig {
                     config.telegramEnabled,
                     config.telegramSecretFile,
                     config.telegramChatIds.size());
-            log.info("Bitcoin config — enabled={}, daemonSecretFile={}, walletSecretFile={}, webUi={}, restApi={}, telegram={}, mcpId={}, autoAcceptRules={}, autoDenyRules={}",
+            log.info("Bitcoin config — enabled={}, daemonSecretFile={}, walletSecretFile={}, webUi={}, restApi={}, telegram={}, mcpId={}, mcpAuthChannels={}, autoAcceptRules={}, autoDenyRules={}",
                     config.bitcoin.enabled(),
                     config.bitcoin.bitcoinDaemonConfigSecretFile(),
                     config.bitcoin.bitcoinWalletConfigSecretFile(),
@@ -229,6 +229,7 @@ public class KonkinConfig {
                     config.bitcoin.auth().restApi(),
                     config.bitcoin.auth().telegram(),
                     config.bitcoin.auth().mcp(),
+                    config.bitcoin.auth().mcpAuthChannels().size(),
                     config.bitcoin.auth().autoAccept().size(),
                     config.bitcoin.auth().autoDeny().size());
             return config;
@@ -308,6 +309,7 @@ public class KonkinConfig {
         boolean restApi = toml.getOrElse("coins.bitcoin.auth.rest-api", true);
         boolean telegram = toml.getOrElse("coins.bitcoin.auth.telegram", false);
         String mcp = toml.getOrElse("coins.bitcoin.auth.mcp", "");
+        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, "coins.bitcoin.auth", mcp);
 
         List<ApprovalRule> autoAccept = readApprovalRules(toml, "coins.bitcoin.auth.auto-accept");
         List<ApprovalRule> autoDeny = readApprovalRules(toml, "coins.bitcoin.auth.auto-deny");
@@ -316,7 +318,7 @@ public class KonkinConfig {
                 enabled,
                 daemonSecretFile,
                 walletSecretFile,
-                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp)
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels)
         );
     }
 
@@ -328,6 +330,7 @@ public class KonkinConfig {
         boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
         boolean telegram = toml.getOrElse(coinPrefix + ".auth.telegram", false);
         String mcp = toml.getOrElse(coinPrefix + ".auth.mcp", defaultMcp);
+        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, coinPrefix + ".auth", mcp);
 
         List<ApprovalRule> autoAccept = readApprovalRules(toml, coinPrefix + ".auth.auto-accept");
         List<ApprovalRule> autoDeny = readApprovalRules(toml, coinPrefix + ".auth.auto-deny");
@@ -336,8 +339,34 @@ public class KonkinConfig {
                 enabled,
                 "",
                 "",
-                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp)
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels)
         );
+    }
+
+    private List<String> loadMcpAuthChannels(FileConfig toml, String authPath, String fallbackMcp) {
+        LinkedHashSet<String> channels = new LinkedHashSet<>();
+
+        Object raw = toml.get(authPath + ".mcp-auth-channels");
+        if (raw != null) {
+            if (!(raw instanceof List<?> rawList)) {
+                throw new IllegalStateException("Invalid config: " + authPath + ".mcp-auth-channels must be a TOML list.");
+            }
+            for (Object item : rawList) {
+                if (item == null) {
+                    continue;
+                }
+                String channel = item.toString().trim();
+                if (!channel.isEmpty()) {
+                    channels.add(channel);
+                }
+            }
+        }
+
+        if (channels.isEmpty() && fallbackMcp != null && !fallbackMcp.isBlank()) {
+            channels.add(fallbackMcp.trim());
+        }
+
+        return List.copyOf(channels);
     }
 
     private List<ApprovalRule> readApprovalRules(FileConfig toml, String keyPath) {
@@ -546,9 +575,9 @@ public class KonkinConfig {
                     "Invalid config: coins.bitcoin.auth must enable at least one channel (web-ui/rest-api/telegram).");
         }
 
-        if (auth.mcp() == null || auth.mcp().isBlank()) {
+        if (auth.mcpAuthChannels() == null || auth.mcpAuthChannels().isEmpty()) {
             throw new IllegalStateException(
-                    "Invalid config: coins.bitcoin.auth.mcp must be a non-empty unique identifier.");
+                    "Invalid config: coins.bitcoin.auth must define at least one MCP auth channel via coins.bitcoin.auth.mcp or coins.bitcoin.auth.mcp-auth-channels.");
         }
 
         for (ApprovalRule rule : auth.autoAccept()) {
@@ -579,9 +608,9 @@ public class KonkinConfig {
             );
         }
 
-        if (auth.mcp() == null || auth.mcp().isBlank()) {
+        if (auth.mcpAuthChannels() == null || auth.mcpAuthChannels().isEmpty()) {
             throw new IllegalStateException(
-                    "Invalid config: coins." + coinName + ".auth.mcp must be a non-empty unique identifier."
+                    "Invalid config: coins." + coinName + ".auth must define at least one MCP auth channel via coins." + coinName + ".auth.mcp or coins." + coinName + ".auth.mcp-auth-channels."
             );
         }
 
@@ -705,7 +734,8 @@ public class KonkinConfig {
             boolean webUi,
             boolean restApi,
             boolean telegram,
-            String mcp
+            String mcp,
+            List<String> mcpAuthChannels
     ) {
     }
 

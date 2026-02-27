@@ -95,8 +95,8 @@ bitcoin-wallet-config-file = "./secrets/bitcoin-wallet.conf"
 web-ui = true
 rest-api = true
 telegram = true
-# unique identifier for agent MCP HTTP SSE connection
-mcp = "agent-default"
+# MCP auth channel identifiers shown in Auth Definitions
+mcp-auth-channels = ["agent-default", "agent-backup"]
 
 [[coins.bitcoin.auth.auto-accept]]
 [coins.bitcoin.auth.auto-accept.criteria]

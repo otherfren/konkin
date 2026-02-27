@@ -724,6 +724,26 @@ p {
     color: #e6ebff;
 }
 
+.auth-mcp-panel {
+    display: grid;
+    gap: 8px;
+}
+
+.auth-mcp-title {
+    margin: 0;
+}
+
+.auth-mcp-list {
+    display: grid;
+    gap: 8px;
+}
+
+.auth-mcp-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
 .auth-secret {
     display: inline-flex;
     align-items: center;
