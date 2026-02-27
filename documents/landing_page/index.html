@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>konkin.io — Self-Custodial Crypto Wallet for AI Agents</title>
-  <link rel="icon" type="image/png" href="images/logo.png">
+  <link rel="icon" type="image/png" href="images/logo_low.png">
   <style>
     :root {
       --bg:      #07070d;
@@ -52,10 +52,14 @@
       display: flex;
       align-items: center;
       gap: 0.55rem;
-      font-weight: 700;
-      font-size: 1.15rem;
-      letter-spacing: 0.05em;
-      color: var(--text);
+      font-weight: 800;
+      font-size: 1.18rem;
+      letter-spacing: 0.04em;
+      background: linear-gradient(135deg, #c8c8d0 0%, #d4864a 55%, #c2692a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.25));
     }
 
     .nav-logo img {
@@ -89,13 +93,13 @@
 
     /* ── Hero ── */
     .hero {
-      min-height: 88vh;
+      min-height: 56vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
-      padding: 5rem 1.5rem 4rem;
+      padding: 3rem 1.5rem 2.5rem;
       position: relative;
       overflow: hidden;
     }
@@ -185,7 +189,7 @@
     .btn-secondary:hover { background: rgba(255,255,255,0.09); transform: translateY(-1px); text-decoration: none; }
 
     .hero-scroll-hint {
-      margin-top: 4rem;
+      margin-top: 1.75rem;
       color: var(--muted);
       font-size: 0.78rem;
       letter-spacing: 0.08em;
@@ -267,109 +271,6 @@
       font-size: 0.9rem;
       color: var(--muted);
       line-height: 1.6;
-    }
-
-    /* ── Carousel ── */
-    .carousel-section {
-      background: var(--bg2);
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .carousel-wrap {
-      max-width: 1080px;
-      margin: 0 auto;
-    }
-
-    .carousel {
-      position: relative;
-      overflow: hidden;
-      border-radius: 16px;
-      border: 1px solid var(--border);
-      background: var(--bg3);
-    }
-
-    .carousel-track {
-      display: flex;
-      transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1);
-      will-change: transform;
-    }
-
-    .carousel-slide {
-      min-width: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2.5rem 2rem 2rem;
-      gap: 1.5rem;
-    }
-
-    .carousel-slide img {
-      max-height: 400px;
-      max-width: 100%;
-      object-fit: contain;
-      border-radius: 10px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
-    }
-
-    .carousel-caption {
-      text-align: center;
-    }
-
-    .carousel-caption h4 {
-      font-size: 1rem;
-      font-weight: 700;
-      margin-bottom: 0.3rem;
-    }
-
-    .carousel-caption p {
-      font-size: 0.88rem;
-      color: var(--muted);
-    }
-
-    .carousel-nav {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.75rem;
-      margin-top: 1.5rem;
-    }
-
-    .carousel-btn {
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      color: var(--text);
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .carousel-btn:hover { border-color: var(--accent); background: rgba(249,115,22,0.08); }
-
-    .carousel-dots {
-      display: flex;
-      gap: 0.45rem;
-    }
-
-    .dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--border);
-      border: none;
-      cursor: pointer;
-      padding: 0;
-      transition: background 0.2s, transform 0.2s;
-    }
-    .dot.active {
-      background: var(--accent);
-      transform: scale(1.35);
     }
 
     /* ── How it works ── */
@@ -458,18 +359,12 @@
       color: var(--muted);
     }
 
-    /* ── Divider ── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 0;
-    }
-
     /* ── 2FA Explainer ── */
     .how2fa-section {
       background: var(--bg2);
       border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
+      padding: 3rem 1.5rem;
     }
 
     .how2fa-inner {
@@ -549,13 +444,12 @@
 <!-- ── Nav ── -->
 <nav>
   <div class="nav-logo">
-    <img src="images/logo.png" alt="konkin.io logo">
+    <img src="images/logo_low.png" alt="konkin.io logo">
     konkin.io
   </div>
   <div class="nav-links">
-    <a href="#features">Features</a>
-    <a href="#preview">Preview</a>
-    <a href="#coins">Coins</a>
+    <a href="#features">Core Capabilities</a>
+    <a href="#coins">Supported Coins</a>
     <a href="https://github.com/otherfren/konkin" class="btn-ghost" target="_blank" rel="noopener">
       GitHub ↗
     </a>
@@ -577,12 +471,6 @@
     <a href="#features" class="btn-secondary">
       Learn more ↓
     </a>
-  </div>
-  <div class="hero-scroll-hint">
-    <span>scroll</span>
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
   </div>
 </section>
 
@@ -608,14 +496,28 @@
   </div>
 </section>
 
+<!-- ── Coins ── -->
+<section id="coins">
+  <div class="section-inner">
+    <div class="section-label">Supported Coins</div>
+    <h2 class="section-title">Growing wallet support</h2>
+
+    <div class="coins-grid">
+      <div class="coin-chip"><img src="images/bitcoin.svg" alt="Bitcoin"> Bitcoin <span class="phase phase-live">available</span></div>
+      <div class="coin-chip"><img src="images/litecoin.svg" alt="Litecoin"> Litecoin <span class="phase phase-live">available</span></div>
+      <div class="coin-chip"><img src="images/monero.svg" alt="Monero"> Monero <span class="phase phase-soon">partially available</span></div>
+      <div class="coin-chip"><img src="images/ethereum.svg" alt="Ethereum"> Ethereum <span class="phase phase-future">Work In Progress</span></div>
+    </div>
+  </div>
+</section>
+
 <!-- ── Features ── -->
-<section id="features">
+<section id="features" style="background: var(--bg2); border-top: 1px solid var(--border);">
   <div class="section-inner">
     <div class="section-label">Core Capabilities</div>
-    <h2 class="section-title">Your keys. Your server. Your rules.</h2>
+    <h2 class="section-title">A custom safeguard for your secrets!</h2>
     <p class="section-desc">
-      KONKIN is a local MCP server that bridges AI agents with your self-hosted crypto wallet daemons —
-      with every transaction requiring your explicit approval.
+      AI agents are not to be trusted with critical secrets. KONKIN is a local MCP server that bridges AI agents with your self-hosted crypto wallet daemons — effectively removing direct access to your secrets from the agent.
     </p>
 
     <div class="features-grid">
@@ -627,7 +529,7 @@
       <div class="feat-card">
         <span class="feat-icon">👤</span>
         <h3>Human-in-the-Loop</h3>
-        <p>Every transaction queues for your approval via Telegram, WhatsApp, Discord, SMS, or a local web UI. The agent waits.</p>
+        <p>Transactions are queued for your approval via Telegram, WhatsApp, Discord, the Rest-Api, or a local web UI. The agent waits.</p>
       </div>
       <div class="feat-card">
         <span class="feat-icon">⚖️</span>
@@ -647,24 +549,8 @@
       <div class="feat-card">
         <span class="feat-icon">🔌</span>
         <h3>MCP Native</h3>
-        <p>Works with Claude Desktop, Cursor, and any MCP-compatible AI client out of the box via stdio, SSE, or Streamable HTTP.</p>
+        <p>Your AI agent understands the coin protocol immediately, so you don't have to.</p>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── Coins ── -->
-<section id="coins" style="background: var(--bg2); border-top: 1px solid var(--border);">
-  <div class="section-inner">
-    <div class="section-label">Supported Coins</div>
-    <h2 class="section-title">Growing wallet support</h2>
-    <p class="section-desc"></p>
-
-    <div class="coins-grid">
-      <div class="coin-chip"><img src="images/bitcoin.svg" alt="Bitcoin"> Bitcoin <span class="phase phase-live">available</span></div>
-      <div class="coin-chip"><img src="images/litecoin.svg" alt="Litecoin"> Litecoin <span class="phase phase-live">available</span></div>
-      <div class="coin-chip"><img src="images/monero.svg" alt="Monero"> Monero <span class="phase phase-soon">partially available</span></div>
-      <div class="coin-chip"><img src="images/ethereum.svg" alt="Ethereum"> Ethereum <span class="phase phase-future">Work In Progress</span></div>
     </div>
   </div>
 </section>
@@ -673,7 +559,7 @@
 <footer>
   <div class="footer-inner">
     <div class="nav-logo" style="justify-content:center;">
-      <img src="images/logo.png" alt="konkin.io logo">
+      <img src="images/logo_low.png" alt="konkin.io logo">
       konkin.io
     </div>
     <p>Keeper of Nodes, Keys, and Independent Networks</p>
@@ -685,55 +571,5 @@
   </div>
 </footer>
 
-<script>
-  (function () {
-    const track  = document.getElementById('carouselTrack');
-    const dotsEl = document.getElementById('carouselDots');
-    const slides = track.querySelectorAll('.carousel-slide');
-    const total  = slides.length;
-    let   cur    = 0;
-    let   timer;
-
-    // Build dots
-    for (let i = 0; i < total; i++) {
-      const d = document.createElement('button');
-      d.className = 'dot' + (i === 0 ? ' active' : '');
-      d.setAttribute('aria-label', 'Go to slide ' + (i + 1));
-      d.addEventListener('click', () => goTo(i));
-      dotsEl.appendChild(d);
-    }
-
-    function goTo(n) {
-      cur = (n + total) % total;
-      track.style.transform = 'translateX(-' + (cur * 100) + '%)';
-      dotsEl.querySelectorAll('.dot').forEach((d, i) =>
-        d.classList.toggle('active', i === cur));
-      resetTimer();
-    }
-
-    function resetTimer() {
-      clearInterval(timer);
-      timer = setInterval(() => goTo(cur + 1), 4500);
-    }
-
-    document.getElementById('prevBtn').addEventListener('click', () => goTo(cur - 1));
-    document.getElementById('nextBtn').addEventListener('click', () => goTo(cur + 1));
-
-    // Pause on hover
-    const carousel = document.getElementById('carousel');
-    carousel.addEventListener('mouseenter', () => clearInterval(timer));
-    carousel.addEventListener('mouseleave', resetTimer);
-
-    // Touch/swipe support
-    let startX = 0;
-    carousel.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
-    carousel.addEventListener('touchend',   e => {
-      const dx = e.changedTouches[0].clientX - startX;
-      if (Math.abs(dx) > 40) goTo(dx < 0 ? cur + 1 : cur - 1);
-    });
-
-    resetTimer();
-  })();
-</script>
 </body>
 </html>
