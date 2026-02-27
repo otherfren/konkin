@@ -12,6 +12,10 @@
         <img src="${assetsPath}/img/logo.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
         <span class="brand-name">${title}</span>
     </a>
+    <input type="checkbox" id="menu-toggle-telegram" class="menu-toggle" aria-hidden="true">
+    <label for="menu-toggle-telegram" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
+        <span></span><span></span><span></span>
+    </label>
     <nav class="menu" aria-label="Main">
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
         <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>

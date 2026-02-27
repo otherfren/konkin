@@ -1,6 +1,3 @@
--- Auth queue D2 model
--- Source: planning/auth-queue-d2-model.md
-
 CREATE TABLE IF NOT EXISTS approval_requests (
     id                           VARCHAR(64) PRIMARY KEY,
     coin                         VARCHAR(64) NOT NULL,

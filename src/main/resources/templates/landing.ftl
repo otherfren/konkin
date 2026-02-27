@@ -12,6 +12,10 @@
         <img src="${assetsPath}/img/logo.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
         <span class="brand-name">${title}</span>
     </a>
+    <input type="checkbox" id="menu-toggle-queue" class="menu-toggle" aria-hidden="true">
+    <label for="menu-toggle-queue" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
+        <span></span><span></span><span></span>
+    </label>
     <nav class="menu" aria-label="Main">
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
         <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>
@@ -29,17 +33,37 @@
 <main class="main-section"><div class="content">
     <h2 class="queue-title">Authorization Queue</h2>
 
-    <#assign qSort = (queuePage.sortBy!'requested_at')>
-    <#assign qDir = (queuePage.sortDir!'desc')>
+    <#assign qSort = (queuePage.sortBy!'expires_at')>
+    <#assign qDir = (queuePage.sortDir!'asc')>
     <#assign qPage = (queuePage.page!1)>
     <#assign qPageSize = (queuePage.pageSize!25)>
     <#assign qTotalRows = (queuePage.totalRows!0)>
     <#assign qTotalPages = (queuePage.totalPages!0)>
 
+    <#macro queuePager extraClass="">
+        <div class="pager${extraClass}">
+            <#if (queuePage.hasPrev!false)>
+                <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.prevPage!1}&queue_page_size=${qPageSize}">Prev</a>
+            <#else>
+                <span class="pager-link disabled">Prev</span>
+            </#if>
+            <span class="pager-info">Page ${qPage} of ${qTotalPages}</span>
+            <#if (queuePage.hasNext!false)>
+                <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.nextPage!1}&queue_page_size=${qPageSize}">Next</a>
+            <#else>
+                <span class="pager-link disabled">Next</span>
+            </#if>
+        </div>
+    </#macro>
+
     <div class="queue-table-shell">
         <div class="table-toolbar">
             <span class="table-meta">rows: ${qTotalRows} · page ${qPage} / ${qTotalPages}</span>
         </div>
+
+        <#if (queueRows?size) gt 8>
+            <@queuePager extraClass=" pager-top" />
+        </#if>
 
         <table class="queue-table">
             <thead>
@@ -112,19 +136,7 @@
             </tbody>
         </table>
 
-        <div class="pager">
-            <#if (queuePage.hasPrev!false)>
-                <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.prevPage!1}&queue_page_size=${qPageSize}">Prev</a>
-            <#else>
-                <span class="pager-link disabled">Prev</span>
-            </#if>
-            <span class="pager-info">Page ${qPage} of ${qTotalPages}</span>
-            <#if (queuePage.hasNext!false)>
-                <a class="pager-link" href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${queuePage.nextPage!1}&queue_page_size=${qPageSize}">Next</a>
-            <#else>
-                <span class="pager-link disabled">Next</span>
-            </#if>
-        </div>
+        <@queuePager />
     </div>
 </div></main>
 

@@ -375,11 +375,11 @@ public class LandingPageController {
 
     private TablePageData loadQueuePageData(Context ctx) {
         if (authQueueStore == null) {
-            return emptyPageData("requested_at", "desc");
+            return emptyPageData("expires_at", "asc");
         }
 
-        String sortBy = defaultIfBlank(ctx.queryParam("queue_sort"), "requested_at");
-        String sortDir = defaultIfBlank(ctx.queryParam("queue_dir"), "desc");
+        String sortBy = defaultIfBlank(ctx.queryParam("queue_sort"), "expires_at");
+        String sortDir = defaultIfBlank(ctx.queryParam("queue_dir"), "asc");
         int page = parsePositiveInt(ctx.queryParam("queue_page"), 1);
         int pageSize = parsePositiveInt(ctx.queryParam("queue_page_size"), 25);
 
