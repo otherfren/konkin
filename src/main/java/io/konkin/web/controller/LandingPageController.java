@@ -799,6 +799,8 @@ public class LandingPageController {
 
         List<Map<String, Object>> coins = new ArrayList<>();
         coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
+        coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
+        coins.add(buildCoinAuthDefinition("monero", config.monero()));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
     }
@@ -821,6 +823,7 @@ public class LandingPageController {
         }
 
         coin.put("coin", coinId);
+        coin.put("coinIconName", coinIconName(coinId));
         coin.put("enabled", coinConfig.enabled());
         coin.put("mcp", safe(auth.mcp()));
         coin.put("channels", Map.copyOf(channels));
@@ -843,13 +846,53 @@ public class LandingPageController {
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("index", index++);
             entry.put("type", criteria == null ? "-" : criteria.type().tomlValue());
+            entry.put("typeLabel", criteria == null ? "-" : switch (criteria.type()) {
+                case VALUE_GT -> "single amount >";
+                case VALUE_LT -> "single amount <";
+                case CUMULATED_VALUE_GT -> "sum in window >";
+                case CUMULATED_VALUE_LT -> "sum in window <";
+            });
             entry.put("value", criteria == null ? "-" : Double.toString(criteria.value()));
-            entry.put("period", criteria == null || criteria.period() == null ? "-" : criteria.period().toString());
+            entry.put("period", criteria == null || criteria.period() == null ? "-" : formatDurationFriendly(criteria.period()));
             entry.put("requiresPeriod", criteria != null && criteria.type().requiresPeriod());
             mappedRules.add(Map.copyOf(entry));
         }
 
         return List.copyOf(mappedRules);
+    }
+
+    private static String formatDurationFriendly(Duration duration) {
+        if (duration == null) {
+            return "-";
+        }
+
+        long totalSeconds = duration.getSeconds();
+        long days = totalSeconds / 86_400;
+        totalSeconds %= 86_400;
+        long hours = totalSeconds / 3_600;
+        totalSeconds %= 3_600;
+        long minutes = totalSeconds / 60;
+        long seconds = totalSeconds % 60;
+
+        List<String> parts = new ArrayList<>();
+        if (days > 0) {
+            parts.add(days + "d");
+        }
+        if (hours > 0) {
+            parts.add(hours + "h");
+        }
+        if (minutes > 0) {
+            parts.add(minutes + "m");
+        }
+        if (seconds > 0) {
+            parts.add(seconds + "s");
+        }
+
+        if (parts.isEmpty()) {
+            return "0s";
+        }
+
+        return String.join(" ", parts);
     }
 
     private static String toPrettyJson(Map<String, Object> source) {

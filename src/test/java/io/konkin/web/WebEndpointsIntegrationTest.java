@@ -146,6 +146,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("Auth Definitions"));
             assertTrue(authDefinitions.body().contains("BITCOIN"));
+            assertTrue(authDefinitions.body().contains("LITECOIN"));
+            assertTrue(authDefinitions.body().contains("MONERO"));
+            assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
+            assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
+            assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
         }
     }
 
@@ -249,6 +254,146 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         );
 
         assertDoesNotThrow(() -> KonkinConfig.load(configFile.toString()));
+    }
+
+    @Test
+    void humanFriendlyDurationsAreAcceptedAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-human.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-human.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+
+                [[coins.bitcoin.auth.auto-accept]]
+                [coins.bitcoin.auth.auto-accept.criteria]
+                type = "cumulated-value-lt"
+                value = 0.6
+                period = "7d 2h"
+
+                [[coins.bitcoin.auth.auto-deny]]
+                [coins.bitcoin.auth.auto-deny.criteria]
+                type = "cumulated-value-gt"
+                value = 2.0
+                period = "7 days and 2 hours"
+                """.formatted(
+                port,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-human-duration-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        assertDoesNotThrow(() -> KonkinConfig.load(configFile.toString()));
+    }
+
+    @Test
+    void authDefinitionsPageShowsFriendlyDurationWindow() throws Exception {
+        int port = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-auth-defs.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-auth-defs.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+
+                [[coins.bitcoin.auth.auto-deny]]
+                [coins.bitcoin.auth.auto-deny.criteria]
+                type = "cumulated-value-gt"
+                value = 2.0
+                period = "7 days and 2 hours"
+                """.formatted(
+                port,
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-auth-defs-friendly-window-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            assertEquals(200, authDefinitions.statusCode());
+            assertTrue(authDefinitions.body().contains("7d 2h"));
+            assertTrue(authDefinitions.body().contains("sum in window >"));
+            assertTrue(authDefinitions.body().contains("Time window"));
+            assertTrue(authDefinitions.body().contains("LITECOIN"));
+            assertTrue(authDefinitions.body().contains("MONERO"));
+            assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
+            assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
+            assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
+            assertTrue(authDefinitions.body().contains(">***<"));
+            assertTrue(authDefinitions.body().contains("aria-label=\"Reveal MCP value\""));
+        }
     }
 
     @Test

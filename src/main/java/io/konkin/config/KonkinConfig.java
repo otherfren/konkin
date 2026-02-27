@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Loads and holds all configuration from config.toml.
@@ -24,6 +26,9 @@ public class KonkinConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KonkinConfig.class);
     private static final int EXPECTED_CONFIG_VERSION = 1;
+    private static final Pattern HUMAN_DURATION_PART_PATTERN = Pattern.compile(
+            "(?i)(\\d+)\\s*(weeks?|w|days?|d|hours?|hrs?|hr|h|minutes?|mins?|min|m|seconds?|secs?|sec|s)"
+    );
 
     private final int configVersion;
     private final String host;
@@ -54,6 +59,8 @@ public class KonkinConfig {
     private final List<String> telegramChatIds;
 
     private final CoinConfig bitcoin;
+    private final CoinConfig litecoin;
+    private final CoinConfig monero;
 
     public int configVersion() { return configVersion; }
     public String host() { return host; }
@@ -84,6 +91,8 @@ public class KonkinConfig {
     public List<String> telegramChatIds() { return telegramChatIds; }
 
     public CoinConfig bitcoin() { return bitcoin; }
+    public CoinConfig litecoin() { return litecoin; }
+    public CoinConfig monero() { return monero; }
 
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
@@ -164,6 +173,8 @@ public class KonkinConfig {
         this.telegramChatIds = List.copyOf(deduplicatedTelegramChatIds);
 
         this.bitcoin = loadBitcoinConfig(toml);
+        this.litecoin = loadCoinConfig(toml, "litecoin", "ltc-main");
+        this.monero = loadCoinConfig(toml, "monero", "xmr-main");
     }
 
     private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
@@ -277,6 +288,8 @@ public class KonkinConfig {
         }
 
         validateBitcoinConfig();
+        validateNonBitcoinCoinConfig("litecoin", litecoin);
+        validateNonBitcoinCoinConfig("monero", monero);
     }
 
     private CoinConfig loadBitcoinConfig(FileConfig toml) {
@@ -303,6 +316,26 @@ public class KonkinConfig {
                 enabled,
                 daemonSecretFile,
                 walletSecretFile,
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp)
+        );
+    }
+
+    private CoinConfig loadCoinConfig(FileConfig toml, String coinId, String defaultMcp) {
+        String coinPrefix = "coins." + coinId;
+
+        boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
+        boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
+        boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
+        boolean telegram = toml.getOrElse(coinPrefix + ".auth.telegram", false);
+        String mcp = toml.getOrElse(coinPrefix + ".auth.mcp", defaultMcp);
+
+        List<ApprovalRule> autoAccept = readApprovalRules(toml, coinPrefix + ".auth.auto-accept");
+        List<ApprovalRule> autoDeny = readApprovalRules(toml, coinPrefix + ".auth.auto-deny");
+
+        return new CoinConfig(
+                enabled,
+                "",
+                "",
                 new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp)
         );
     }
@@ -392,18 +425,102 @@ public class KonkinConfig {
     }
 
     private Duration parseDuration(String value, String keyPath) {
-        try {
-            Duration duration = Duration.parse(value);
-            if (duration.isZero() || duration.isNegative()) {
-                throw new IllegalStateException("Invalid config: " + keyPath + " must be > PT0S.");
-            }
-            return duration;
-        } catch (DateTimeParseException e) {
+        String normalized = value == null ? "" : value.trim();
+
+        Duration duration = parseIsoDurationOrNull(normalized);
+        if (duration == null) {
+            duration = parseHumanDurationOrNull(normalized);
+        }
+
+        if (duration == null) {
             throw new IllegalStateException(
-                    "Invalid config: " + keyPath + " must be ISO-8601 duration, e.g. PT24H.",
-                    e
+                    "Invalid config: " + keyPath +
+                            " must be a duration like '24h', '7d 2h', '7 days and 2 hours' or ISO-8601 (e.g. PT24H)."
             );
         }
+
+        if (duration.isZero() || duration.isNegative()) {
+            throw new IllegalStateException("Invalid config: " + keyPath + " must be greater than 0 seconds.");
+        }
+
+        return duration;
+    }
+
+    private Duration parseIsoDurationOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Duration.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private Duration parseHumanDurationOrNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String normalized = value.toLowerCase(Locale.ROOT)
+                .replace(',', ' ')
+                .replaceAll("\\band\\b", " ");
+
+        Matcher matcher = HUMAN_DURATION_PART_PATTERN.matcher(normalized);
+
+        long totalSeconds = 0L;
+        int cursor = 0;
+        boolean foundAtLeastOnePart = false;
+
+        while (matcher.find()) {
+            String gap = normalized.substring(cursor, matcher.start()).trim();
+            if (!gap.isEmpty()) {
+                return null;
+            }
+
+            long amount;
+            try {
+                amount = Long.parseLong(matcher.group(1));
+            } catch (NumberFormatException e) {
+                return null;
+            }
+            if (amount <= 0L) {
+                return null;
+            }
+
+            long unitSeconds = unitToSeconds(matcher.group(2));
+            try {
+                totalSeconds = Math.addExact(totalSeconds, Math.multiplyExact(amount, unitSeconds));
+            } catch (ArithmeticException e) {
+                throw new IllegalStateException("Invalid config: duration value is too large.", e);
+            }
+
+            cursor = matcher.end();
+            foundAtLeastOnePart = true;
+        }
+
+        if (!foundAtLeastOnePart) {
+            return null;
+        }
+
+        String tail = normalized.substring(cursor).trim();
+        if (!tail.isEmpty()) {
+            return null;
+        }
+
+        return Duration.ofSeconds(totalSeconds);
+    }
+
+    private long unitToSeconds(String rawUnit) {
+        String unit = rawUnit.toLowerCase(Locale.ROOT);
+        return switch (unit) {
+            case "w", "week", "weeks" -> 7L * 24L * 60L * 60L;
+            case "d", "day", "days" -> 24L * 60L * 60L;
+            case "h", "hr", "hrs", "hour", "hours" -> 60L * 60L;
+            case "m", "min", "mins", "minute", "minutes" -> 60L;
+            case "s", "sec", "secs", "second", "seconds" -> 1L;
+            default -> throw new IllegalStateException("Unsupported duration unit: " + rawUnit);
+        };
     }
 
     private void validateBitcoinConfig() {
@@ -448,6 +565,40 @@ public class KonkinConfig {
                 telegramEnabled
         );
         CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);
+    }
+
+    private void validateNonBitcoinCoinConfig(String coinName, CoinConfig coin) {
+        if (!coin.enabled()) {
+            return;
+        }
+
+        CoinAuthConfig auth = coin.auth();
+        if (!auth.webUi() && !auth.restApi() && !auth.telegram()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth must enable at least one channel (web-ui/rest-api/telegram)."
+            );
+        }
+
+        if (auth.mcp() == null || auth.mcp().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth.mcp must be a non-empty unique identifier."
+            );
+        }
+
+        for (ApprovalRule rule : auth.autoAccept()) {
+            ensureRuleConsistency(rule, "coins." + coinName + ".auth.auto-accept");
+        }
+        for (ApprovalRule rule : auth.autoDeny()) {
+            ensureRuleConsistency(rule, "coins." + coinName + ".auth.auto-deny");
+        }
+
+        CoinAuthCriteriaValidator.validateChannelAvailability(
+                coinName,
+                auth,
+                landingEnabled,
+                telegramEnabled
+        );
+        CoinAuthCriteriaValidator.validateNoContradictions(coinName, auth);
     }
 
     private void ensureRuleConsistency(ApprovalRule rule, String keyPath) {

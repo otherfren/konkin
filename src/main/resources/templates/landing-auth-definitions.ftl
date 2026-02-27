@@ -33,7 +33,7 @@
 
 <main class="main-section"><div class="content auth-definitions-content">
     <h2 class="queue-title">Auth Definitions</h2>
-    <p class="auth-definitions-subtitle">Read-only view of current auth configuration loaded from config.toml.</p>
+    <p class="auth-definitions-subtitle">Read-only view of config.toml</p>
 
     <#assign webUiEnabled = (authDefinitions.webUiEnabled!false)>
     <#assign telegramEnabled = (authDefinitions.telegramEnabled!false)>
@@ -64,7 +64,17 @@
 
             <section class="auth-card" aria-labelledby="auth-coin-${coin?index}">
                 <div class="auth-card-header">
-                    <h3 id="auth-coin-${coin?index}" class="auth-coin-name">${(coin.coin!'-')?upper_case}</h3>
+                    <h3 id="auth-coin-${coin?index}" class="auth-coin-name auth-coin-title">
+                        <#if (coin.coinIconName!'')?has_content>
+                            <img
+                                class="coin-icon auth-coin-icon"
+                                src="${assetsPath}/img/${coin.coinIconName}.svg?v=${assetsVersion}"
+                                alt="${coin.coin!'coin'} icon"
+                                title="${coin.coin!'-'}"
+                            >
+                        </#if>
+                        <span>${(coin.coin!'-')?upper_case}</span>
+                    </h3>
                     <span class="auth-chip <#if (coin.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
                         coin: ${(coin.enabled!false)?string('enabled', 'disabled')}
                     </span>
@@ -73,7 +83,22 @@
                 <div class="auth-meta-grid">
                     <div class="auth-meta-item">
                         <span class="auth-meta-label">MCP</span>
-                        <span class="mono auth-meta-value">${coin.mcp!'-'}</span>
+                        <#assign mcpValue = (coin.mcp!'-')>
+                        <#if mcpValue == "-">
+                            <span class="mono auth-meta-value">-</span>
+                        <#else>
+                            <div class="auth-secret">
+                                <span class="mono auth-meta-value auth-secret-value" data-secret-value="${mcpValue?html}" data-masked="true">***</span>
+                                <button
+                                    type="button"
+                                    class="auth-secret-toggle"
+                                    aria-label="Reveal MCP value"
+                                    title="Reveal secret"
+                                >
+                                    <span aria-hidden="true">👁</span>
+                                </button>
+                            </div>
+                        </#if>
                     </div>
                 </div>
 
@@ -107,16 +132,16 @@
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th>Type</th>
-                                        <th>Value</th>
-                                        <th>Period</th>
+                                        <th>Rule</th>
+                                        <th>Amount</th>
+                                        <th>Time window</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <#list autoAcceptRules as rule>
                                         <tr>
                                             <td class="mono">${rule.index!'-'}</td>
-                                            <td><span class="auth-rule-type auth-rule-type-accept">${rule.type!'-'}</span></td>
+                                            <td><span class="auth-rule-type auth-rule-type-accept">${rule.typeLabel!rule.type!'-'}</span></td>
                                             <td class="mono">${rule.value!'-'}</td>
                                             <td class="mono">${rule.period!'-'}</td>
                                         </tr>
@@ -135,16 +160,16 @@
                                 <thead>
                                     <tr>
                                         <th>#</th>
-                                        <th>Type</th>
-                                        <th>Value</th>
-                                        <th>Period</th>
+                                        <th>Rule</th>
+                                        <th>Amount</th>
+                                        <th>Time window</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <#list autoDenyRules as rule>
                                         <tr>
                                             <td class="mono">${rule.index!'-'}</td>
-                                            <td><span class="auth-rule-type auth-rule-type-deny">${rule.type!'-'}</span></td>
+                                            <td><span class="auth-rule-type auth-rule-type-deny">${rule.typeLabel!rule.type!'-'}</span></td>
                                             <td class="mono">${rule.value!'-'}</td>
                                             <td class="mono">${rule.period!'-'}</td>
                                         </tr>
@@ -158,6 +183,37 @@
         </#list>
     </#if>
 </div></main>
+
+<script>
+(() => {
+    const secretValues = document.querySelectorAll('.auth-secret-value[data-secret-value]');
+
+    for (const valueEl of secretValues) {
+        const container = valueEl.closest('.auth-secret');
+        const toggle = container ? container.querySelector('.auth-secret-toggle') : null;
+        if (!toggle) {
+            continue;
+        }
+
+        toggle.addEventListener('click', () => {
+            const masked = valueEl.dataset.masked !== 'false';
+            if (masked) {
+                valueEl.textContent = valueEl.dataset.secretValue || '-';
+                valueEl.dataset.masked = 'false';
+                toggle.setAttribute('aria-label', 'Hide MCP value');
+                toggle.setAttribute('title', 'Hide secret');
+                toggle.classList.add('is-revealed');
+            } else {
+                valueEl.textContent = '***';
+                valueEl.dataset.masked = 'true';
+                toggle.setAttribute('aria-label', 'Reveal MCP value');
+                toggle.setAttribute('title', 'Reveal secret');
+                toggle.classList.remove('is-revealed');
+            }
+        });
+    }
+})();
+</script>
 
 <footer class="site-footer">
     <div class="site-footer-inner">

@@ -683,6 +683,18 @@ p {
     font-weight: 400;
 }
 
+.auth-coin-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auth-coin-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+}
+
 .auth-meta-grid {
     margin-top: 12px;
     display: grid;
@@ -710,6 +722,45 @@ p {
     display: block;
     margin-top: 4px;
     color: #e6ebff;
+}
+
+.auth-secret {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.auth-secret-value {
+    letter-spacing: 0.08em;
+}
+
+.auth-secret-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 24px;
+    border: 1px solid rgba(124, 146, 255, 0.45);
+    border-radius: 6px;
+    background: rgba(124, 146, 255, 0.1);
+    color: #cdd8ff;
+    cursor: pointer;
+    line-height: 1;
+    font-size: 0.85rem;
+    padding: 0;
+}
+
+.auth-secret-toggle:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(247, 147, 26, 0.08);
+}
+
+.auth-secret-toggle.is-revealed {
+    border-color: rgba(74, 222, 128, 0.5);
+    color: #9cfcc2;
+    background: rgba(74, 222, 128, 0.12);
 }
 
 .auth-channel-grid {

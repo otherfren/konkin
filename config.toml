@@ -45,10 +45,46 @@ api-base-url = "https://api.telegram.org"
 enabled = true
 
 [coins.litecoin]
-enabled = false
+enabled = true
+#example values for future litecoin auth config
+
+[coins.litecoin.auth]
+web-ui = true
+rest-api = true
+telegram = false
+mcp = "ltc-main"
+
+[[coins.litecoin.auth.auto-accept]]
+[coins.litecoin.auth.auto-accept.criteria]
+type = "value-lt"
+value = 1.25
+
+[[coins.litecoin.auth.auto-deny]]
+[coins.litecoin.auth.auto-deny.criteria]
+type = "cumulated-value-gt"
+value = 8.0
+period = "48h"
 
 [coins.monero]
 enabled = true
+#example values for future monero auth config
+
+[coins.monero.auth]
+web-ui = true
+rest-api = false
+telegram = true
+mcp = "xmr-main"
+
+[[coins.monero.auth.auto-accept]]
+[coins.monero.auth.auto-accept.criteria]
+type = "value-lt"
+value = 0.30
+
+[[coins.monero.auth.auto-deny]]
+[coins.monero.auth.auto-deny.criteria]
+type = "cumulated-value-gt"
+value = 1.5
+period = "7d"
 
 [coins.bitcoin.secret-files]
 # files are auto-generated on startup when missing
@@ -71,7 +107,7 @@ value = 0.01
 [coins.bitcoin.auth.auto-accept.criteria]
 type = "cumulated-value-lt"
 value = 0.6
-period = "PT24H" #ISO-8601 duration
+period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
 
 [[coins.bitcoin.auth.auto-deny]]
 [coins.bitcoin.auth.auto-deny.criteria]
@@ -82,4 +118,10 @@ value = 1.0
 [coins.bitcoin.auth.auto-deny.criteria]
 type = "cumulated-value-gt"
 value = 1.0
-period = "PT24H" #ISO-8601 duration
+period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
+
+[[coins.bitcoin.auth.auto-deny]]
+[coins.bitcoin.auth.auto-deny.criteria]
+type = "cumulated-value-gt"
+value = 2.0
+period = "7d 2h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
