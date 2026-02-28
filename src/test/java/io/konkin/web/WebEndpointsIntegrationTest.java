@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import javax.sql.DataSource;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.time.Instant;
+import java.io.IOException;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -24,6 +26,63 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
+
+    @Test
+    void restApiExposesRequestsAndSerializesInstantCorrectly() throws Exception {
+        int port = freePort();
+        Path restApiSecretFile = tempDir.resolve("rest-api-instant.password");
+        Files.writeString(restApiSecretFile, "api-key=test-api-key-instant", StandardCharsets.UTF_8);
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-instant-" + System.nanoTime() + "/konkin"));
+
+        String configToml = """
+                config-version = 1
+                [server]
+                host = "127.0.0.1"
+                port = %d
+                [database]
+                url = "%s"
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+                [landing]
+                enabled = true
+                [landing.template]
+                directory = "%s"
+                [landing.static]
+                directory = "%s"
+                """.formatted(port, dbUrl, tomlPath(restApiSecretFile), tomlPath(templateDir), tomlPath(staticDir));
+
+        KonkinConfig config = KonkinConfig.load(configFile(configToml));
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer konkinServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        konkinServer.start();
+
+        try (RunningServer server = new RunningServer(konkinServer, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            insertApprovalRequest(server.dbManager().dataSource(), "req-instant", "nonce-instant", "PENDING");
+
+            HttpResponse<String> response = get(server, "/api/v1/requests/req-instant", Map.of("X-API-Key", "test-api-key-instant"));
+            assertEquals(200, response.statusCode());
+
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("req-instant", json.path("id").asText());
+            
+            // requestedAt should be present and not null. Jackson with JavaTimeModule 
+            // serializes Instant as ISO-8601 string by default (or timestamp if configured, 
+            // but the important thing is that it doesn't fail).
+            assertTrue(json.has("requestedAt"));
+            assertDoesNotThrow(() -> Instant.parse(json.path("requestedAt").asText()));
+        }
+    }
+
+    private String configFile(String toml) throws IOException {
+        Path path = tempDir.resolve("config-test-" + System.nanoTime() + ".toml");
+        Files.writeString(path, toml);
+        return path.toString();
+    }
 
     @Test
     void healthEndpointReturnsHealthyStatus() throws Exception {

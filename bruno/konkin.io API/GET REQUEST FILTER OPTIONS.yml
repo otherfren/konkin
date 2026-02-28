@@ -1,0 +1,18 @@
+info:
+  name: GET REQUEST FILTER OPTIONS
+  type: http
+  seq: 10
+
+http:
+  method: GET
+  url: "{{host}}/api/v1/requests/filter-options"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

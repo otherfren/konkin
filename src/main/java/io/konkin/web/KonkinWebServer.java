@@ -1,14 +1,26 @@
 package io.konkin.web;
 
 import io.javalin.Javalin;
+import io.javalin.json.JavalinJackson;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.javalin.http.NotFoundResponse;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.staticfiles.Location;
+import io.konkin.api.ApprovalChannelController;
+import io.konkin.api.ApprovalRequestController;
+import io.konkin.api.ApprovalVoteController;
+import io.konkin.api.CoinRuntimeController;
+import io.konkin.api.ExecutionAttemptController;
+import io.konkin.api.HealthController;
+import io.konkin.api.KvStoreController;
+import io.konkin.api.RequestChannelController;
+import io.konkin.api.StateTransitionController;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
+import io.konkin.db.KvStore;
 import io.konkin.security.PasswordFileManager;
-import io.konkin.api.HealthController;
 import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
@@ -55,6 +67,15 @@ public class KonkinWebServer {
         HealthController healthController = new HealthController(healthService);
 
         AuthQueueStore authQueueStore = dataSource != null ? new AuthQueueStore(dataSource) : null;
+        KvStoreController kvStoreController = dataSource != null ? new KvStoreController(new KvStore(dataSource)) : null;
+        ApprovalRequestController requestController = new ApprovalRequestController(authQueueStore);
+        ApprovalChannelController channelController = new ApprovalChannelController(authQueueStore);
+        ApprovalVoteController voteController = new ApprovalVoteController(authQueueStore);
+        StateTransitionController stateTransitionController = new StateTransitionController(authQueueStore);
+        RequestChannelController requestChannelController = new RequestChannelController(authQueueStore);
+        ExecutionAttemptController executionAttemptController = new ExecutionAttemptController(authQueueStore);
+        CoinRuntimeController coinRuntimeController = new CoinRuntimeController(authQueueStore);
+
         if (dataSource != null) {
             DebugDataSeeder debugDataSeeder = new DebugDataSeeder(dataSource);
             debugDataSeeder.seedIfEnabled(config.debugEnabled(), config.debugSeedFakeData());
@@ -153,6 +174,11 @@ public class KonkinWebServer {
             javalinConfig.showJavalinBanner = false;
             javalinConfig.jetty.modifyServer(server -> server.setStopTimeout(3_000));
 
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.registerModule(new JavaTimeModule());
+            objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            javalinConfig.jsonMapper(new JavalinJackson(objectMapper, false));
+
             if (config.landingEnabled()) {
                 javalinConfig.staticFiles.add(staticFileConfig -> {
                     staticFileConfig.hostedPath = config.landingStaticHostedPath();
@@ -189,6 +215,56 @@ public class KonkinWebServer {
         }
 
         app.get("/api/v1/health", healthController::handle);
+
+        if (config.restApiEnabled() && dataSource != null) {
+            app.get("/api/v1/kv", kvStoreController::getAll);
+            app.get("/api/v1/kv/{key}", kvStoreController::getOne);
+            app.put("/api/v1/kv/{key}", kvStoreController::put);
+            app.delete("/api/v1/kv/{key}", kvStoreController::delete);
+
+            app.get("/api/v1/requests", requestController::getAll);
+            app.post("/api/v1/requests", requestController::create);
+            app.get("/api/v1/requests/filter-options", requestController::getFilterOptions);
+            app.get("/api/v1/requests/{id}", requestController::getOne);
+            app.put("/api/v1/requests/{id}", requestController::update);
+            app.delete("/api/v1/requests/{id}", requestController::delete);
+            app.get("/api/v1/requests/{id}/dependencies", requestController::getDependencies);
+
+            app.get("/api/v1/channels", channelController::getAll);
+            app.post("/api/v1/channels", channelController::create);
+            app.get("/api/v1/channels/{id}", channelController::getOne);
+            app.put("/api/v1/channels/{id}", channelController::update);
+            app.delete("/api/v1/channels/{id}", channelController::delete);
+
+            app.get("/api/v1/votes", voteController::getAll);
+            app.post("/api/v1/votes", voteController::create);
+            app.get("/api/v1/votes/{id}", voteController::getOne);
+            app.put("/api/v1/votes/{id}", voteController::update);
+            app.delete("/api/v1/votes/{id}", voteController::delete);
+            app.get("/api/v1/requests/{requestId}/votes", voteController::getForRequest);
+
+            app.get("/api/v1/state-transitions", stateTransitionController::getAll);
+            app.post("/api/v1/state-transitions", stateTransitionController::create);
+            app.get("/api/v1/state-transitions/{id}", stateTransitionController::getOne);
+            app.delete("/api/v1/state-transitions/{id}", stateTransitionController::delete);
+
+            app.get("/api/v1/request-channels", requestChannelController::getAll);
+            app.post("/api/v1/request-channels", requestChannelController::create);
+            app.get("/api/v1/request-channels/{id}", requestChannelController::getOne);
+            app.put("/api/v1/request-channels/{id}", requestChannelController::update);
+            app.delete("/api/v1/request-channels/{id}", requestChannelController::delete);
+
+            app.get("/api/v1/execution-attempts", executionAttemptController::getAll);
+            app.post("/api/v1/execution-attempts", executionAttemptController::create);
+            app.get("/api/v1/execution-attempts/{id}", executionAttemptController::getOne);
+            app.delete("/api/v1/execution-attempts/{id}", executionAttemptController::delete);
+
+            app.get("/api/v1/coin-runtimes", coinRuntimeController::getAll);
+            app.post("/api/v1/coin-runtimes", coinRuntimeController::create);
+            app.get("/api/v1/coin-runtimes/{coin}", coinRuntimeController::getOne);
+            app.put("/api/v1/coin-runtimes/{coin}", coinRuntimeController::update);
+            app.delete("/api/v1/coin-runtimes/{coin}", coinRuntimeController::delete);
+        }
 
         LandingPageController webUiPageControllerFinal = landingPageController;
         LandingPageService landingPageServiceFinal = landingPageService;

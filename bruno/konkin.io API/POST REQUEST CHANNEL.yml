@@ -1,0 +1,18 @@
+info:
+  name: POST REQUEST CHANNEL
+  type: http
+  seq: 31
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/request-channels"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

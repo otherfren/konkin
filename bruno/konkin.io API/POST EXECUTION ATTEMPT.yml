@@ -1,0 +1,18 @@
+info:
+  name: POST EXECUTION ATTEMPT
+  type: http
+  seq: 35
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/execution-attempts"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

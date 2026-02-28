@@ -1,0 +1,21 @@
+info:
+  name: POST REQUEST
+  type: http
+  seq: 18
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/requests"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  body:
+    type: json
+    data: "{}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

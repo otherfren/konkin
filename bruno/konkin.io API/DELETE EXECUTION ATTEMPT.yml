@@ -1,0 +1,18 @@
+info:
+  name: DELETE EXECUTION ATTEMPT
+  type: http
+  seq: 37
+
+http:
+  method: DELETE
+  url: "{{host}}/api/v1/execution-attempts/{{attempt_id}}"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

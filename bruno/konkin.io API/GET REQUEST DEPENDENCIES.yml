@@ -1,0 +1,18 @@
+info:
+  name: GET REQUEST DEPENDENCIES
+  type: http
+  seq: 9
+
+http:
+  method: GET
+  url: "{{host}}/api/v1/requests/req-123/dependencies"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

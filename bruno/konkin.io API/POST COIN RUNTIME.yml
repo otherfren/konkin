@@ -1,0 +1,18 @@
+info:
+  name: POST COIN RUNTIME
+  type: http
+  seq: 40
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/coin-runtimes"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

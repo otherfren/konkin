@@ -1,0 +1,18 @@
+info:
+  name: POST VOTE
+  type: http
+  seq: 24
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/votes"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

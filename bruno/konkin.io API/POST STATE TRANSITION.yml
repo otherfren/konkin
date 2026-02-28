@@ -1,0 +1,18 @@
+info:
+  name: POST STATE TRANSITION
+  type: http
+  seq: 28
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/state-transitions"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

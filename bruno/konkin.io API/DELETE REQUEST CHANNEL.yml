@@ -1,0 +1,18 @@
+info:
+  name: DELETE REQUEST CHANNEL
+  type: http
+  seq: 34
+
+http:
+  method: DELETE
+  url: "{{host}}/api/v1/request-channels/{{request_channel_id}}"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

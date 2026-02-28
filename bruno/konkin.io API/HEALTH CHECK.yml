@@ -2,14 +2,17 @@ info:
   name: HEALTH CHECK
   type: http
   seq: 1
-
 http:
   method: GET
-  url: "{{host}}/api/v1/health"
+  url: '{{host}}/api/v1/health'
   auth: inherit
-
 settings:
   encodeUrl: true
   timeout: 0
   followRedirects: true
   maxRedirects: 5
+
+tests:
+  - name: Status code is 200
+    test: |
+      expect(res.getStatus()).to.equal(200);

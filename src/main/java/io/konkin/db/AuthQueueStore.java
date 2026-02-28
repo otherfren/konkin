@@ -1,5 +1,8 @@
 package io.konkin.db;
 
+import io.konkin.db.entity.ApprovalChannelRow;
+import io.konkin.db.entity.ApprovalCoinRuntimeRow;
+import io.konkin.db.entity.ApprovalRequestChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
 import io.konkin.db.entity.LogQueueFilterOptions;
@@ -72,6 +75,28 @@ public class AuthQueueStore {
 
     // RowMappers ---------------------------------------------------------------------------------
 
+    private static final RowMapper<ApprovalCoinRuntimeRow> APPROVAL_COIN_RUNTIME_MAPPER = (rs, ctx) ->
+            new ApprovalCoinRuntimeRow(
+                    rs.getString("coin"),
+                    rs.getString("active_request_id"),
+                    toInstant(rs.getTimestamp("cooldown_until")),
+                    toInstant(rs.getTimestamp("lockdown_until")),
+                    toInstant(rs.getTimestamp("updated_at"))
+            );
+
+    private static final RowMapper<ApprovalRequestChannelRow> APPROVAL_REQUEST_CHANNEL_MAPPER = (rs, ctx) ->
+            new ApprovalRequestChannelRow(
+                    rs.getLong("id"),
+                    rs.getString("request_id"),
+                    rs.getString("channel_id"),
+                    rs.getString("delivery_state"),
+                    toInstant(rs.getTimestamp("first_sent_at")),
+                    toInstant(rs.getTimestamp("last_attempt_at")),
+                    rs.getInt("attempt_count"),
+                    rs.getString("last_error"),
+                    toInstant(rs.getTimestamp("created_at"))
+            );
+
     private static final RowMapper<ApprovalRequestRow> APPROVAL_REQUEST_MAPPER = (rs, ctx) ->
             new ApprovalRequestRow(
                     rs.getString("id"),
@@ -98,6 +123,16 @@ public class AuthQueueStore {
                     toInstant(rs.getTimestamp("created_at")),
                     toInstant(rs.getTimestamp("updated_at")),
                     toInstant(rs.getTimestamp("resolved_at"))
+            );
+
+    private static final RowMapper<ApprovalChannelRow> APPROVAL_CHANNEL_MAPPER = (rs, ctx) ->
+            new ApprovalChannelRow(
+                    rs.getString("id"),
+                    rs.getString("channel_type"),
+                    rs.getString("display_name"),
+                    rs.getBoolean("enabled"),
+                    rs.getString("config_fingerprint"),
+                    toInstant(rs.getTimestamp("created_at"))
             );
 
     private static final RowMapper<StateTransitionRow> STATE_TRANSITION_ROW_MAPPER = (rs, ctx) ->
@@ -170,6 +205,254 @@ public class AuthQueueStore {
 
     public AuthQueueStore(DataSource dataSource) {
         this.jdbi = JdbiFactory.create(dataSource);
+    }
+
+    public void insertApprovalRequest(ApprovalRequestRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_requests (
+                            id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
+                            to_address, amount_native, fee_policy, fee_cap_native, memo,
+                            requested_at, expires_at, state, state_reason_code, state_reason_text,
+                            min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
+                            created_at, updated_at, resolved_at
+                        ) VALUES (
+                            :id, :coin, :toolName, :requestSessionId, :nonceUuid, :payloadHashSha256, :nonceComposite,
+                            :toAddress, :amountNative, :feePolicy, :feeCapNative, :memo,
+                            :requestedAt, :expiresAt, :state, :stateReasonCode, :stateReasonText,
+                            :minApprovalsRequired, :approvalsGranted, :approvalsDenied, :policyActionAtCreation,
+                            :createdAt, :updatedAt, :resolvedAt
+                        )
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public void updateApprovalRequest(ApprovalRequestRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE approval_requests SET
+                            coin = :coin, tool_name = :toolName, request_session_id = :requestSessionId,
+                            nonce_uuid = :nonceUuid, payload_hash_sha256 = :payloadHashSha256, nonce_composite = :nonceComposite,
+                            to_address = :toAddress, amount_native = :amountNative, fee_policy = :feePolicy, fee_cap_native = :feeCapNative,
+                            memo = :memo, requested_at = :requestedAt, expires_at = :expiresAt, state = :state,
+                            state_reason_code = :stateReasonCode, state_reason_text = :stateReasonText,
+                            min_approvals_required = :minApprovalsRequired, approvals_granted = :approvalsGranted,
+                            approvals_denied = :approvalsDenied, policy_action_at_creation = :policyActionAtCreation,
+                            updated_at = :updatedAt, resolved_at = :resolvedAt
+                        WHERE id = :id
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteApprovalRequest(String id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_requests WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public void insertChannel(ApprovalChannelRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_channels (id, channel_type, display_name, enabled, config_fingerprint, created_at)
+                        VALUES (:id, :channelType, :displayName, :enabled, :configFingerprint, :createdAt)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public void updateChannel(ApprovalChannelRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE approval_channels SET
+                            channel_type = :channelType, display_name = :displayName,
+                            enabled = :enabled, config_fingerprint = :configFingerprint
+                        WHERE id = :id
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteChannel(String id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_channels WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public List<VoteDetail> listAllVotes() {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_votes ORDER BY decided_at DESC")
+                .map(VOTE_DETAIL_MAPPER)
+                .list());
+    }
+
+    public VoteDetail findVoteById(long id) {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_votes WHERE id = :id")
+                .bind("id", id)
+                .map(VOTE_DETAIL_MAPPER)
+                .findOne()
+                .orElse(null));
+    }
+
+    public void insertVote(VoteDetail row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_votes (request_id, channel_id, decision, decision_reason, decided_by, decided_at)
+                        VALUES (:requestId, :channelId, :decision, :decisionReason, :decidedBy, :decidedAt)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public void updateVote(VoteDetail row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE approval_votes SET
+                            request_id = :requestId, channel_id = :channelId, decision = :decision,
+                            decision_reason = :decisionReason, decided_by = :decidedBy, decided_at = :decidedAt
+                        WHERE id = :id
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteVote(long id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_votes WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public List<StateTransitionRow> listAllStateTransitions() {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_state_transitions ORDER BY created_at DESC")
+                .map(STATE_TRANSITION_ROW_MAPPER)
+                .list());
+    }
+
+    public StateTransitionRow findStateTransitionById(long id) {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_state_transitions WHERE id = :id")
+                .bind("id", id)
+                .map(STATE_TRANSITION_ROW_MAPPER)
+                .findOne()
+                .orElse(null));
+    }
+
+    public void insertStateTransition(StateTransitionRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_state_transitions (request_id, from_state, to_state, actor_type, actor_id, reason_code, created_at)
+                        VALUES (:requestId, :fromState, :toState, :actorType, :actorId, :reasonCode, :createdAt)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteStateTransition(long id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_state_transitions WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public List<ApprovalRequestChannelRow> listAllRequestChannels() {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_request_channels ORDER BY created_at DESC")
+                .map(APPROVAL_REQUEST_CHANNEL_MAPPER)
+                .list());
+    }
+
+    public ApprovalRequestChannelRow findRequestChannelById(long id) {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_request_channels WHERE id = :id")
+                .bind("id", id)
+                .map(APPROVAL_REQUEST_CHANNEL_MAPPER)
+                .findOne()
+                .orElse(null));
+    }
+
+    public void insertRequestChannel(ApprovalRequestChannelRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_request_channels (request_id, channel_id, delivery_state, first_sent_at, last_attempt_at, attempt_count, last_error, created_at)
+                        VALUES (:requestId, :channelId, :deliveryState, :firstSentAt, :lastAttemptAt, :attemptCount, :lastError, :createdAt)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public void updateRequestChannel(ApprovalRequestChannelRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE approval_request_channels SET
+                            request_id = :requestId, channel_id = :channelId, delivery_state = :deliveryState,
+                            first_sent_at = :firstSentAt, last_attempt_at = :lastAttemptAt,
+                            attempt_count = :attemptCount, last_error = :lastError
+                        WHERE id = :id
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteRequestChannel(long id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_request_channels WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public List<ExecutionAttemptDetail> listAllExecutionAttempts() {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_execution_attempts ORDER BY started_at DESC")
+                .map(EXECUTION_ATTEMPT_DETAIL_MAPPER)
+                .list());
+    }
+
+    public ExecutionAttemptDetail findExecutionAttemptById(long id) {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_execution_attempts WHERE id = :id")
+                .bind("id", id)
+                .map(EXECUTION_ATTEMPT_DETAIL_MAPPER)
+                .findOne()
+                .orElse(null));
+    }
+
+    public void insertExecutionAttempt(ExecutionAttemptDetail row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_execution_attempts (request_id, attempt_no, started_at, finished_at, result, error_class, error_message, txid, daemon_fee_native)
+                        VALUES (:requestId, :attemptNo, :startedAt, :finishedAt, :result, :errorClass, :errorMessage, :txid, :daemonFeeNative)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteExecutionAttempt(long id) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_execution_attempts WHERE id = :id")
+                .bind("id", id)
+                .execute() > 0);
+    }
+
+    public List<ApprovalCoinRuntimeRow> listAllCoinRuntimes() {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_coin_runtime ORDER BY coin ASC")
+                .map(APPROVAL_COIN_RUNTIME_MAPPER)
+                .list());
+    }
+
+    public ApprovalCoinRuntimeRow findCoinRuntimeByCoin(String coin) {
+        return jdbi.withHandle(h -> h.createQuery("SELECT * FROM approval_coin_runtime WHERE coin = :coin")
+                .bind("coin", coin)
+                .map(APPROVAL_COIN_RUNTIME_MAPPER)
+                .findOne()
+                .orElse(null));
+    }
+
+    public void insertCoinRuntime(ApprovalCoinRuntimeRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until, updated_at)
+                        VALUES (:coin, :activeRequestId, :cooldownUntil, :lockdownUntil, :updatedAt)
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public void updateCoinRuntime(ApprovalCoinRuntimeRow row) {
+        jdbi.useHandle(h -> h.createUpdate("""
+                        UPDATE approval_coin_runtime SET
+                            active_request_id = :activeRequestId, cooldown_until = :cooldownUntil,
+                            lockdown_until = :lockdownUntil, updated_at = :updatedAt
+                        WHERE coin = :coin
+                        """)
+                .bindBean(row)
+                .execute());
+    }
+
+    public boolean deleteCoinRuntime(String coin) {
+        return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_coin_runtime WHERE coin = :coin")
+                .bind("coin", coin)
+                .execute() > 0);
     }
 
     public int countOpenRequests() {
@@ -258,9 +541,14 @@ public class AuthQueueStore {
         return new PageResult<>(List.copyOf(rows), safePage, safePageSize, totalRows, totalPages, orderBy, direction.toLowerCase());
     }
 
-    private PageResult<ApprovalRequestRow> pageApprovalRequestsWithFilter(
+    public PageResult<ApprovalRequestRow> pageApprovalRequestsWithFilter(
             String sortBy, String sortDir, int page, int pageSize,
-            String normalizedCoin, String normalizedTool, String normalizedState, String normalizedText) {
+            String coin, String tool, String state, String text) {
+        String normalizedCoin = normalizeExactFilter(coin);
+        String normalizedTool = normalizeExactFilter(tool);
+        String normalizedState = normalizeExactFilter(state);
+        String normalizedText = normalizeExactFilter(text);
+
         String orderBy = REQUEST_SORT_COLUMNS.getOrDefault(sortBy, "updated_at");
         String direction = normalizeSortDirection(sortDir);
         int safePageSize = normalizePageSize(pageSize);
@@ -374,6 +662,33 @@ public class AuthQueueStore {
                         .map(APPROVAL_REQUEST_MAPPER)
                         .findOne()
                         .orElse(null)
+        );
+    }
+
+    public List<ApprovalChannelRow> listChannels() {
+        return jdbi.withHandle(h ->
+                h.createQuery("SELECT * FROM approval_channels ORDER BY id ASC")
+                        .map(APPROVAL_CHANNEL_MAPPER)
+                        .list()
+        );
+    }
+
+    public ApprovalChannelRow findChannelById(String channelId) {
+        return jdbi.withHandle(h ->
+                h.createQuery("SELECT * FROM approval_channels WHERE id = :id")
+                        .bind("id", channelId)
+                        .map(APPROVAL_CHANNEL_MAPPER)
+                        .findOne()
+                        .orElse(null)
+        );
+    }
+
+    public List<VoteDetail> listVotesForRequest(String requestId) {
+        return jdbi.withHandle(h ->
+                h.createQuery("SELECT * FROM approval_votes WHERE request_id = :requestId ORDER BY decided_at ASC")
+                        .bind("requestId", requestId)
+                        .map(VOTE_DETAIL_MAPPER)
+                        .list()
         );
     }
 

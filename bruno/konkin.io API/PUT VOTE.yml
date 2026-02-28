@@ -1,0 +1,18 @@
+info:
+  name: PUT VOTE
+  type: http
+  seq: 26
+
+http:
+  method: PUT
+  url: "{{host}}/api/v1/votes/{{vote_id}}"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
