@@ -12,12 +12,14 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.security.SecureRandom;
-import java.util.Base64;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -28,6 +30,7 @@ public class KonkinConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KonkinConfig.class);
     private static final int EXPECTED_CONFIG_VERSION = 1;
+    private static final String PRIMARY_AGENT_CLIENT_ID = "konkin-primary";
     private static final Pattern HUMAN_DURATION_PART_PATTERN = Pattern.compile(
             "(?i)(\\d+)\\s*(weeks?|w|days?|d|hours?|hrs?|hr|h|minutes?|mins?|min|m|seconds?|secs?|sec|s)"
     );
@@ -64,6 +67,9 @@ public class KonkinConfig {
     private final Duration telegramAutoDenyTimeout;
     private final List<String> telegramChatIds;
 
+    private final AgentConfig primaryAgent;
+    private final Map<String, AgentConfig> secondaryAgents;
+
     private final CoinConfig bitcoin;
     private final CoinConfig litecoin;
     private final CoinConfig monero;
@@ -99,6 +105,12 @@ public class KonkinConfig {
     public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
     public Duration telegramAutoDenyTimeout() { return telegramAutoDenyTimeout; }
     public List<String> telegramChatIds() { return telegramChatIds; }
+
+    public AgentConfig primaryAgent() { return primaryAgent; }
+    public Map<String, AgentConfig> secondaryAgents() { return secondaryAgents; }
+    public AgentConfig secondaryAgent(String name) {
+        return secondaryAgents.get(name);
+    }
 
     public CoinConfig bitcoin() { return bitcoin; }
     public CoinConfig litecoin() { return litecoin; }
@@ -191,6 +203,9 @@ public class KonkinConfig {
         }
         this.telegramChatIds = List.copyOf(deduplicatedTelegramChatIds);
 
+        this.primaryAgent = loadPrimaryAgentConfig(toml);
+        this.secondaryAgents = loadSecondaryAgentConfigs(toml);
+
         this.bitcoin = loadBitcoinConfig(toml);
         this.litecoin = loadCoinConfig(toml, "litecoin", "ltc-main");
         this.monero = loadCoinConfig(toml, "monero", "xmr-main");
@@ -198,6 +213,131 @@ public class KonkinConfig {
 
     private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
         return toml.getOrElse(primaryKey, toml.getOrElse(legacyKey, defaultValue));
+    }
+
+    private AgentConfig loadPrimaryAgentConfig(FileConfig toml) {
+        Object rawPrimaryAgent = toml.get("agents.primary");
+        if (rawPrimaryAgent == null) {
+            return null;
+        }
+
+        if (!(rawPrimaryAgent instanceof Config primaryConfig)) {
+            throw new IllegalStateException("Invalid config: agents.primary must be a TOML table.");
+        }
+
+        return parseAgentConfig(
+                primaryConfig,
+                "agents.primary",
+                "127.0.0.1",
+                9550,
+                "./secrets/agent-primary.secret"
+        );
+    }
+
+    private Map<String, AgentConfig> loadSecondaryAgentConfigs(FileConfig toml) {
+        Object rawSecondaryAgents = toml.get("agents.secondary");
+        if (rawSecondaryAgents == null) {
+            return Map.of();
+        }
+
+        if (!(rawSecondaryAgents instanceof Config secondaryConfig)) {
+            throw new IllegalStateException("Invalid config: agents.secondary must be a TOML table.");
+        }
+
+        LinkedHashMap<String, AgentConfig> parsedAgents = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : secondaryConfig.valueMap().entrySet()) {
+            String agentName = normalizeString(entry.getKey());
+            if (agentName == null || agentName.isBlank()) {
+                throw new IllegalStateException("Invalid config: agents.secondary contains a blank agent name.");
+            }
+            if (parsedAgents.containsKey(agentName)) {
+                throw new IllegalStateException("Invalid config: duplicate agent name '" + agentName + "'.");
+            }
+
+            Object rawAgent = entry.getValue();
+            if (!(rawAgent instanceof Config agentConfig)) {
+                throw new IllegalStateException(
+                        "Invalid config: agents.secondary." + agentName + " must be a TOML table."
+                );
+            }
+
+            AgentConfig parsed = parseAgentConfig(
+                    agentConfig,
+                    "agents.secondary." + agentName,
+                    "127.0.0.1",
+                    0,
+                    "./secrets/" + agentName + ".secret"
+            );
+            parsedAgents.put(agentName, parsed);
+        }
+
+        return Map.copyOf(parsedAgents);
+    }
+
+    private AgentConfig parseAgentConfig(
+            Config config,
+            String keyPrefix,
+            String defaultBind,
+            int defaultPort,
+            String defaultSecretFile
+    ) {
+        boolean enabled = parseBooleanOrDefault(config.get("enabled"), false, keyPrefix + ".enabled");
+
+        String bind = normalizeString(config.get("bind"));
+        if (bind == null || bind.isBlank()) {
+            bind = defaultBind;
+        }
+
+        int port = parseIntOrDefault(config.get("port"), defaultPort, keyPrefix + ".port");
+
+        String secretFile = normalizeString(config.get("secret-file"));
+        if (secretFile == null || secretFile.isBlank()) {
+            secretFile = defaultSecretFile;
+        }
+
+        return new AgentConfig(enabled, bind, port, secretFile);
+    }
+
+    private boolean parseBooleanOrDefault(Object rawValue, boolean defaultValue, String keyName) {
+        if (rawValue == null) {
+            return defaultValue;
+        }
+
+        if (rawValue instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+
+        if (rawValue instanceof String stringValue) {
+            String normalized = stringValue.trim().toLowerCase(Locale.ROOT);
+            if ("true".equals(normalized)) {
+                return true;
+            }
+            if ("false".equals(normalized)) {
+                return false;
+            }
+        }
+
+        throw new IllegalStateException("Invalid config: " + keyName + " must be a boolean.");
+    }
+
+    private int parseIntOrDefault(Object rawValue, int defaultValue, String keyName) {
+        if (rawValue == null) {
+            return defaultValue;
+        }
+
+        if (rawValue instanceof Number numberValue) {
+            return numberValue.intValue();
+        }
+
+        if (rawValue instanceof String stringValue) {
+            try {
+                return Integer.parseInt(stringValue.trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException("Invalid config: " + keyName + " must be an integer.", e);
+            }
+        }
+
+        throw new IllegalStateException("Invalid config: " + keyName + " must be an integer.");
     }
 
     /**
@@ -322,6 +462,7 @@ public class KonkinConfig {
         validateBitcoinConfig();
         validateNonBitcoinCoinConfig("litecoin", litecoin);
         validateNonBitcoinCoinConfig("monero", monero);
+        validateAgentsConfig();
     }
 
     private CoinConfig loadBitcoinConfig(FileConfig toml) {
@@ -613,6 +754,86 @@ public class KonkinConfig {
         };
     }
 
+    private void validateAgentsConfig() {
+        if (primaryAgent != null) {
+            validateAgentConfig(primaryAgent, "agents.primary");
+        }
+
+        for (Map.Entry<String, AgentConfig> entry : secondaryAgents.entrySet()) {
+            validateAgentConfig(entry.getValue(), "agents.secondary." + entry.getKey());
+        }
+
+        validateAgentPortUniqueness();
+        validateMcpAuthChannelReferences();
+    }
+
+    private void validateAgentConfig(AgentConfig agentConfig, String keyPrefix) {
+        if (agentConfig == null) {
+            return;
+        }
+
+        if (agentConfig.bind() == null || agentConfig.bind().isBlank()) {
+            throw new IllegalStateException("Invalid config: " + keyPrefix + ".bind must be set.");
+        }
+
+        if (agentConfig.port() <= 0) {
+            throw new IllegalStateException("Invalid config: " + keyPrefix + ".port must be > 0.");
+        }
+
+        if (agentConfig.secretFile() == null || agentConfig.secretFile().isBlank()) {
+            throw new IllegalStateException("Invalid config: " + keyPrefix + ".secret-file must be set.");
+        }
+
+        validatePath(agentConfig.secretFile(), keyPrefix + ".secret-file");
+    }
+
+    private void validateAgentPortUniqueness() {
+        LinkedHashMap<Integer, String> portOwners = new LinkedHashMap<>();
+        portOwners.put(port, "server");
+
+        if (primaryAgent != null) {
+            ensureUniquePort(portOwners, primaryAgent.port(), "agent 'primary'");
+        }
+
+        for (Map.Entry<String, AgentConfig> entry : secondaryAgents.entrySet()) {
+            ensureUniquePort(portOwners, entry.getValue().port(), "agent '" + entry.getKey() + "'");
+        }
+    }
+
+    private void ensureUniquePort(Map<Integer, String> portOwners, int candidatePort, String owner) {
+        String existingOwner = portOwners.putIfAbsent(candidatePort, owner);
+        if (existingOwner != null) {
+            throw new IllegalStateException(
+                    "Invalid config: port " + candidatePort + " used by both " + existingOwner + " and " + owner + "."
+            );
+        }
+    }
+
+    private void validateMcpAuthChannelReferences() {
+        validateCoinMcpAuthChannelReferences("bitcoin", bitcoin.auth().mcp(), bitcoin.auth().mcpAuthChannels());
+        validateCoinMcpAuthChannelReferences("litecoin", litecoin.auth().mcp(), litecoin.auth().mcpAuthChannels());
+        validateCoinMcpAuthChannelReferences("monero", monero.auth().mcp(), monero.auth().mcpAuthChannels());
+    }
+
+    private void validateCoinMcpAuthChannelReferences(String coinName, String mcpValue, List<String> channels) {
+        for (String channel : channels) {
+            boolean appearsToBeLegacyFallback = channels.size() == 1
+                    && mcpValue != null
+                    && !mcpValue.isBlank()
+                    && channel.equals(mcpValue);
+            if (appearsToBeLegacyFallback) {
+                continue;
+            }
+
+            if (!secondaryAgents.containsKey(channel)) {
+                throw new IllegalStateException(
+                        "Invalid config: mcp-auth-channel '" + channel
+                                + "' references undefined agent for coin '" + coinName + "'."
+                );
+            }
+        }
+    }
+
     private void validateBitcoinConfig() {
         if (!bitcoin.enabled()) {
             return;
@@ -789,6 +1010,17 @@ public class KonkinConfig {
             ensureRestApiSecretFileExists(Path.of(restApiSecretFile));
         }
 
+        if (primaryAgent != null && primaryAgent.enabled()) {
+            ensureAgentSecretFileExists(Path.of(primaryAgent.secretFile()), PRIMARY_AGENT_CLIENT_ID, "primary");
+        }
+
+        for (Map.Entry<String, AgentConfig> entry : secondaryAgents.entrySet()) {
+            AgentConfig agentConfig = entry.getValue();
+            if (agentConfig.enabled()) {
+                ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "secondary");
+            }
+        }
+
         if (bitcoin.enabled()) {
             ensureSecretFileExists(
                     Path.of(bitcoin.bitcoinDaemonConfigSecretFile()),
@@ -818,6 +1050,39 @@ public class KonkinConfig {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to create secret file for " + keyName + ": " + secretFile, e);
         }
+    }
+
+    private void ensureAgentSecretFileExists(Path secretFile, String clientId, String agentRole) {
+        if (Files.exists(secretFile)) {
+            return;
+        }
+
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            String clientSecret = generateHexSecret(32);
+            String content = "client-id=" + clientId + System.lineSeparator()
+                    + "client-secret=" + clientSecret + System.lineSeparator();
+            Files.writeString(secretFile, content, StandardCharsets.UTF_8);
+            log.warn("Created missing {} agent secret file at {}", agentRole, secretFile.toAbsolutePath());
+            printAgentSecretBanner(secretFile, clientId, agentRole, clientSecret);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to create agent secret file: " + secretFile, e);
+        }
+    }
+
+    private static void printAgentSecretBanner(Path secretFile, String clientId, String agentRole, String clientSecret) {
+        System.out.println();
+        System.out.println("============================================================");
+        System.out.println("!!! KONKIN AGENT SECRET CREATED !!!");
+        System.out.println("   Agent   : " + clientId + " (" + agentRole + ")");
+        System.out.println("   File    : " + secretFile.toAbsolutePath());
+        System.out.println("   ID      : " + clientId);
+        System.out.println("   Secret  : " + clientSecret);
+        System.out.println("============================================================");
+        System.out.println();
     }
 
     private void ensureRestApiSecretFileExists(Path secretFile) {
@@ -879,6 +1144,18 @@ public class KonkinConfig {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
     }
 
+    private static String generateHexSecret(int byteLength) {
+        byte[] random = new byte[byteLength];
+        new SecureRandom().nextBytes(random);
+
+        StringBuilder hex = new StringBuilder(byteLength * 2);
+        for (byte value : random) {
+            hex.append(Character.forDigit((value >>> 4) & 0xF, 16));
+            hex.append(Character.forDigit(value & 0xF, 16));
+        }
+        return hex.toString();
+    }
+
     private static String normalizeString(Object value) {
         if (value == null) {
             return null;
@@ -895,6 +1172,14 @@ public class KonkinConfig {
                     e
             );
         }
+    }
+
+    public record AgentConfig(
+            boolean enabled,
+            String bind,
+            int port,
+            String secretFile
+    ) {
     }
 
     public record CoinConfig(

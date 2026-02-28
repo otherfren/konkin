@@ -37,6 +37,24 @@ enabled = true
 # auto-generated when missing
 secret-file = "./secrets/rest-api.secret"
 
+[agents.primary]
+enabled = true
+bind = "127.0.0.1"
+port = 9550
+secret-file = "./secrets/agent-primary.secret"
+
+[agents.secondary.agent-default]
+enabled = true
+bind = "127.0.0.1"
+port = 9560
+secret-file = "./secrets/agent-default.secret"
+
+[agents.secondary.agent-backup]
+enabled = true
+bind = "127.0.0.1"
+port = 9561
+secret-file = "./secrets/agent-backup.secret"
+
 [debug]
 enabled = true
 seed-fake-data = true

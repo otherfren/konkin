@@ -16,6 +16,8 @@ import io.konkin.api.HealthController;
 import io.konkin.api.KvStoreController;
 import io.konkin.api.RequestChannelController;
 import io.konkin.api.StateTransitionController;
+import io.konkin.agent.AgentEndpointServer;
+import io.konkin.agent.AgentTokenStore;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
@@ -35,7 +37,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 public class KonkinWebServer {
@@ -59,6 +63,7 @@ public class KonkinWebServer {
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
     private boolean running;
+    private final List<AgentEndpointServer> agentEndpoints = new ArrayList<>();
 
     public void start() {
         running = false;
@@ -297,6 +302,18 @@ public class KonkinWebServer {
         }
 
         app.start(config.host(), config.port());
+
+        try {
+            startAgentEndpoints();
+        } catch (RuntimeException e) {
+            stopAgentEndpoints();
+            if (app != null) {
+                app.stop();
+                app = null;
+            }
+            throw e;
+        }
+
         running = true;
 
         if (landingResourceWatcher != null) {
@@ -346,6 +363,58 @@ public class KonkinWebServer {
         }
     }
 
+    private void startAgentEndpoints() {
+        AgentTokenStore tokenStore = new AgentTokenStore();
+        agentEndpoints.clear();
+
+        KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();
+        if (primaryAgent != null && primaryAgent.enabled()) {
+            AgentEndpointServer endpoint = new AgentEndpointServer(
+                    "konkin-primary",
+                    "primary",
+                    primaryAgent,
+                    tokenStore
+            );
+            endpoint.start();
+            agentEndpoints.add(endpoint);
+            log.info("Agent endpoint started — name={}, type={}, bind={}, port={}",
+                    endpoint.agentName(), endpoint.agentType(), endpoint.bind(), endpoint.port());
+        }
+
+        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : config.secondaryAgents().entrySet()) {
+            KonkinConfig.AgentConfig secondaryAgent = entry.getValue();
+            if (!secondaryAgent.enabled()) {
+                continue;
+            }
+
+            AgentEndpointServer endpoint = new AgentEndpointServer(
+                    entry.getKey(),
+                    "secondary",
+                    secondaryAgent,
+                    tokenStore
+            );
+            endpoint.start();
+            agentEndpoints.add(endpoint);
+            log.info("Agent endpoint started — name={}, type={}, bind={}, port={}",
+                    endpoint.agentName(), endpoint.agentType(), endpoint.bind(), endpoint.port());
+        }
+    }
+
+    private void stopAgentEndpoints() {
+        if (agentEndpoints.isEmpty()) {
+            return;
+        }
+
+        for (AgentEndpointServer endpoint : agentEndpoints) {
+            try {
+                endpoint.stop();
+            } catch (RuntimeException e) {
+                log.warn("Failed to stop agent endpoint '{}' cleanly", endpoint.agentName(), e);
+            }
+        }
+        agentEndpoints.clear();
+    }
+
     private String readRestApiKey(Path secretFile) {
         Properties properties = new Properties();
         try (var reader = Files.newBufferedReader(secretFile, StandardCharsets.UTF_8)) {
@@ -392,6 +461,8 @@ public class KonkinWebServer {
     }
 
     public void stop() {
+        stopAgentEndpoints();
+
         if (landingResourceWatcher != null) {
             landingResourceWatcher.stop();
             landingResourceWatcher = null;

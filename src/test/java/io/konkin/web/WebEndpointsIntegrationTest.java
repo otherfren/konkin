@@ -23,6 +23,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -335,6 +336,180 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
+    void mcpAuthChannelReferenceMustExistInSecondaryAgentsAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-ref.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-ref.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [agents.secondary.agent-default]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9560
+                secret-file = "%s"
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = false
+                mcp-auth-channels = ["agent-missing"]
+                """.formatted(
+                port,
+                tomlPath(tempDir.resolve("secrets/agent-default-mcp-ref.secret")),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-mcp-ref-missing-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("mcp-auth-channel 'agent-missing' references undefined agent"));
+    }
+
+    @Test
+    void agentPortsMustBeUniqueAcrossServerAndAgentsAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [agents.primary]
+                enabled = true
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+                """.formatted(
+                port,
+                port,
+                tomlPath(tempDir.resolve("secrets/agent-primary-duplicate-port.secret"))
+        );
+
+        Path configFile = tempDir.resolve("config-agent-duplicate-port-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("used by both server and agent 'primary'"));
+    }
+
+    @Test
+    void validAgentsConfigLoadsAndBootstrapsAgentSecretsAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path primarySecretFile = tempDir.resolve("secrets/agent-primary-valid.secret");
+        Path defaultAgentSecretFile = tempDir.resolve("secrets/agent-default-valid.secret");
+        Path backupAgentSecretFile = tempDir.resolve("secrets/agent-backup-valid.secret");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-valid-agents.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-valid-agents.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [agents.primary]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9550
+                secret-file = "%s"
+
+                [agents.secondary.agent-default]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9560
+                secret-file = "%s"
+
+                [agents.secondary.agent-backup]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9561
+                secret-file = "%s"
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = false
+                mcp-auth-channels = ["agent-default", "agent-backup"]
+                """.formatted(
+                port,
+                tomlPath(primarySecretFile),
+                tomlPath(defaultAgentSecretFile),
+                tomlPath(backupAgentSecretFile),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-agents-valid-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+
+        assertNotNull(config.primaryAgent());
+        assertEquals(9550, config.primaryAgent().port());
+        assertEquals(2, config.secondaryAgents().size());
+        assertNotNull(config.secondaryAgent("agent-default"));
+        assertNotNull(config.secondaryAgent("agent-backup"));
+
+        assertTrue(Files.exists(primarySecretFile));
+        assertTrue(Files.exists(defaultAgentSecretFile));
+        assertTrue(Files.exists(backupAgentSecretFile));
+
+        Properties primarySecretProps = new Properties();
+        try (var reader = Files.newBufferedReader(primarySecretFile, StandardCharsets.UTF_8)) {
+            primarySecretProps.load(reader);
+        }
+        assertEquals("konkin-primary", primarySecretProps.getProperty("client-id"));
+        assertEquals(64, primarySecretProps.getProperty("client-secret", "").trim().length());
+
+        Properties defaultSecretProps = new Properties();
+        try (var reader = Files.newBufferedReader(defaultAgentSecretFile, StandardCharsets.UTF_8)) {
+            defaultSecretProps.load(reader);
+        }
+        assertEquals("agent-default", defaultSecretProps.getProperty("client-id"));
+        assertEquals(64, defaultSecretProps.getProperty("client-secret", "").trim().length());
+
+        Properties backupSecretProps = new Properties();
+        try (var reader = Files.newBufferedReader(backupAgentSecretFile, StandardCharsets.UTF_8)) {
+            backupSecretProps.load(reader);
+        }
+        assertEquals("agent-backup", backupSecretProps.getProperty("client-id"));
+        assertEquals(64, backupSecretProps.getProperty("client-secret", "").trim().length());
+    }
+
+    @Test
     void humanFriendlyDurationsAreAcceptedAtConfigLoad() throws Exception {
         int port = freePort();
 
@@ -574,6 +749,18 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 secret-file = "%s"
                 auto-deny-timeout = "3m"
 
+                [agents.secondary.agent-a]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9560
+                secret-file = "%s"
+
+                [agents.secondary.agent-b]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9561
+                secret-file = "%s"
+
                 [coins.bitcoin]
                 enabled = true
 
@@ -591,6 +778,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 """.formatted(
                 port,
                 tomlPath(telegramSecretFile),
+                tomlPath(tempDir.resolve("secrets/agent-a-quorum-veto.secret")),
+                tomlPath(tempDir.resolve("secrets/agent-b-quorum-veto.secret")),
                 tomlPath(daemonSecretFile),
                 tomlPath(walletSecretFile)
         );
@@ -659,6 +848,18 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 secret-file = "%s"
                 auto-deny-timeout = "3m"
 
+                [agents.secondary.agent-a]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9562
+                secret-file = "%s"
+
+                [agents.secondary.agent-b]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9563
+                secret-file = "%s"
+
                 [coins.bitcoin]
                 enabled = true
 
@@ -680,6 +881,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 tomlPath(templateDir),
                 tomlPath(staticDir),
                 tomlPath(telegramSecretFile),
+                tomlPath(tempDir.resolve("secrets/agent-a-auth-defs-timeout-quorum.secret")),
+                tomlPath(tempDir.resolve("secrets/agent-b-auth-defs-timeout-quorum.secret")),
                 tomlPath(daemonSecretFile),
                 tomlPath(walletSecretFile)
         );
@@ -742,6 +945,18 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 enabled = false
                 assets-enabled = false
 
+                [agents.secondary.btc-main]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9564
+                secret-file = "%s"
+
+                [agents.secondary.btc-backup]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9565
+                secret-file = "%s"
+
                 [coins.bitcoin]
                 enabled = true
 
@@ -765,6 +980,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 tomlPath(webUiPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
+                tomlPath(tempDir.resolve("secrets/btc-main-auth-defs.secret")),
+                tomlPath(tempDir.resolve("secrets/btc-backup-auth-defs.secret")),
                 tomlPath(daemonSecretFile),
                 tomlPath(walletSecretFile)
         );
@@ -832,6 +1049,18 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 enabled = false
                 assets-enabled = false
 
+                [agents.secondary.btc-main]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9566
+                secret-file = "%s"
+
+                [agents.secondary.btc-backup]
+                enabled = true
+                bind = "127.0.0.1"
+                port = 9567
+                secret-file = "%s"
+
                 [coins.bitcoin]
                 enabled = true
 
@@ -849,6 +1078,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 tomlPath(webUiPasswordFile),
                 tomlPath(templateDir),
                 tomlPath(staticDir),
+                tomlPath(tempDir.resolve("secrets/btc-main-coins.secret")),
+                tomlPath(tempDir.resolve("secrets/btc-backup-coins.secret")),
                 tomlPath(daemonSecretFile),
                 tomlPath(walletSecretFile)
         );

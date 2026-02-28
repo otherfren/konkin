@@ -26,7 +26,7 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.Properties;
 
-abstract class WebIntegrationTestSupport {
+public abstract class WebIntegrationTestSupport {
 
     protected static final ObjectMapper JSON = new ObjectMapper();
     protected static final HttpClient HTTP = HttpClient.newBuilder()
@@ -38,7 +38,7 @@ abstract class WebIntegrationTestSupport {
     private static final int KEY_LENGTH_BITS = 256;
 
     @TempDir
-    Path tempDir;
+    protected Path tempDir;
 
     protected Path writeBitcoinChannelValidationConfig(
             boolean webUiEnabled,
@@ -363,7 +363,7 @@ abstract class WebIntegrationTestSupport {
     }
 
     protected record RunningServer(KonkinWebServer server, URI baseUri, DatabaseManager dbManager) implements AutoCloseable {
-        protected RunningServer(KonkinWebServer server, URI baseUri) {
+        public RunningServer(KonkinWebServer server, URI baseUri) {
             this(server, baseUri, null);
         }
 
