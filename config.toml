@@ -45,6 +45,7 @@ seed-fake-data = true
 enabled = true
 secret-file = "./secrets/telegram.secret"
 api-base-url = "https://api.telegram.org"
+auto-deny-timeout = "3m"
 
 [coins.bitcoin]
 enabled = true
