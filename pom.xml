@@ -27,6 +27,7 @@
         <nightconfig.version>3.8.1</nightconfig.version>
         <jackson.version>2.18.2</jackson.version>
         <freemarker.version>2.3.34</freemarker.version>
+        <jdbi.version>3.45.0</jdbi.version>
     </properties>
 
     <dependencies>
@@ -94,6 +95,13 @@
             <groupId>org.freemarker</groupId>
             <artifactId>freemarker</artifactId>
             <version>${freemarker.version}</version>
+        </dependency>
+
+        <!-- JDBI3 — SQL without the spaghetti -->
+        <dependency>
+            <groupId>org.jdbi</groupId>
+            <artifactId>jdbi3-core</artifactId>
+            <version>${jdbi.version}</version>
         </dependency>
 
         <!-- Test dependencies -->

@@ -8,6 +8,15 @@ import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
+import io.konkin.db.entity.ApprovalRequestRow;
+import io.konkin.db.entity.ExecutionAttemptDetail;
+import io.konkin.db.entity.LogQueueFilterOptions;
+import io.konkin.db.entity.PageResult;
+import io.konkin.db.entity.RequestChannelDetail;
+import io.konkin.db.entity.RequestDependencies;
+import io.konkin.db.entity.StateTransitionDetail;
+import io.konkin.db.entity.StateTransitionRow;
+import io.konkin.db.entity.VoteDetail;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.TelegramSecretService;
@@ -120,7 +129,7 @@ public class LandingPageController {
             return;
         }
 
-        AuthQueueStore.ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
+        ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
         if (row == null) {
             ctx.status(404);
             ctx.contentType("text/plain; charset=UTF-8");
@@ -128,12 +137,12 @@ public class LandingPageController {
             return;
         }
 
-        Map<String, AuthQueueStore.RequestDependencies> dependenciesByRequestId =
+        Map<String, RequestDependencies> dependenciesByRequestId =
                 authQueueStore.loadRequestDependencies(List.of(requestId));
 
-        AuthQueueStore.RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
+        RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
                 requestId,
-                new AuthQueueStore.RequestDependencies(List.of(), List.of(), List.of(), List.of())
+                new RequestDependencies(List.of(), List.of(), List.of(), List.of())
         );
 
         ctx.contentType("text/plain; charset=UTF-8");
@@ -419,7 +428,7 @@ public class LandingPageController {
         int page = parsePositiveInt(ctx.queryParam("queue_page"), 1);
         int pageSize = parsePositiveInt(ctx.queryParam("queue_page_size"), 25);
 
-        AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
+        PageResult<ApprovalRequestRow> result =
                 authQueueStore.pagePendingApprovalRequests(sortBy, sortDir, page, pageSize);
 
         return mapApprovalPageData(result);
@@ -450,7 +459,7 @@ public class LandingPageController {
         String filterTool = defaultIfBlank(ctx.queryParam("log_queue_tool"), "").trim();
         String filterState = defaultIfBlank(ctx.queryParam("log_queue_state"), "").trim();
 
-        AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result =
+        PageResult<ApprovalRequestRow> result =
                 authQueueStore.pageNonPendingApprovalRequests(
                         sortBy,
                         sortDir,
@@ -462,7 +471,7 @@ public class LandingPageController {
                         filterText
                 );
 
-        AuthQueueStore.LogQueueFilterOptions options = authQueueStore.loadNonPendingFilterOptions();
+        LogQueueFilterOptions options = authQueueStore.loadNonPendingFilterOptions();
 
         TablePageData mapped = mapApprovalPageData(result);
         Map<String, Object> pageMeta = new LinkedHashMap<>(mapped.pageMeta());
@@ -477,32 +486,32 @@ public class LandingPageController {
         return new TablePageData(mapped.rows(), Map.copyOf(pageMeta));
     }
 
-    private TablePageData mapApprovalPageData(AuthQueueStore.PageResult<AuthQueueStore.ApprovalRequestRow> result) {
+    private TablePageData mapApprovalPageData(PageResult<ApprovalRequestRow> result) {
         List<String> requestIds = new ArrayList<>();
-        for (AuthQueueStore.ApprovalRequestRow row : result.rows()) {
+        for (ApprovalRequestRow row : result.rows()) {
             if (row.id() != null && !row.id().isBlank()) {
                 requestIds.add(row.id());
             }
         }
 
-        Map<String, AuthQueueStore.RequestDependencies> dependenciesByRequestId = authQueueStore.loadRequestDependencies(requestIds);
+        Map<String, RequestDependencies> dependenciesByRequestId = authQueueStore.loadRequestDependencies(requestIds);
         Instant now = Instant.now();
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (AuthQueueStore.ApprovalRequestRow row : result.rows()) {
+        for (ApprovalRequestRow row : result.rows()) {
             Map<String, Object> mapped = new LinkedHashMap<>();
             String state = normalizeState(row.state());
             String stateLower = state.toLowerCase(Locale.ROOT);
             int approvalsGranted = row.approvalsGranted();
             int minApprovalsRequired = row.minApprovalsRequired();
 
-            AuthQueueStore.RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
+            RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
                     row.id(),
-                    new AuthQueueStore.RequestDependencies(List.of(), List.of(), List.of(), List.of())
+                    new RequestDependencies(List.of(), List.of(), List.of(), List.of())
             );
 
             Set<String> deciders = new LinkedHashSet<>();
-            for (AuthQueueStore.VoteDetail vote : dependencies.votes()) {
+            for (VoteDetail vote : dependencies.votes()) {
                 if (vote.decidedBy() != null && !vote.decidedBy().isBlank()) {
                     deciders.add(vote.decidedBy().trim());
                 }
@@ -533,8 +542,8 @@ public class LandingPageController {
     }
 
     private Map<String, Object> buildDetailsObject(
-            AuthQueueStore.ApprovalRequestRow row,
-            AuthQueueStore.RequestDependencies dependencies
+            ApprovalRequestRow row,
+            RequestDependencies dependencies
     ) {
         Map<String, Object> root = new LinkedHashMap<>();
 
@@ -566,7 +575,7 @@ public class LandingPageController {
         root.put("request", Map.copyOf(request));
 
         List<Map<String, Object>> history = new ArrayList<>();
-        for (AuthQueueStore.StateTransitionDetail transition : dependencies.transitions()) {
+        for (StateTransitionDetail transition : dependencies.transitions()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", transition.id());
             item.put("requestId", safe(transition.requestId()));
@@ -585,7 +594,7 @@ public class LandingPageController {
         Map<String, Object> allDependencies = new LinkedHashMap<>();
 
         List<Map<String, Object>> channels = new ArrayList<>();
-        for (AuthQueueStore.RequestChannelDetail channel : dependencies.channels()) {
+        for (RequestChannelDetail channel : dependencies.channels()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", channel.id());
             item.put("requestId", safe(channel.requestId()));
@@ -601,7 +610,7 @@ public class LandingPageController {
         allDependencies.put("channels", List.copyOf(channels));
 
         List<Map<String, Object>> votes = new ArrayList<>();
-        for (AuthQueueStore.VoteDetail vote : dependencies.votes()) {
+        for (VoteDetail vote : dependencies.votes()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", vote.id());
             item.put("requestId", safe(vote.requestId()));
@@ -615,7 +624,7 @@ public class LandingPageController {
         allDependencies.put("votes", List.copyOf(votes));
 
         List<Map<String, Object>> executionAttempts = new ArrayList<>();
-        for (AuthQueueStore.ExecutionAttemptDetail execution : dependencies.executionAttempts()) {
+        for (ExecutionAttemptDetail execution : dependencies.executionAttempts()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", execution.id());
             item.put("requestId", safe(execution.requestId()));
@@ -645,11 +654,11 @@ public class LandingPageController {
         int page = parsePositiveInt(ctx.queryParam("audit_page"), 1);
         int pageSize = parsePositiveInt(ctx.queryParam("audit_page_size"), 25);
 
-        AuthQueueStore.PageResult<AuthQueueStore.StateTransitionRow> result =
+        PageResult<StateTransitionRow> result =
                 authQueueStore.pageStateTransitions(sortBy, sortDir, page, pageSize);
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (AuthQueueStore.StateTransitionRow row : result.rows()) {
+        for (StateTransitionRow row : result.rows()) {
             Map<String, Object> mapped = new LinkedHashMap<>();
             mapped.put("id", row.id());
             mapped.put("requestId", row.requestId());
@@ -680,7 +689,7 @@ public class LandingPageController {
         return new TablePageData(List.of(), Map.copyOf(pageMeta));
     }
 
-    private static Map<String, Object> pageMetaFrom(AuthQueueStore.PageResult<?> result) {
+    private static Map<String, Object> pageMetaFrom(PageResult<?> result) {
         Map<String, Object> pageMeta = new LinkedHashMap<>();
         pageMeta.put("page", result.page());
         pageMeta.put("pageSize", result.pageSize());

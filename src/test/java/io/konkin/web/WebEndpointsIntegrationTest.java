@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.sql.SQLException;
+import org.jdbi.v3.core.statement.UnableToExecuteStatementException;
 import java.util.Map;
 import java.util.Properties;
 
@@ -47,7 +47,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             insertApprovalRequest(dataSource, "req-1", "nonce-duplicate", "PENDING");
 
             assertThrows(
-                    SQLException.class,
+                    UnableToExecuteStatementException.class,
                     () -> insertApprovalRequest(dataSource, "req-2", "nonce-duplicate", "PENDING")
             );
         }
@@ -63,7 +63,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             insertApprovalVote(dataSource, "req-votes", "telegram.main", "approve");
 
             assertThrows(
-                    SQLException.class,
+                    UnableToExecuteStatementException.class,
                     () -> insertApprovalVote(dataSource, "req-votes", "telegram.main", "deny")
             );
         }

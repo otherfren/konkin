@@ -3,6 +3,7 @@ package io.konkin.web;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
+import io.konkin.db.JdbiFactory;
 import org.junit.jupiter.api.io.TempDir;
 
 import javax.crypto.SecretKeyFactory;
@@ -19,10 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -231,101 +228,79 @@ abstract class WebIntegrationTestSupport {
         return false;
     }
 
-    protected static void insertApprovalRequest(DataSource dataSource, String requestId, String nonceComposite, String state)
-            throws SQLException {
-        String sql = """
-                INSERT INTO approval_requests (
-                    id,
-                    coin,
-                    tool_name,
-                    nonce_uuid,
-                    payload_hash_sha256,
-                    nonce_composite,
-                    requested_at,
-                    expires_at,
-                    state,
-                    min_approvals_required
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """;
-
+    protected static void insertApprovalRequest(DataSource dataSource, String requestId, String nonceComposite, String state) {
         Instant now = Instant.now();
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, requestId);
-            ps.setString(2, "bitcoin");
-            ps.setString(3, "bitcoin_send");
-            ps.setString(4, "nonce-uuid-" + requestId);
-            ps.setString(5, "sha256-" + requestId);
-            ps.setString(6, nonceComposite);
-            ps.setTimestamp(7, Timestamp.from(now));
-            ps.setTimestamp(8, Timestamp.from(now.plusSeconds(600)));
-            ps.setString(9, state);
-            ps.setInt(10, 1);
-            ps.executeUpdate();
-        }
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("""
+                        INSERT INTO approval_requests (
+                            id, coin, tool_name, nonce_uuid, payload_hash_sha256, nonce_composite,
+                            requested_at, expires_at, state, min_approvals_required
+                        ) VALUES (:id, :coin, :tool, :nonceUuid, :sha256, :nonce, :requestedAt, :expiresAt, :state, :minApprovals)
+                        """)
+                        .bind("id", requestId)
+                        .bind("coin", "bitcoin")
+                        .bind("tool", "bitcoin_send")
+                        .bind("nonceUuid", "nonce-uuid-" + requestId)
+                        .bind("sha256", "sha256-" + requestId)
+                        .bind("nonce", nonceComposite)
+                        .bind("requestedAt", now)
+                        .bind("expiresAt", now.plusSeconds(600))
+                        .bind("state", state)
+                        .bind("minApprovals", 1)
+                        .execute()
+        );
     }
 
-    protected static void updateApprovalRequestTimes(DataSource dataSource, String requestId, Instant requestedAt, Instant expiresAt)
-            throws SQLException {
-        String sql = "UPDATE approval_requests SET requested_at = ?, expires_at = ? WHERE id = ?";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, Timestamp.from(requestedAt));
-            ps.setTimestamp(2, Timestamp.from(expiresAt));
-            ps.setString(3, requestId);
-            ps.executeUpdate();
-        }
+    protected static void updateApprovalRequestTimes(DataSource dataSource, String requestId, Instant requestedAt, Instant expiresAt) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("UPDATE approval_requests SET requested_at = :requestedAt, expires_at = :expiresAt WHERE id = :id")
+                        .bind("requestedAt", requestedAt)
+                        .bind("expiresAt", expiresAt)
+                        .bind("id", requestId)
+                        .execute()
+        );
     }
 
-    protected static void insertCoinLockdown(DataSource dataSource, String coin, Instant lockdownUntil)
-            throws SQLException {
-        String sql = """
-                INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until)
-                VALUES (?, NULL, NULL, ?)
-                """;
-
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, coin);
-            ps.setTimestamp(2, Timestamp.from(lockdownUntil));
-            ps.executeUpdate();
-        }
+    protected static void insertCoinLockdown(DataSource dataSource, String coin, Instant lockdownUntil) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("""
+                        INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until)
+                        VALUES (:coin, NULL, NULL, :lockdownUntil)
+                        """)
+                        .bind("coin", coin)
+                        .bind("lockdownUntil", lockdownUntil)
+                        .execute()
+        );
     }
 
-    protected static void insertApprovalChannel(DataSource dataSource, String channelId, String channelType)
-            throws SQLException {
-        String sql = """
-                INSERT INTO approval_channels (id, channel_type, display_name, enabled, config_fingerprint)
-                VALUES (?, ?, ?, ?, ?)
-                """;
-
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, channelId);
-            ps.setString(2, channelType);
-            ps.setString(3, channelId);
-            ps.setBoolean(4, true);
-            ps.setString(5, "test-fingerprint");
-            ps.executeUpdate();
-        }
+    protected static void insertApprovalChannel(DataSource dataSource, String channelId, String channelType) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("""
+                        INSERT INTO approval_channels (id, channel_type, display_name, enabled, config_fingerprint)
+                        VALUES (:id, :type, :name, :enabled, :fingerprint)
+                        """)
+                        .bind("id", channelId)
+                        .bind("type", channelType)
+                        .bind("name", channelId)
+                        .bind("enabled", true)
+                        .bind("fingerprint", "test-fingerprint")
+                        .execute()
+        );
     }
 
-    protected static void insertApprovalVote(DataSource dataSource, String requestId, String channelId, String decision)
-            throws SQLException {
-        String sql = """
-                INSERT INTO approval_votes (request_id, channel_id, decision, decision_reason, decided_by)
-                VALUES (?, ?, ?, ?, ?)
-                """;
-
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, requestId);
-            ps.setString(2, channelId);
-            ps.setString(3, decision);
-            ps.setString(4, "integration-test");
-            ps.setString(5, "test-actor");
-            ps.executeUpdate();
-        }
+    protected static void insertApprovalVote(DataSource dataSource, String requestId, String channelId, String decision) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("""
+                        INSERT INTO approval_votes (request_id, channel_id, decision, decision_reason, decided_by)
+                        VALUES (:requestId, :channelId, :decision, :reason, :decidedBy)
+                        """)
+                        .bind("requestId", requestId)
+                        .bind("channelId", channelId)
+                        .bind("decision", decision)
+                        .bind("reason", "integration-test")
+                        .bind("decidedBy", "test-actor")
+                        .execute()
+        );
     }
 
     protected static void waitForHealth(int port) throws Exception {

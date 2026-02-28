@@ -11,10 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Timestamp;
+import io.konkin.db.JdbiFactory;
 import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
@@ -902,27 +899,23 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
     }
-    private static void updateApprovalRequestCoinAndTool(DataSource dataSource, String requestId, String coin, String toolName)
-            throws SQLException {
-        String sql = "UPDATE approval_requests SET coin = ?, tool_name = ? WHERE id = ?";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, coin);
-            ps.setString(2, toolName);
-            ps.setString(3, requestId);
-            ps.executeUpdate();
-        }
+    private static void updateApprovalRequestCoinAndTool(DataSource dataSource, String requestId, String coin, String toolName) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("UPDATE approval_requests SET coin = :coin, tool_name = :tool WHERE id = :id")
+                        .bind("coin", coin)
+                        .bind("tool", toolName)
+                        .bind("id", requestId)
+                        .execute()
+        );
     }
 
-    private static void updateApprovalUpdatedAt(DataSource dataSource, String requestId, Instant updatedAt)
-            throws SQLException {
-        String sql = "UPDATE approval_requests SET updated_at = ? WHERE id = ?";
-        try (Connection conn = dataSource.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, Timestamp.from(updatedAt));
-            ps.setString(2, requestId);
-            ps.executeUpdate();
-        }
+    private static void updateApprovalUpdatedAt(DataSource dataSource, String requestId, Instant updatedAt) {
+        JdbiFactory.create(dataSource).useHandle(h ->
+                h.createUpdate("UPDATE approval_requests SET updated_at = :updatedAt WHERE id = :id")
+                        .bind("updatedAt", updatedAt)
+                        .bind("id", requestId)
+                        .execute()
+        );
     }
 
     private static int countOccurrences(String source, String token) {
