@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import javax.sql.DataSource;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.io.IOException;
 import java.net.http.HttpResponse;
@@ -384,6 +385,325 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         assertDoesNotThrow(() -> KonkinConfig.load(configFile.toString()));
+    }
+
+    @Test
+    void telegramAutoDenyTimeoutDefaultsToFiveMinutesWhenMissing() throws Exception {
+        int port = freePort();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+                """.formatted(port);
+
+        KonkinConfig config = KonkinConfig.load(configFile(configToml));
+        assertEquals(Duration.ofMinutes(5), config.telegramAutoDenyTimeout());
+    }
+
+    @Test
+    void telegramAutoDenyTimeoutSupportsHumanFriendlyDurationAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [telegram]
+                auto-deny-timeout = "3m"
+                """.formatted(port);
+
+        KonkinConfig config = KonkinConfig.load(configFile(configToml));
+        assertEquals(Duration.ofMinutes(3), config.telegramAutoDenyTimeout());
+    }
+
+    @Test
+    void bitcoinAuthMinApprovalsRequiredMustBePositiveAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-min-approvals-positive.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-min-approvals-positive.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+                min-approvals-required = 0
+                """.formatted(
+                port,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-min-approvals-positive-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.min-approvals-required must be > 0"));
+    }
+
+    @Test
+    void bitcoinAuthMinApprovalsRequiredCannotExceedConfiguredChannelCountAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-min-approvals-max.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-min-approvals-max.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+                min-approvals-required = 2
+                """.formatted(
+                port,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-min-approvals-max-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.min-approvals-required=2 exceeds configured auth channels=1"));
+    }
+
+    @Test
+    void bitcoinAuthVetoChannelsMustReferenceEnabledChannelsAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-veto-invalid.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-veto-invalid.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = false
+                telegram = false
+                mcp = "btc-main"
+                veto-channels = ["telegram"]
+                """.formatted(
+                port,
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-veto-invalid-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> KonkinConfig.load(configFile.toString())
+        );
+        assertTrue(exception.getMessage().contains("coins.bitcoin.auth.veto-channels contains 'telegram' which is not an enabled auth channel"));
+    }
+
+    @Test
+    void bitcoinAuthQuorumAndVetoUseCaseConfigLoadsSuccessfully() throws Exception {
+        int port = freePort();
+
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-quorum-veto.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-quorum-veto.conf");
+        Path telegramSecretFile = tempDir.resolve("secrets/telegram-quorum-veto.secret");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                auto-deny-timeout = "3m"
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = true
+                mcp-auth-channels = ["agent-a", "agent-b"]
+                min-approvals-required = 2
+                veto-channels = ["telegram", "agent-a"]
+                """.formatted(
+                port,
+                tomlPath(telegramSecretFile),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-bitcoin-quorum-veto-valid-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        assertDoesNotThrow(() -> KonkinConfig.load(configFile.toString()));
+    }
+
+    @Test
+    void authDefinitionsPageShowsTimeoutQuorumAndVetoValues() throws Exception {
+        int port = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-auth-defs-timeout-quorum.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-auth-defs-timeout-quorum.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs-timeout-quorum.conf");
+        Path telegramSecretFile = tempDir.resolve("secrets/telegram-auth-defs-timeout-quorum.secret");
+
+        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-auth-defs-timeout-quorum-" + System.nanoTime() + "/konkin"));
+
+        Path telegramSecretDir = telegramSecretFile.getParent();
+        if (telegramSecretDir != null) {
+            Files.createDirectories(telegramSecretDir);
+        }
+        Files.writeString(
+                telegramSecretFile,
+                "bot-token=test-bot-token\nchat-ids=\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [database]
+                url = "%s"
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                auto-deny-timeout = "3m"
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = true
+                mcp-auth-channels = ["agent-a", "agent-b"]
+                min-approvals-required = 2
+                veto-channels = ["telegram"]
+                """.formatted(
+                port,
+                dbUrl,
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(telegramSecretFile),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-auth-defs-timeout-quorum-veto-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            assertEquals(200, authDefinitions.statusCode());
+            assertTrue(authDefinitions.body().contains("telegram auto-deny timeout"));
+            assertTrue(authDefinitions.body().contains("3m"));
+            assertTrue(authDefinitions.body().contains("2-of-N"));
+            assertTrue(authDefinitions.body().contains("Veto channels"));
+            assertTrue(authDefinitions.body().contains("telegram"));
+            assertTrue(authDefinitions.body().contains("data-secret-value=\"agent-a\""));
+            assertTrue(authDefinitions.body().contains("data-secret-value=\"agent-b\""));
+        }
     }
 
     @Test

@@ -17,7 +17,7 @@ pool-size = 5
 enabled = true
 
 [web-ui.password-protection]
-enabled = true
+enabled = false
 # rotate keys by deleting the referenced file
 password-file = "./secrets/web-ui.password"
 
@@ -80,6 +80,9 @@ web-ui = true
 rest-api = false
 telegram = true
 mcp = "xmr-main"
+min-approvals-required = 2
+veto-channels = ["telegram"]
+mcp-auth-channels = ["agent-default", "agent-backup"]
 
 [[coins.monero.auth.auto-accept]]
 [coins.monero.auth.auto-accept.criteria]
@@ -103,6 +106,8 @@ rest-api = true
 telegram = true
 # MCP auth channel identifiers shown in Auth Definitions
 mcp-auth-channels = ["agent-default", "agent-backup"]
+min-approvals-required = 1
+veto-channels = ["telegram", "agent-default"]
 
 [[coins.bitcoin.auth.auto-accept]]
 [coins.bitcoin.auth.auto-accept.criteria]

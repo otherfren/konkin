@@ -61,6 +61,7 @@ public class KonkinConfig {
     private final boolean telegramEnabled;
     private final String telegramSecretFile;
     private final String telegramApiBaseUrl;
+    private final Duration telegramAutoDenyTimeout;
     private final List<String> telegramChatIds;
 
     private final CoinConfig bitcoin;
@@ -96,6 +97,7 @@ public class KonkinConfig {
     public boolean telegramEnabled() { return telegramEnabled; }
     public String telegramSecretFile() { return telegramSecretFile; }
     public String telegramApiBaseUrl() { return telegramApiBaseUrl; }
+    public Duration telegramAutoDenyTimeout() { return telegramAutoDenyTimeout; }
     public List<String> telegramChatIds() { return telegramChatIds; }
 
     public CoinConfig bitcoin() { return bitcoin; }
@@ -168,6 +170,12 @@ public class KonkinConfig {
         this.telegramSecretFile = toml.getOrElse("telegram.secret-file", "./secrets/telegram.secret");
         this.telegramApiBaseUrl = toml.getOrElse("telegram.api-base-url", "https://api.telegram.org");
 
+        String telegramAutoDenyTimeoutRaw = normalizeString(toml.get("telegram.auto-deny-timeout"));
+        if (telegramAutoDenyTimeoutRaw == null || telegramAutoDenyTimeoutRaw.isBlank()) {
+            telegramAutoDenyTimeoutRaw = "5m";
+        }
+        this.telegramAutoDenyTimeout = parseDuration(telegramAutoDenyTimeoutRaw, "telegram.auto-deny-timeout");
+
         LinkedHashSet<String> deduplicatedTelegramChatIds = new LinkedHashSet<>();
         Object rawTelegramChatIds = toml.get("telegram.chat-ids");
         if (rawTelegramChatIds instanceof List<?> listValue) {
@@ -231,9 +239,10 @@ public class KonkinConfig {
             log.info("REST API config — enabled={}, secretFile={}",
                     config.restApiEnabled,
                     config.restApiSecretFile);
-            log.info("Telegram config — enabled={}, secretFile={}, configuredChatIds={}",
+            log.info("Telegram config — enabled={}, secretFile={}, autoDenyTimeout={}, configuredChatIds={}",
                     config.telegramEnabled,
                     config.telegramSecretFile,
+                    config.telegramAutoDenyTimeout,
                     config.telegramChatIds.size());
             log.info("Bitcoin config — enabled={}, daemonSecretFile={}, walletSecretFile={}, webUi={}, restApi={}, telegram={}, mcpId={}, mcpAuthChannels={}, autoAcceptRules={}, autoDenyRules={}",
                     config.bitcoin.enabled(),
@@ -336,11 +345,14 @@ public class KonkinConfig {
         List<ApprovalRule> autoAccept = readApprovalRules(toml, "coins.bitcoin.auth.auto-accept");
         List<ApprovalRule> autoDeny = readApprovalRules(toml, "coins.bitcoin.auth.auto-deny");
 
+        int minApprovalsRequired = toml.getIntOrElse("coins.bitcoin.auth.min-approvals-required", 1);
+        List<String> vetoChannels = loadVetoChannels(toml, "coins.bitcoin.auth");
+
         return new CoinConfig(
                 enabled,
                 daemonSecretFile,
                 walletSecretFile,
-                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels)
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
     }
 
@@ -357,11 +369,14 @@ public class KonkinConfig {
         List<ApprovalRule> autoAccept = readApprovalRules(toml, coinPrefix + ".auth.auto-accept");
         List<ApprovalRule> autoDeny = readApprovalRules(toml, coinPrefix + ".auth.auto-deny");
 
+        int minApprovalsRequired = toml.getIntOrElse(coinPrefix + ".auth.min-approvals-required", 1);
+        List<String> vetoChannels = loadVetoChannels(toml, coinPrefix + ".auth");
+
         return new CoinConfig(
                 enabled,
                 "",
                 "",
-                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels)
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
     }
 
@@ -389,6 +404,30 @@ public class KonkinConfig {
         }
 
         return List.copyOf(channels);
+    }
+
+    private List<String> loadVetoChannels(FileConfig toml, String authPath) {
+        Object raw = toml.get(authPath + ".veto-channels");
+        if (raw == null) {
+            return List.of();
+        }
+
+        if (!(raw instanceof List<?> rawList)) {
+            throw new IllegalStateException("Invalid config: " + authPath + ".veto-channels must be a TOML list.");
+        }
+
+        LinkedHashSet<String> vetoChannels = new LinkedHashSet<>();
+        for (Object item : rawList) {
+            if (item == null) {
+                continue;
+            }
+            String normalized = item.toString().trim();
+            if (!normalized.isEmpty()) {
+                vetoChannels.add(normalized);
+            }
+        }
+
+        return List.copyOf(vetoChannels);
     }
 
     private List<ApprovalRule> readApprovalRules(FileConfig toml, String keyPath) {
@@ -592,15 +631,27 @@ public class KonkinConfig {
         validatePath(bitcoin.bitcoinWalletConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-wallet-config-file");
 
         CoinAuthConfig auth = bitcoin.auth();
-        if (!auth.webUi() && !auth.restApi() && !auth.telegram()) {
+        int configuredChannelCount = countConfiguredChannels(auth);
+        if (configuredChannelCount == 0) {
             throw new IllegalStateException(
-                    "Invalid config: coins.bitcoin.auth must enable at least one channel (web-ui/rest-api/telegram).");
+                    "Invalid config: coins.bitcoin.auth must enable at least one channel (web-ui/rest-api/telegram/mcp-auth-channels)."
+            );
         }
 
-        if (auth.mcpAuthChannels() == null || auth.mcpAuthChannels().isEmpty()) {
+        if (auth.minApprovalsRequired() <= 0) {
             throw new IllegalStateException(
-                    "Invalid config: coins.bitcoin.auth must define at least one MCP auth channel via coins.bitcoin.auth.mcp or coins.bitcoin.auth.mcp-auth-channels.");
+                    "Invalid config: coins.bitcoin.auth.min-approvals-required must be > 0."
+            );
         }
+
+        if (auth.minApprovalsRequired() > configuredChannelCount) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.bitcoin.auth.min-approvals-required=" + auth.minApprovalsRequired()
+                            + " exceeds configured auth channels=" + configuredChannelCount + "."
+            );
+        }
+
+        validateVetoChannels("bitcoin", auth);
 
         for (ApprovalRule rule : auth.autoAccept()) {
             ensureRuleConsistency(rule, "coins.bitcoin.auth.auto-accept");
@@ -625,17 +676,27 @@ public class KonkinConfig {
         }
 
         CoinAuthConfig auth = coin.auth();
-        if (!auth.webUi() && !auth.restApi() && !auth.telegram()) {
+        int configuredChannelCount = countConfiguredChannels(auth);
+        if (configuredChannelCount == 0) {
             throw new IllegalStateException(
-                    "Invalid config: coins." + coinName + ".auth must enable at least one channel (web-ui/rest-api/telegram)."
+                    "Invalid config: coins." + coinName + ".auth must enable at least one channel (web-ui/rest-api/telegram/mcp-auth-channels)."
             );
         }
 
-        if (auth.mcpAuthChannels() == null || auth.mcpAuthChannels().isEmpty()) {
+        if (auth.minApprovalsRequired() <= 0) {
             throw new IllegalStateException(
-                    "Invalid config: coins." + coinName + ".auth must define at least one MCP auth channel via coins." + coinName + ".auth.mcp or coins." + coinName + ".auth.mcp-auth-channels."
+                    "Invalid config: coins." + coinName + ".auth.min-approvals-required must be > 0."
             );
         }
+
+        if (auth.minApprovalsRequired() > configuredChannelCount) {
+            throw new IllegalStateException(
+                    "Invalid config: coins." + coinName + ".auth.min-approvals-required=" + auth.minApprovalsRequired()
+                            + " exceeds configured auth channels=" + configuredChannelCount + "."
+            );
+        }
+
+        validateVetoChannels(coinName, auth);
 
         for (ApprovalRule rule : auth.autoAccept()) {
             ensureRuleConsistency(rule, "coins." + coinName + ".auth.auto-accept");
@@ -652,6 +713,57 @@ public class KonkinConfig {
                 telegramEnabled
         );
         CoinAuthCriteriaValidator.validateNoContradictions(coinName, auth);
+    }
+
+    private int countConfiguredChannels(CoinAuthConfig auth) {
+        int count = 0;
+        if (auth.webUi()) {
+            count++;
+        }
+        if (auth.restApi()) {
+            count++;
+        }
+        if (auth.telegram()) {
+            count++;
+        }
+        if (auth.mcpAuthChannels() != null) {
+            count += auth.mcpAuthChannels().size();
+        }
+        return count;
+    }
+
+    private void validateVetoChannels(String coinName, CoinAuthConfig auth) {
+        if (auth.vetoChannels() == null || auth.vetoChannels().isEmpty()) {
+            return;
+        }
+
+        LinkedHashSet<String> enabledChannels = new LinkedHashSet<>();
+        if (auth.webUi()) {
+            enabledChannels.add("web-ui");
+        }
+        if (auth.restApi()) {
+            enabledChannels.add("rest-api");
+        }
+        if (auth.telegram()) {
+            enabledChannels.add("telegram");
+        }
+        if (auth.mcpAuthChannels() != null) {
+            enabledChannels.addAll(auth.mcpAuthChannels());
+        }
+
+        for (String vetoChannel : auth.vetoChannels()) {
+            if (vetoChannel == null || vetoChannel.isBlank()) {
+                throw new IllegalStateException(
+                        "Invalid config: coins." + coinName + ".auth.veto-channels must not contain blank entries."
+                );
+            }
+            if (!enabledChannels.contains(vetoChannel)) {
+                throw new IllegalStateException(
+                        "Invalid config: coins." + coinName + ".auth.veto-channels contains '" + vetoChannel
+                                + "' which is not an enabled auth channel."
+                );
+            }
+        }
     }
 
     private void ensureRuleConsistency(ApprovalRule rule, String keyPath) {
@@ -800,7 +912,9 @@ public class KonkinConfig {
             boolean restApi,
             boolean telegram,
             String mcp,
-            List<String> mcpAuthChannels
+            List<String> mcpAuthChannels,
+            int minApprovalsRequired,
+            List<String> vetoChannels
     ) {
     }
 

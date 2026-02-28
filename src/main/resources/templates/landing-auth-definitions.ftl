@@ -48,6 +48,9 @@
             <span class="auth-chip <#if telegramEnabled>auth-chip-on<#else>auth-chip-off</#if>">
                 telegram: <strong>${telegramEnabled?string('enabled', 'disabled')}</strong>
             </span>
+            <span class="auth-chip auth-chip-on">
+                telegram auto-deny timeout: <strong>${authDefinitions.telegramAutoDenyTimeout!'-'}</strong>
+            </span>
         </div>
     </section>
 
@@ -103,6 +106,20 @@
                                     </div>
                                 </#list>
                             </div>
+                        </#if>
+                    </section>
+                </div>
+
+                <div class="auth-meta-grid" style="margin-top:.6rem;">
+                    <section class="auth-meta-item" aria-label="Quorum and veto settings">
+                        <h4 class="auth-meta-label">Quorum</h4>
+                        <span class="mono auth-meta-value">${coin.minApprovalsRequired!'1'}-of-N</span>
+                        <h4 class="auth-meta-label" style="margin-top:.45rem;">Veto channels</h4>
+                        <#assign vetoChannels = (coin.vetoChannels![])>
+                        <#if vetoChannels?size == 0>
+                            <span class="mono auth-meta-value">-</span>
+                        <#else>
+                            <span class="mono auth-meta-value">${vetoChannels?join(', ')}</span>
                         </#if>
                     </section>
                 </div>

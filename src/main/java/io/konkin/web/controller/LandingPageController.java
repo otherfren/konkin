@@ -849,6 +849,7 @@ public class LandingPageController {
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("webUiEnabled", config.landingEnabled());
         root.put("telegramEnabled", config.telegramEnabled());
+        root.put("telegramAutoDenyTimeout", formatDurationFriendly(config.telegramAutoDenyTimeout()));
 
         List<Map<String, Object>> coins = new ArrayList<>();
         coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
@@ -887,6 +888,8 @@ public class LandingPageController {
         coin.put("mcpAuthChannels", List.copyOf(mcpAuthChannels));
         coin.put("channels", Map.copyOf(channels));
         coin.put("channelWarnings", List.copyOf(warnings));
+        coin.put("minApprovalsRequired", auth.minApprovalsRequired());
+        coin.put("vetoChannels", List.copyOf(auth.vetoChannels()));
         coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));
         coin.put("autoDenyRules", mapApprovalRules(auth.autoDeny()));
         return Map.copyOf(coin);
