@@ -398,8 +398,8 @@ public class KonkinWebServer {
                     secondaryAgent,
                     tokenStore,
                     null,
-                    null,
-                    null
+                    authQueueStore,
+                    config
             );
             endpoint.start();
             agentEndpoints.add(endpoint);

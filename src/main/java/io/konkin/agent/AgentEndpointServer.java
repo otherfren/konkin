@@ -13,11 +13,14 @@ import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionRequ
 import io.konkin.config.KonkinConfig;
 import io.konkin.config.KonkinConfig.AgentConfig;
 import io.konkin.db.AuthQueueStore;
+import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
+import io.konkin.db.entity.PageResult;
 import io.konkin.db.entity.RequestDependencies;
 import io.konkin.db.entity.StateTransitionDetail;
 import io.konkin.db.entity.StateTransitionRow;
+import io.konkin.db.entity.VoteDetail;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -25,6 +28,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -121,6 +125,14 @@ public class AgentEndpointServer {
     }
 
     private void handlePendingApprovals(SseClient client) {
+        if (authQueueStore == null || runtimeConfig == null) {
+            throw new IllegalStateException("Secondary approvals stream service is not configured.");
+        }
+
+        client.keepAlive();
+
+        Map<String, ApprovalRequestRow> knownPending = new LinkedHashMap<>();
+        pollPendingApprovals(client, knownPending);
         sendHeartbeat(client);
 
         ScheduledFuture<?> heartbeatTask = heartbeatScheduler.scheduleAtFixedRate(
@@ -130,7 +142,23 @@ public class AgentEndpointServer {
                 TimeUnit.SECONDS
         );
 
-        client.onClose(() -> heartbeatTask.cancel(true));
+        ScheduledFuture<?> pollTask = heartbeatScheduler.scheduleAtFixedRate(
+                () -> {
+                    try {
+                        pollPendingApprovals(client, knownPending);
+                    } catch (Exception ignored) {
+                        // keep scheduler alive on transient stream/database failures
+                    }
+                },
+                1,
+                1,
+                TimeUnit.SECONDS
+        );
+
+        client.onClose(() -> {
+            heartbeatTask.cancel(true);
+            pollTask.cancel(true);
+        });
     }
 
     private void sendHeartbeat(SseClient client) {
@@ -146,6 +174,10 @@ public class AgentEndpointServer {
     }
 
     private void handleVote(io.javalin.http.Context ctx) {
+        if (authQueueStore == null || runtimeConfig == null) {
+            throw new IllegalStateException("Secondary vote service is not configured.");
+        }
+
         VoteRequest voteRequest = ctx.bodyAsClass(VoteRequest.class);
         if (voteRequest == null || voteRequest.decision() == null) {
             throw new BadRequestResponse("decision is required");
@@ -156,7 +188,107 @@ public class AgentEndpointServer {
             throw new BadRequestResponse("decision must be 'approve' or 'deny'");
         }
 
-        String requestId = ctx.pathParam("requestId");
+        String requestId = requireNonBlank(ctx.pathParam("requestId"), "requestId path parameter is required");
+        ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+        if (requestRow == null || !isVoteableState(requestRow.state())) {
+            ctx.status(HttpStatus.NOT_FOUND);
+            ctx.json(Map.of("error", "request_not_found_or_resolved"));
+            return;
+        }
+
+        if (!isAgentAssignedToCoin(requestRow.coin())) {
+            ctx.status(HttpStatus.FORBIDDEN);
+            ctx.json(Map.of("error", "agent_not_assigned_to_coin"));
+            return;
+        }
+
+        String channelId = ensureSecondaryChannelId();
+        List<VoteDetail> existingVotes = authQueueStore.listVotesForRequest(requestId);
+        boolean alreadyVoted = existingVotes.stream()
+                .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
+        if (alreadyVoted) {
+            ctx.status(HttpStatus.CONFLICT);
+            ctx.json(Map.of("error", "already_voted"));
+            return;
+        }
+
+        Instant now = Instant.now();
+        authQueueStore.insertVote(new VoteDetail(
+                0L,
+                requestId,
+                channelId,
+                decision,
+                optionalTrim(voteRequest.reason()),
+                agentName,
+                now
+        ));
+
+        List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+        int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
+        int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
+
+        String previousState = requestRow.state();
+        String nextState = previousState;
+        String reasonCode = requestRow.stateReasonCode();
+        String reasonText = requestRow.stateReasonText();
+        Instant resolvedAt = requestRow.resolvedAt();
+
+        if (approvalsDenied > 0) {
+            nextState = "DENIED";
+            reasonCode = "vote_denied";
+            reasonText = "Denied by secondary approval vote";
+            resolvedAt = now;
+        } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
+            nextState = "APPROVED";
+            reasonCode = "approval_threshold_met";
+            reasonText = "Minimum approvals reached";
+        } else if ("QUEUED".equalsIgnoreCase(previousState)) {
+            nextState = "PENDING";
+            reasonCode = "awaiting_more_votes";
+            reasonText = "Awaiting additional approvals";
+        }
+
+        ApprovalRequestRow updated = new ApprovalRequestRow(
+                requestRow.id(),
+                requestRow.coin(),
+                requestRow.toolName(),
+                requestRow.requestSessionId(),
+                requestRow.nonceUuid(),
+                requestRow.payloadHashSha256(),
+                requestRow.nonceComposite(),
+                requestRow.toAddress(),
+                requestRow.amountNative(),
+                requestRow.feePolicy(),
+                requestRow.feeCapNative(),
+                requestRow.memo(),
+                requestRow.requestedAt(),
+                requestRow.expiresAt(),
+                nextState,
+                reasonCode,
+                reasonText,
+                requestRow.minApprovalsRequired(),
+                approvalsGranted,
+                approvalsDenied,
+                requestRow.policyActionAtCreation(),
+                requestRow.createdAt(),
+                now,
+                resolvedAt
+        );
+        authQueueStore.updateApprovalRequest(updated);
+
+        if (!Objects.equals(previousState, nextState)) {
+            authQueueStore.insertStateTransition(new StateTransitionRow(
+                    0L,
+                    requestId,
+                    previousState,
+                    nextState,
+                    "agent",
+                    agentName,
+                    reasonCode,
+                    now
+            ));
+        }
+
         ctx.json(Map.of(
                 "status", "accepted",
                 "requestId", requestId,
@@ -285,6 +417,8 @@ public class AgentEndpointServer {
             return;
         }
 
+        client.keepAlive();
+
         AtomicReference<String> lastState = new AtomicReference<>(initial.state());
         sendDecisionEvent(client, "snapshot", initial.requestId(), initial.state(), toDecisionPayload(initial));
         if (initial.terminal()) {
@@ -412,6 +546,189 @@ public class AgentEndpointServer {
         } catch (Exception ignored) {
             // client likely disconnected between terminated() check and send
         }
+    }
+
+    private void pollPendingApprovals(SseClient client, Map<String, ApprovalRequestRow> knownPending) {
+        if (client.terminated()) {
+            return;
+        }
+
+        Map<String, ApprovalRequestRow> currentPending = new LinkedHashMap<>();
+        List<ApprovalRequestRow> assignedPending = loadAssignedPendingRequests();
+        for (ApprovalRequestRow row : assignedPending) {
+            currentPending.put(row.id(), row);
+            if (!knownPending.containsKey(row.id())) {
+                sendApprovalRequestEvent(client, row);
+            }
+        }
+
+        for (String previousRequestId : new ArrayList<>(knownPending.keySet())) {
+            if (currentPending.containsKey(previousRequestId)) {
+                continue;
+            }
+
+            ApprovalRequestRow latest = authQueueStore.findApprovalRequestById(previousRequestId);
+            if (latest != null && isCancellationState(latest.state())) {
+                sendApprovalCancelledEvent(client, latest);
+            }
+        }
+
+        knownPending.clear();
+        knownPending.putAll(currentPending);
+    }
+
+    private List<ApprovalRequestRow> loadAssignedPendingRequests() {
+        PageResult<ApprovalRequestRow> page = authQueueStore.pagePendingApprovalRequests("requested_at", "asc", 1, 200);
+        List<ApprovalRequestRow> assigned = new ArrayList<>();
+        for (ApprovalRequestRow row : page.rows()) {
+            if (isAgentAssignedToCoin(row.coin())) {
+                assigned.add(row);
+            }
+        }
+        return List.copyOf(assigned);
+    }
+
+    private void sendApprovalRequestEvent(SseClient client, ApprovalRequestRow row) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("requestId", row.id());
+        payload.put("coin", row.coin());
+        payload.put("type", toApprovalType(row.toolName()));
+        if (row.toAddress() != null) {
+            payload.put("to", row.toAddress());
+        }
+        if (row.amountNative() != null) {
+            payload.put("amount", row.amountNative());
+        }
+        payload.put("nonce", row.nonceComposite());
+        payload.put("requestedAt", row.requestedAt());
+        payload.put("expiresAt", row.expiresAt());
+
+        sendSseEvent(client, "approval_request", payload);
+    }
+
+    private void sendApprovalCancelledEvent(SseClient client, ApprovalRequestRow row) {
+        sendSseEvent(client, "approval_cancelled", Map.of(
+                "requestId", row.id(),
+                "reason", cancellationReason(row)
+        ));
+    }
+
+    private void sendSseEvent(SseClient client, String eventName, Object payload) {
+        if (client.terminated()) {
+            return;
+        }
+
+        try {
+            client.sendEvent(eventName, payload);
+        } catch (Exception ignored) {
+            // client likely disconnected between terminated() check and send
+        }
+    }
+
+    private String ensureSecondaryChannelId() {
+        ApprovalChannelRow existing = authQueueStore.findChannelById(agentName);
+        if (existing != null) {
+            return existing.id();
+        }
+
+        try {
+            authQueueStore.insertChannel(new ApprovalChannelRow(
+                    agentName,
+                    "mcp_agent",
+                    agentName,
+                    true,
+                    "agent-endpoint",
+                    Instant.now()
+            ));
+        } catch (RuntimeException ignored) {
+            // another concurrent request may create the row first
+        }
+
+        ApprovalChannelRow reloaded = authQueueStore.findChannelById(agentName);
+        if (reloaded == null) {
+            throw new IllegalStateException("Failed to resolve approval channel for secondary agent: " + agentName);
+        }
+        return reloaded.id();
+    }
+
+    private boolean isAgentAssignedToCoin(String coin) {
+        if (coin == null || runtimeConfig == null) {
+            return false;
+        }
+
+        String normalized = coin.trim().toLowerCase();
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        return switch (normalized) {
+            case "bitcoin" -> isAgentAssigned(runtimeConfig.bitcoin());
+            case "litecoin" -> isAgentAssigned(runtimeConfig.litecoin());
+            case "monero" -> isAgentAssigned(runtimeConfig.monero());
+            default -> false;
+        };
+    }
+
+    private boolean isAgentAssigned(KonkinConfig.CoinConfig coinConfig) {
+        if (coinConfig == null || coinConfig.auth() == null || !coinConfig.enabled()) {
+            return false;
+        }
+        for (String channel : coinConfig.auth().mcpAuthChannels()) {
+            if (channel != null && channel.equalsIgnoreCase(agentName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String toApprovalType(String toolName) {
+        if (toolName == null || toolName.isBlank()) {
+            return "unknown";
+        }
+        String normalized = toolName.trim().toLowerCase();
+        if (normalized.endsWith("_send") || normalized.contains("send")) {
+            return "send";
+        }
+        return normalized;
+    }
+
+    private static boolean isVoteableState(String state) {
+        if (state == null) {
+            return false;
+        }
+        String normalized = state.trim().toUpperCase();
+        return "QUEUED".equals(normalized) || "PENDING".equals(normalized);
+    }
+
+    private static boolean isCancellationState(String state) {
+        if (state == null) {
+            return false;
+        }
+        String normalized = state.trim().toUpperCase();
+        return "DENIED".equals(normalized)
+                || "TIMED_OUT".equals(normalized)
+                || "CANCELLED".equals(normalized)
+                || "EXPIRED".equals(normalized);
+    }
+
+    private static String cancellationReason(ApprovalRequestRow row) {
+        if (row.stateReasonCode() != null && !row.stateReasonCode().isBlank()) {
+            String code = row.stateReasonCode().trim().toLowerCase();
+            if (code.contains("timeout") || code.contains("expired")) {
+                return "timeout";
+            }
+            return code;
+        }
+
+        if (row.state() == null) {
+            return "cancelled";
+        }
+
+        return switch (row.state().trim().toUpperCase()) {
+            case "TIMED_OUT", "EXPIRED" -> "timeout";
+            case "DENIED" -> "denied";
+            default -> "cancelled";
+        };
     }
 
     private static boolean isTerminalState(String state) {
