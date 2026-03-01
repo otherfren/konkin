@@ -3,8 +3,6 @@
 Konkin is a self-hosted server that brokers blockchain send operations through human-in-the-loop approval workflows.
 An AI driver agent submits send requests via MCP; one or more auth agents (web-ui, Telegram, REST-Api or other AI) approve or deny them.
 
-
-
 ## Quickstart
 
 **Prerequisites:** Java 21+, Maven 3.9+
@@ -55,6 +53,15 @@ java -jar target/konkin-server-0.1.0-SNAPSHOT.jar /path/to/config.toml
 The Konkin MCP server uses OAuth2 client credentials.
 The client secret is auto-generated at `./secrets/agent-*name*.secret` on first startup.
 
+## Authentication:
+
+```
+POST http://127.0.0.1:9550/oauth/token
+grant_type=client_credentials&client_id=konkin-primary&client_secret=<from secrets/agent-primary.secret>
+```
+
+Use the returned Bearer token in the `Authorization` header for MCP requests.
+
 Add to your MCP client config (e.g. Claude Code `~/.claude/settings.json`):
 
 ```json
@@ -65,26 +72,11 @@ Add to your MCP client config (e.g. Claude Code `~/.claude/settings.json`):
       "url": "http://127.0.0.1:9550/sse",
       "headers":
       {
-        "Authorization": "Bearer <from secrets/agent-primary.secret>"
+        "Authorization": "Bearer <BEARER TOKEN>"
       }
     }
   }
 }
 ```
 
-Alternative authentication:
-
-```
-POST http://127.0.0.1:9550/oauth/token
-grant_type=client_credentials&client_id=konkin-primary&client_secret=<from secrets/agent-primary.secret>
-```
-
-Use the returned Bearer token in the `Authorization` header for MCP requests.
-
 See `documents/SKILL-driver-agent.md` for the full driver agent operating guide.
-
-
-## Programmed by Peter Geschel https://x.com/otherfren
-
-*Keeper of Nodes, Keys, and Independent Networks*
-

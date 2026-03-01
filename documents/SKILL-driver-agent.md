@@ -43,6 +43,7 @@ You are **only** a driver-agent MCP client.
 ## Workflow
 
 1. Authenticate via `POST /oauth/token` with client_credentials.
+   `POST http://127.0.0.1:9550/oauth/tokengrant_type=client_credentials&client_id=konkin-primary&client_secret=03c8f0b43597bb274017612a60c9d0a333088018daabc5fab85977dc65c4bc4e`
 2. Use the `driver_readiness_check` prompt to get guided instructions, or follow manually:
    a. Read `konkin://runtime/config/requirements` — stop if NOT_READY.
    b. Read `konkin://runtime/config/requirements/{coin}` — stop if NOT_READY.
