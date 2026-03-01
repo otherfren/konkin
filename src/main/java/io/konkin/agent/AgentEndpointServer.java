@@ -2,14 +2,27 @@ package io.konkin.agent;
 
 import io.javalin.Javalin;
 import io.javalin.http.BadRequestResponse;
+import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.sse.SseClient;
+import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
+import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionAcceptedResponse;
+import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionRequest;
+import io.konkin.config.KonkinConfig;
 import io.konkin.config.KonkinConfig.AgentConfig;
+import io.konkin.db.AuthQueueStore;
+import io.konkin.db.entity.ApprovalRequestRow;
+import io.konkin.db.entity.StateTransitionRow;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -23,14 +36,28 @@ public class AgentEndpointServer {
     private final AgentConfig config;
     private final AgentTokenStore tokenStore;
     private final ScheduledExecutorService heartbeatScheduler;
+    private final PrimaryAgentConfigRequirementsService primaryConfigRequirementsService;
+    private final AuthQueueStore authQueueStore;
+    private final KonkinConfig runtimeConfig;
 
     private Javalin app;
 
-    public AgentEndpointServer(String agentName, String agentType, AgentConfig config, AgentTokenStore tokenStore) {
+    public AgentEndpointServer(
+            String agentName,
+            String agentType,
+            AgentConfig config,
+            AgentTokenStore tokenStore,
+            PrimaryAgentConfigRequirementsService primaryConfigRequirementsService,
+            AuthQueueStore authQueueStore,
+            KonkinConfig runtimeConfig
+    ) {
         this.agentName = Objects.requireNonNull(agentName, "agentName");
         this.agentType = Objects.requireNonNull(agentType, "agentType");
         this.config = Objects.requireNonNull(config, "config");
         this.tokenStore = Objects.requireNonNull(tokenStore, "tokenStore");
+        this.primaryConfigRequirementsService = primaryConfigRequirementsService;
+        this.authQueueStore = authQueueStore;
+        this.runtimeConfig = runtimeConfig;
         this.heartbeatScheduler = Executors.newSingleThreadScheduledExecutor(new HeartbeatThreadFactory(agentName));
     }
 
@@ -59,6 +86,11 @@ public class AgentEndpointServer {
 
         app.post("/oauth/token", oauthHandler::handleTokenExchange);
         app.get("/health", ctx -> ctx.json(Map.of("status", "healthy", "agent", agentName, "type", agentType)));
+
+        if ("primary".equals(agentType)) {
+            app.get("/runtime/config/requirements", this::handleRuntimeConfigRequirements);
+            app.post("/coins/{coin}/actions/send", this::handleSendCoinAction);
+        }
 
         if ("secondary".equals(agentType)) {
             app.sse("/approvals/pending", this::handlePendingApprovals);
@@ -119,6 +151,136 @@ public class AgentEndpointServer {
                 "requestId", requestId,
                 "decision", decision
         ));
+    }
+
+    private void handleRuntimeConfigRequirements(io.javalin.http.Context ctx) {
+        if (primaryConfigRequirementsService == null) {
+            throw new IllegalStateException("Primary runtime config requirements service is not configured.");
+        }
+
+        String coin = ctx.queryParam("coin");
+        ctx.json(primaryConfigRequirementsService.evaluate(coin));
+    }
+
+    private void handleSendCoinAction(io.javalin.http.Context ctx) {
+        if (authQueueStore == null || runtimeConfig == null) {
+            throw new IllegalStateException("Primary send-action service is not configured.");
+        }
+
+        String coin = normalizeCoin(ctx.pathParam("coin"));
+        if (!"bitcoin".equals(coin)) {
+            throw new BadRequestResponse("Only 'bitcoin' coin is currently supported for send action.");
+        }
+
+        SendCoinActionRequest request = ctx.bodyAsClass(SendCoinActionRequest.class);
+        if (request == null) {
+            throw new BadRequestResponse("Request body is required.");
+        }
+
+        String toAddress = requireNonBlank(request.toAddress(), "toAddress is required");
+        String amountNative = requireNonBlank(request.amountNative(), "amountNative is required");
+        String feePolicy = optionalTrim(request.feePolicy());
+        String feeCapNative = optionalTrim(request.feeCapNative());
+        String memo = optionalTrim(request.memo());
+
+        Instant now = Instant.now();
+        String requestId = "req-" + UUID.randomUUID();
+        String nonceUuid = UUID.randomUUID().toString();
+        String payloadHash = sha256Hex(String.join("|",
+                coin,
+                toAddress,
+                amountNative,
+                Objects.toString(feePolicy, ""),
+                Objects.toString(feeCapNative, ""),
+                Objects.toString(memo, "")
+        ));
+        String nonceComposite = coin + "|" + nonceUuid + "|" + payloadHash;
+
+        int minApprovalsRequired = runtimeConfig.bitcoin().auth().minApprovalsRequired();
+
+        ApprovalRequestRow row = new ApprovalRequestRow(
+                requestId,
+                coin,
+                "wallet_send",
+                optionalTrim(ctx.header("X-Request-Session-Id")),
+                nonceUuid,
+                payloadHash,
+                nonceComposite,
+                toAddress,
+                amountNative,
+                feePolicy,
+                feeCapNative,
+                memo,
+                now,
+                now.plus(30, ChronoUnit.MINUTES),
+                "QUEUED",
+                "queued_for_approval",
+                "Request accepted and queued for approval",
+                minApprovalsRequired,
+                0,
+                0,
+                "manual",
+                now,
+                now,
+                null
+        );
+
+        authQueueStore.insertApprovalRequest(row);
+        authQueueStore.insertStateTransition(new StateTransitionRow(
+                0L,
+                requestId,
+                null,
+                "QUEUED",
+                "primary_agent",
+                agentName,
+                "queued_for_approval",
+                now
+        ));
+
+        ctx.status(HttpStatus.ACCEPTED);
+        ctx.json(new SendCoinActionAcceptedResponse(
+                "accepted",
+                requestId,
+                coin,
+                "send",
+                "QUEUED"
+        ));
+    }
+
+    private static String normalizeCoin(String coin) {
+        if (coin == null || coin.isBlank()) {
+            throw new BadRequestResponse("coin path parameter is required");
+        }
+        return coin.trim().toLowerCase();
+    }
+
+    private static String requireNonBlank(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new BadRequestResponse(message);
+        }
+        return value.trim();
+    }
+
+    private static String optionalTrim(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+        }
     }
 
     public String agentName() {

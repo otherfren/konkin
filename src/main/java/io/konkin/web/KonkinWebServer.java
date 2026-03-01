@@ -18,6 +18,7 @@ import io.konkin.api.RequestChannelController;
 import io.konkin.api.StateTransitionController;
 import io.konkin.agent.AgentEndpointServer;
 import io.konkin.agent.AgentTokenStore;
+import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
@@ -64,6 +65,7 @@ public class KonkinWebServer {
     private LandingResourceWatcher landingResourceWatcher;
     private boolean running;
     private final List<AgentEndpointServer> agentEndpoints = new ArrayList<>();
+    private AuthQueueStore authQueueStore;
 
     public void start() {
         running = false;
@@ -71,7 +73,7 @@ public class KonkinWebServer {
         HealthService healthService = new HealthService(version);
         HealthController healthController = new HealthController(healthService);
 
-        AuthQueueStore authQueueStore = dataSource != null ? new AuthQueueStore(dataSource) : null;
+        authQueueStore = dataSource != null ? new AuthQueueStore(dataSource) : null;
         KvStoreController kvStoreController = dataSource != null ? new KvStoreController(new KvStore(dataSource)) : null;
         ApprovalRequestController requestController = new ApprovalRequestController(authQueueStore);
         ApprovalChannelController channelController = new ApprovalChannelController(authQueueStore);
@@ -373,7 +375,10 @@ public class KonkinWebServer {
                     "konkin-primary",
                     "primary",
                     primaryAgent,
-                    tokenStore
+                    tokenStore,
+                    new PrimaryAgentConfigRequirementsService(config),
+                    authQueueStore,
+                    config
             );
             endpoint.start();
             agentEndpoints.add(endpoint);
@@ -391,7 +396,10 @@ public class KonkinWebServer {
                     entry.getKey(),
                     "secondary",
                     secondaryAgent,
-                    tokenStore
+                    tokenStore,
+                    null,
+                    null,
+                    null
             );
             endpoint.start();
             agentEndpoints.add(endpoint);

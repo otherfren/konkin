@@ -223,7 +223,7 @@ public class AuthQueueStore {
                             :createdAt, :updatedAt, :resolvedAt
                         )
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -240,7 +240,7 @@ public class AuthQueueStore {
                             updated_at = :updatedAt, resolved_at = :resolvedAt
                         WHERE id = :id
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -255,7 +255,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_channels (id, channel_type, display_name, enabled, config_fingerprint, created_at)
                         VALUES (:id, :channelType, :displayName, :enabled, :configFingerprint, :createdAt)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -266,7 +266,7 @@ public class AuthQueueStore {
                             enabled = :enabled, config_fingerprint = :configFingerprint
                         WHERE id = :id
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -295,7 +295,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_votes (request_id, channel_id, decision, decision_reason, decided_by, decided_at)
                         VALUES (:requestId, :channelId, :decision, :decisionReason, :decidedBy, :decidedAt)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -306,7 +306,7 @@ public class AuthQueueStore {
                             decision_reason = :decisionReason, decided_by = :decidedBy, decided_at = :decidedAt
                         WHERE id = :id
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -335,7 +335,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_state_transitions (request_id, from_state, to_state, actor_type, actor_id, reason_code, created_at)
                         VALUES (:requestId, :fromState, :toState, :actorType, :actorId, :reasonCode, :createdAt)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -364,7 +364,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_request_channels (request_id, channel_id, delivery_state, first_sent_at, last_attempt_at, attempt_count, last_error, created_at)
                         VALUES (:requestId, :channelId, :deliveryState, :firstSentAt, :lastAttemptAt, :attemptCount, :lastError, :createdAt)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -376,7 +376,7 @@ public class AuthQueueStore {
                             attempt_count = :attemptCount, last_error = :lastError
                         WHERE id = :id
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -405,7 +405,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_execution_attempts (request_id, attempt_no, started_at, finished_at, result, error_class, error_message, txid, daemon_fee_native)
                         VALUES (:requestId, :attemptNo, :startedAt, :finishedAt, :result, :errorClass, :errorMessage, :txid, :daemonFeeNative)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -434,7 +434,7 @@ public class AuthQueueStore {
                         INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until, updated_at)
                         VALUES (:coin, :activeRequestId, :cooldownUntil, :lockdownUntil, :updatedAt)
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
@@ -445,7 +445,7 @@ public class AuthQueueStore {
                             lockdown_until = :lockdownUntil, updated_at = :updatedAt
                         WHERE coin = :coin
                         """)
-                .bindBean(row)
+                .bindMethods(row)
                 .execute());
     }
 
