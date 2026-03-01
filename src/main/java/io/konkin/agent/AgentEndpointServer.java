@@ -5,11 +5,12 @@ import io.javalin.http.BadRequestResponse;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.sse.SseClient;
+import io.konkin.agent.mcp.entity.McpDataContracts.ApprovalVoteRequest;
+import io.konkin.agent.mcp.entity.McpDataContracts.DecisionEventResponse;
+import io.konkin.agent.mcp.entity.McpDataContracts.DecisionStatusResponse;
+import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
+import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionRequest;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.DecisionEventResponse;
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.DecisionStatusResponse;
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionAcceptedResponse;
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionRequest;
 import io.konkin.config.KonkinConfig;
 import io.konkin.config.KonkinConfig.AgentConfig;
 import io.konkin.db.AuthQueueStore;
@@ -109,6 +110,7 @@ public class AgentEndpointServer {
 
         if ("auth".equals(agentType)) {
             app.sse("/approvals/pending", this::handlePendingApprovals);
+            app.get("/approvals/{requestId}", this::handleApprovalDetails);
             app.post("/approvals/{requestId}/vote", this::handleVote);
         }
 
@@ -178,7 +180,7 @@ public class AgentEndpointServer {
             throw new IllegalStateException("Auth vote service is not configured.");
         }
 
-        VoteRequest voteRequest = ctx.bodyAsClass(VoteRequest.class);
+        ApprovalVoteRequest voteRequest = ctx.bodyAsClass(ApprovalVoteRequest.class);
         if (voteRequest == null || voteRequest.decision() == null) {
             throw new BadRequestResponse("decision is required");
         }
@@ -296,6 +298,77 @@ public class AgentEndpointServer {
         ));
     }
 
+    private void handleApprovalDetails(io.javalin.http.Context ctx) {
+        if (authQueueStore == null || runtimeConfig == null) {
+            throw new IllegalStateException("Auth approval-details service is not configured.");
+        }
+
+        String requestId = requireNonBlank(ctx.pathParam("requestId"), "requestId path parameter is required");
+        ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+        if (requestRow == null) {
+            ctx.status(HttpStatus.NOT_FOUND);
+            ctx.json(Map.of("error", "request_not_found"));
+            return;
+        }
+
+        if (!isAgentAssignedToCoin(requestRow.coin())) {
+            ctx.status(HttpStatus.FORBIDDEN);
+            ctx.json(Map.of("error", "agent_not_assigned_to_coin"));
+            return;
+        }
+
+        List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+        List<Map<String, Object>> votePayload = new ArrayList<>();
+        for (VoteDetail vote : votes) {
+            Map<String, Object> voteEntry = new LinkedHashMap<>();
+            voteEntry.put("decision", vote.decision());
+            if (vote.channelId() != null) {
+                voteEntry.put("channelId", vote.channelId());
+            }
+            if (vote.decisionReason() != null) {
+                voteEntry.put("reason", vote.decisionReason());
+            }
+            if (vote.decidedBy() != null) {
+                voteEntry.put("decidedBy", vote.decidedBy());
+            }
+            if (vote.decidedAt() != null) {
+                voteEntry.put("decidedAt", vote.decidedAt());
+            }
+            votePayload.add(Map.copyOf(voteEntry));
+        }
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("requestId", requestRow.id());
+        payload.put("coin", requestRow.coin());
+        payload.put("type", toApprovalType(requestRow.toolName()));
+        payload.put("state", requestRow.state());
+        payload.put("terminal", isTerminalState(requestRow.state()));
+        payload.put("minApprovalsRequired", requestRow.minApprovalsRequired());
+        payload.put("approvalsGranted", requestRow.approvalsGranted());
+        payload.put("approvalsDenied", requestRow.approvalsDenied());
+        payload.put("requestedAt", requestRow.requestedAt());
+        payload.put("expiresAt", requestRow.expiresAt());
+        payload.put("votes", List.copyOf(votePayload));
+
+        if (requestRow.toAddress() != null) {
+            payload.put("to", requestRow.toAddress());
+        }
+        if (requestRow.amountNative() != null) {
+            payload.put("amount", requestRow.amountNative());
+        }
+        if (requestRow.nonceComposite() != null) {
+            payload.put("nonce", requestRow.nonceComposite());
+        }
+        if (requestRow.stateReasonCode() != null) {
+            payload.put("reasonCode", requestRow.stateReasonCode());
+        }
+        if (requestRow.stateReasonText() != null) {
+            payload.put("reasonText", requestRow.stateReasonText());
+        }
+
+        ctx.json(Map.copyOf(payload));
+    }
+
     private void handleRuntimeConfigRequirements(io.javalin.http.Context ctx) {
         if (primaryConfigRequirementsService == null) {
             throw new IllegalStateException("Driver runtime config requirements service is not configured.");
@@ -311,8 +384,36 @@ public class AgentEndpointServer {
         }
 
         String coin = normalizeCoin(ctx.pathParam("coin"));
-        if (!"bitcoin".equals(coin)) {
-            throw new BadRequestResponse("Only 'bitcoin' coin is currently supported for send action.");
+
+        if (!hasAnyEnabledCoin()) {
+            ctx.status(HttpStatus.SERVICE_UNAVAILABLE);
+            ctx.json(Map.of(
+                    "error", "no_coin_runtime_available",
+                    "message", "No coin runtime is enabled on this server. Enable at least one coin before calling send actions."
+            ));
+            return;
+        }
+
+        KonkinConfig.CoinConfig coinConfig = sendActionCoinConfig(coin);
+        if (coinConfig == null) {
+            ctx.status(HttpStatus.BAD_REQUEST);
+            ctx.json(Map.of(
+                    "error", "unsupported_coin",
+                    "message", "Coin '" + coin + "' is not supported by this endpoint. Supported coins: bitcoin, testdummycoin."
+            ));
+            return;
+        }
+
+        if (!coinConfig.enabled()) {
+            String hint = "testdummycoin".equals(coin)
+                    ? "Enable [debug].enabled=true and [coins.testdummycoin].enabled=true in config.toml."
+                    : "Enable [coins." + coin + "].enabled=true in config.toml.";
+            ctx.status(HttpStatus.BAD_REQUEST);
+            ctx.json(Map.of(
+                    "error", "coin_not_enabled",
+                    "message", "Coin '" + coin + "' is currently disabled. " + hint
+            ));
+            return;
         }
 
         SendCoinActionRequest request = ctx.bodyAsClass(SendCoinActionRequest.class);
@@ -339,7 +440,7 @@ public class AgentEndpointServer {
         ));
         String nonceComposite = coin + "|" + nonceUuid + "|" + payloadHash;
 
-        int minApprovalsRequired = runtimeConfig.bitcoin().auth().minApprovalsRequired();
+        int minApprovalsRequired = coinConfig.auth().minApprovalsRequired();
 
         ApprovalRequestRow row = new ApprovalRequestRow(
                 requestId,
@@ -665,6 +766,7 @@ public class AgentEndpointServer {
             case "bitcoin" -> isAgentAssigned(runtimeConfig.bitcoin());
             case "litecoin" -> isAgentAssigned(runtimeConfig.litecoin());
             case "monero" -> isAgentAssigned(runtimeConfig.monero());
+            case "testdummycoin" -> isAgentAssigned(runtimeConfig.testDummyCoin());
             default -> false;
         };
     }
@@ -735,6 +837,21 @@ public class AgentEndpointServer {
         return state != null && TERMINAL_STATES.contains(state.trim().toUpperCase());
     }
 
+    private boolean hasAnyEnabledCoin() {
+        return runtimeConfig.bitcoin().enabled()
+                || runtimeConfig.litecoin().enabled()
+                || runtimeConfig.monero().enabled()
+                || runtimeConfig.testDummyCoin().enabled();
+    }
+
+    private KonkinConfig.CoinConfig sendActionCoinConfig(String coin) {
+        return switch (coin) {
+            case "bitcoin" -> runtimeConfig.bitcoin();
+            case "testdummycoin" -> runtimeConfig.testDummyCoin();
+            default -> null;
+        };
+    }
+
     private static String normalizeCoin(String coin) {
         if (coin == null || coin.isBlank()) {
             throw new BadRequestResponse("coin path parameter is required");
@@ -785,9 +902,6 @@ public class AgentEndpointServer {
 
     public int port() {
         return config.port();
-    }
-
-    private record VoteRequest(String decision, String reason) {
     }
 
     private static final Set<String> TERMINAL_STATES = Set.of(

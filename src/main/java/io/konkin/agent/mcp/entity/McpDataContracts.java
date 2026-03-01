@@ -1,15 +1,15 @@
-package io.konkin.agent.primary.contract;
+package io.konkin.agent.mcp.entity;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 /**
- * DTO contracts for driver agent endpoints.
+ * DTO contracts for MCP agent endpoints.
  */
-public final class PrimaryAgentContracts {
+public final class McpDataContracts {
 
-    private PrimaryAgentContracts() {
+    private McpDataContracts() {
     }
 
     public record RequirementItem(
@@ -37,6 +37,12 @@ public final class PrimaryAgentContracts {
             String feeCapNative,
             String memo,
             Long waitForFinalStateMs
+    ) {
+    }
+
+    public record ApprovalVoteRequest(
+            String decision,
+            String reason
     ) {
     }
 

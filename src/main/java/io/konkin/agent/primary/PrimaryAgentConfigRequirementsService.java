@@ -1,7 +1,7 @@
 package io.konkin.agent.primary;
 
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.RequirementItem;
-import io.konkin.agent.primary.contract.PrimaryAgentContracts.RuntimeConfigRequirementsResponse;
+import io.konkin.agent.mcp.entity.McpDataContracts.RequirementItem;
+import io.konkin.agent.mcp.entity.McpDataContracts.RuntimeConfigRequirementsResponse;
 import io.konkin.config.KonkinConfig;
 
 import java.io.IOException;

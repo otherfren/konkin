@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import org.jdbi.v3.core.statement.UnableToExecuteStatementException;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -607,6 +608,63 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         assertEquals(Duration.ofMinutes(3), config.telegramAutoDenyTimeout());
+    }
+
+    @Test
+    void testDummyCoinIsUnavailableWhenDebugModeIsDisabledAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [debug]
+                enabled = false
+
+                [coins.testdummycoin]
+                enabled = true
+                """.formatted(port);
+
+        KonkinConfig config = KonkinConfig.load(configFile(configToml));
+        assertFalse(config.debugEnabled());
+        assertFalse(config.testDummyCoin().enabled());
+        assertEquals(List.of(), config.testDummyCoin().auth().mcpAuthChannels());
+    }
+
+    @Test
+    void testDummyCoinCanBeEnabledWhenDebugModeIsEnabledAtConfigLoad() throws Exception {
+        int port = freePort();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [debug]
+                enabled = true
+
+                [coins.testdummycoin]
+                enabled = true
+
+                [coins.testdummycoin.auth]
+                web-ui = false
+                rest-api = false
+                telegram = false
+                mcp = "tdc-main"
+                mcp-auth-channels = ["tdc-main"]
+                min-approvals-required = 1
+                """.formatted(port);
+
+        KonkinConfig config = KonkinConfig.load(configFile(configToml));
+        assertTrue(config.debugEnabled());
+        assertTrue(config.testDummyCoin().enabled());
+        assertEquals("tdc-main", config.testDummyCoin().auth().mcp());
+        assertEquals(List.of("tdc-main"), config.testDummyCoin().auth().mcpAuthChannels());
     }
 
     @Test

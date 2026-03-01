@@ -320,6 +320,99 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
+    void approvalDetailsWithoutBearerReturnsUnauthorized() throws Exception {
+        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
+            HttpResponse<String> response = get(server.agentBaseUri(), "/approvals/req-unknown", Map.of());
+            assertEquals(401, response.statusCode());
+        }
+    }
+
+    @Test
+    void approvalDetailsWithAssignedCoinReturnsRequestDetailsAndVotes() throws Exception {
+        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
+            DataSource dataSource = server.dbManager().dataSource();
+            insertAgentApprovalRequest(
+                    dataSource,
+                    "req-details",
+                    "bitcoin",
+                    "PENDING",
+                    2,
+                    "bc1qdetails",
+                    "0.06000000"
+            );
+            insertApprovalChannel(dataSource, "agent-alpha", "mcp_agent");
+            insertApprovalVote(dataSource, "req-details", "agent-alpha", "approve");
+
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/approvals/req-details",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("req-details", json.path("requestId").asText());
+            assertEquals("bitcoin", json.path("coin").asText());
+            assertEquals("send", json.path("type").asText());
+            assertEquals("PENDING", json.path("state").asText());
+            assertFalse(json.path("terminal").asBoolean());
+            assertEquals(2, json.path("minApprovalsRequired").asInt());
+            assertEquals("bc1qdetails", json.path("to").asText());
+            assertEquals("0.06000000", json.path("amount").asText());
+            assertTrue(json.path("nonce").asText().startsWith("bitcoin|nonce-uuid-req-details|"));
+            assertTrue(json.path("votes").isArray());
+            assertEquals(1, json.path("votes").size());
+            assertEquals("approve", json.path("votes").get(0).path("decision").asText());
+            assertEquals("agent-alpha", json.path("votes").get(0).path("channelId").asText());
+        }
+    }
+
+    @Test
+    void approvalDetailsForUnknownRequestReturnsNotFound() throws Exception {
+        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/approvals/req-does-not-exist",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(404, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("request_not_found", json.path("error").asText());
+        }
+    }
+
+    @Test
+    void approvalDetailsForUnassignedCoinReturnsForbidden() throws Exception {
+        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
+            DataSource dataSource = server.dbManager().dataSource();
+            insertAgentApprovalRequest(
+                    dataSource,
+                    "req-details-unassigned",
+                    "monero",
+                    "PENDING",
+                    1,
+                    "44Affq5kSiGBoZ...",
+                    "0.07000000"
+            );
+
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/approvals/req-details-unassigned",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(403, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("agent_not_assigned_to_coin", json.path("error").asText());
+        }
+    }
+
+    @Test
     void primaryRuntimeConfigRequirementsWithoutBearerReturnsUnauthorized() throws Exception {
         try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
                 "rpcuser=alice\nrpcpassword=secret\n",
@@ -441,6 +534,114 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
             assertEquals("QUEUED", saved.path("state").asText());
             assertEquals("bc1qtestdestination", saved.path("toAddress").asText());
             assertEquals("0.25000000", saved.path("amountNative").asText());
+        }
+    }
+
+    @Test
+    void primarySendCoinActionWithTestDummyCoinReturnsAcceptedAndPersistsRequest() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(true, false, true)) {
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = postJson(
+                    server.agentBaseUri(),
+                    "/coins/testdummycoin/actions/send",
+                    """
+                    {
+                      \"toAddress\": \"tdc1qtestdestination\",
+                      \"amountNative\": \"1.25000000\",
+                      \"memo\": \"test dummy integration\"
+                    }
+                    """,
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(202, response.statusCode());
+            JsonNode accepted = JSON.readTree(response.body());
+            assertEquals("accepted", accepted.path("status").asText());
+            assertEquals("testdummycoin", accepted.path("coin").asText());
+            assertEquals("send", accepted.path("action").asText());
+            assertEquals("QUEUED", accepted.path("state").asText());
+
+            String requestId = accepted.path("requestId").asText();
+            assertTrue(requestId.startsWith("req-"));
+
+            HttpResponse<String> requestResponse = get(
+                    server.server().baseUri(),
+                    "/api/v1/requests/" + requestId,
+                    Map.of("X-API-Key", server.restApiKey())
+            );
+            assertEquals(200, requestResponse.statusCode());
+
+            JsonNode saved = JSON.readTree(requestResponse.body());
+            assertEquals(requestId, saved.path("id").asText());
+            assertEquals("testdummycoin", saved.path("coin").asText());
+            assertEquals("wallet_send", saved.path("toolName").asText());
+            assertEquals("QUEUED", saved.path("state").asText());
+            assertEquals("tdc1qtestdestination", saved.path("toAddress").asText());
+            assertEquals("1.25000000", saved.path("amountNative").asText());
+        }
+    }
+
+    @Test
+    void primarySendCoinActionWithUnsupportedCoinReturnsHumanReadableError() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = postJson(
+                    server.agentBaseUri(),
+                    "/coins/dogecoin/actions/send",
+                    "{\"toAddress\":\"Dabc\",\"amountNative\":\"1.0\"}",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(400, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("unsupported_coin", json.path("error").asText());
+            assertTrue(json.path("message").asText().contains("Supported coins: bitcoin, testdummycoin."));
+        }
+    }
+
+    @Test
+    void primarySendCoinActionWithDisabledCoinReturnsHumanReadableError() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = postJson(
+                    server.agentBaseUri(),
+                    "/coins/testdummycoin/actions/send",
+                    "{\"toAddress\":\"tdc1qdisabled\",\"amountNative\":\"0.1\"}",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(400, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("coin_not_enabled", json.path("error").asText());
+            assertTrue(json.path("message").asText().contains(
+                    "Enable [debug].enabled=true and [coins.testdummycoin].enabled=true in config.toml."
+            ));
+        }
+    }
+
+    @Test
+    void primarySendCoinActionWithNoEnabledCoinRuntimeReturnsHumanReadableError() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(false, false, false)) {
+            String token = issueAccessToken(server);
+            HttpResponse<String> response = postJson(
+                    server.agentBaseUri(),
+                    "/coins/bitcoin/actions/send",
+                    "{\"toAddress\":\"bc1qnoruntime\",\"amountNative\":\"0.2\"}",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(503, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("no_coin_runtime_available", json.path("error").asText());
+            assertTrue(json.path("message").asText().contains(
+                    "No coin runtime is enabled on this server."
+            ));
         }
     }
 
@@ -753,6 +954,143 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         );
 
         Path configFile = tempDir.resolve("config-primary-agent-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(config);
+        KonkinWebServer webServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        webServer.start();
+
+        try {
+            waitForHealth(serverPort);
+            waitForAgentHealth(primaryAgentPort);
+        } catch (Exception e) {
+            webServer.stop();
+            dbManager.shutdown();
+            throw e;
+        }
+
+        Properties secret = loadProperties(primarySecretFile);
+        String clientId = secret.getProperty("client-id", "").trim();
+        String clientSecret = secret.getProperty("client-secret", "").trim();
+        String restApiKey = loadProperties(restApiSecretFile).getProperty("api-key", "").trim();
+        assertNotNull(clientId);
+        assertNotNull(clientSecret);
+        assertNotNull(restApiKey);
+        return new AgentRunningServer(
+                new RunningServer(webServer, URI.create("http://127.0.0.1:" + serverPort)),
+                URI.create("http://127.0.0.1:" + primaryAgentPort),
+                clientId,
+                clientSecret,
+                restApiKey,
+                dbManager
+        );
+    }
+
+    private AgentRunningServer startPrimaryAgentServerForSendActionScenarios(
+            boolean debugEnabled,
+            boolean bitcoinEnabled,
+            boolean testDummyEnabled
+    ) throws Exception {
+        int serverPort = freePort();
+        int primaryAgentPort = freePort();
+
+        Path primarySecretFile = tempDir.resolve("secrets/agent-primary-send-%d.secret".formatted(System.nanoTime()));
+        Path restApiSecretFile = tempDir.resolve("secrets/rest-api-send-%d.secret".formatted(System.nanoTime()));
+        Path bitcoinDaemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-send-%d.conf".formatted(System.nanoTime()));
+        Path bitcoinWalletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-send-%d.conf".formatted(System.nanoTime()));
+        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-primary-send-agent-" + System.nanoTime() + "/konkin"));
+
+        Path daemonParent = bitcoinDaemonSecretFile.getParent();
+        if (daemonParent != null) {
+            Files.createDirectories(daemonParent);
+        }
+
+        Files.writeString(
+                bitcoinDaemonSecretFile,
+                "rpcuser=alice\nrpcpassword=secret\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+        );
+        Files.writeString(
+                bitcoinWalletSecretFile,
+                "wallet=main\nwallet-passphrase=pass\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+        );
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [database]
+                url = "%s"
+                user = "konkin"
+                password = "konkin"
+                pool-size = 5
+
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+
+                [web-ui]
+                enabled = false
+
+                [telegram]
+                enabled = false
+
+                [debug]
+                enabled = %s
+
+                [agents.primary]
+                enabled = true
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+
+                [coins.bitcoin]
+                enabled = %s
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = false
+                rest-api = true
+                telegram = false
+                mcp-auth-channels = []
+                min-approvals-required = 1
+
+                [coins.testdummycoin]
+                enabled = %s
+
+                [coins.testdummycoin.auth]
+                web-ui = false
+                rest-api = true
+                telegram = false
+                mcp = "tdc-main"
+                mcp-auth-channels = []
+                min-approvals-required = 1
+                """.formatted(
+                serverPort,
+                dbUrl,
+                tomlPath(restApiSecretFile),
+                debugEnabled,
+                primaryAgentPort,
+                tomlPath(primarySecretFile),
+                bitcoinEnabled,
+                tomlPath(bitcoinDaemonSecretFile),
+                tomlPath(bitcoinWalletSecretFile),
+                testDummyEnabled
+        );
+
+        Path configFile = tempDir.resolve("config-primary-send-agent-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());

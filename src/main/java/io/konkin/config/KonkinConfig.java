@@ -73,6 +73,7 @@ public class KonkinConfig {
     private final CoinConfig bitcoin;
     private final CoinConfig litecoin;
     private final CoinConfig monero;
+    private final CoinConfig testDummyCoin;
 
     public int configVersion() { return configVersion; }
     public String host() { return host; }
@@ -115,6 +116,7 @@ public class KonkinConfig {
     public CoinConfig bitcoin() { return bitcoin; }
     public CoinConfig litecoin() { return litecoin; }
     public CoinConfig monero() { return monero; }
+    public CoinConfig testDummyCoin() { return testDummyCoin; }
 
     private KonkinConfig(FileConfig toml) {
         this.configVersion = toml.getIntOrElse("config-version", -1);
@@ -209,6 +211,7 @@ public class KonkinConfig {
         this.bitcoin = loadBitcoinConfig(toml);
         this.litecoin = loadCoinConfig(toml, "litecoin", "ltc-main");
         this.monero = loadCoinConfig(toml, "monero", "xmr-main");
+        this.testDummyCoin = loadTestDummyCoinConfig(toml);
     }
 
     private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
@@ -395,6 +398,16 @@ public class KonkinConfig {
                     config.bitcoin.auth().mcpAuthChannels().size(),
                     config.bitcoin.auth().autoAccept().size(),
                     config.bitcoin.auth().autoDeny().size());
+            log.info("TestDummyCoin config — enabled={}, debugEnabled={}, webUi={}, restApi={}, telegram={}, mcpId={}, mcpAuthChannels={}, autoAcceptRules={}, autoDenyRules={}",
+                    config.testDummyCoin.enabled(),
+                    config.debugEnabled,
+                    config.testDummyCoin.auth().webUi(),
+                    config.testDummyCoin.auth().restApi(),
+                    config.testDummyCoin.auth().telegram(),
+                    config.testDummyCoin.auth().mcp(),
+                    config.testDummyCoin.auth().mcpAuthChannels().size(),
+                    config.testDummyCoin.auth().autoAccept().size(),
+                    config.testDummyCoin.auth().autoDeny().size());
             return config;
         }
     }
@@ -462,6 +475,7 @@ public class KonkinConfig {
         validateBitcoinConfig();
         validateNonBitcoinCoinConfig("litecoin", litecoin);
         validateNonBitcoinCoinConfig("monero", monero);
+        validateNonBitcoinCoinConfig("testdummycoin", testDummyCoin);
         validateAgentsConfig();
     }
 
@@ -495,6 +509,18 @@ public class KonkinConfig {
                 walletSecretFile,
                 new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
+    }
+
+    private CoinConfig loadTestDummyCoinConfig(FileConfig toml) {
+        if (!debugEnabled) {
+            return new CoinConfig(
+                    false,
+                    "",
+                    "",
+                    new CoinAuthConfig(List.of(), List.of(), false, false, false, "", List.of(), 1, List.of())
+            );
+        }
+        return loadCoinConfig(toml, "testdummycoin", "tdc-main");
     }
 
     private CoinConfig loadCoinConfig(FileConfig toml, String coinId, String defaultMcp) {
@@ -813,6 +839,7 @@ public class KonkinConfig {
         validateCoinMcpAuthChannelReferences("bitcoin", bitcoin.auth().mcp(), bitcoin.auth().mcpAuthChannels());
         validateCoinMcpAuthChannelReferences("litecoin", litecoin.auth().mcp(), litecoin.auth().mcpAuthChannels());
         validateCoinMcpAuthChannelReferences("monero", monero.auth().mcp(), monero.auth().mcpAuthChannels());
+        validateCoinMcpAuthChannelReferences("testdummycoin", testDummyCoin.auth().mcp(), testDummyCoin.auth().mcpAuthChannels());
     }
 
     private void validateCoinMcpAuthChannelReferences(String coinName, String mcpValue, List<String> channels) {
