@@ -23,6 +23,7 @@ import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -139,8 +140,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> logPage = get(server, "/log", Map.of());
             assertEquals(404, logPage.statusCode());
 
-            HttpResponse<String> authDefinitions = get(server, "/auth_definitions", Map.of());
+            HttpResponse<String> authDefinitions = get(server, "/wallets", Map.of());
             assertEquals(404, authDefinitions.statusCode());
+
+            HttpResponse<String> authChannels = get(server, "/auth_channels", Map.of());
+            assertEquals(404, authChannels.statusCode());
 
             HttpResponse<String> coinsPage = get(server, "/coins", Map.of());
             assertEquals(404, coinsPage.statusCode());
@@ -208,9 +212,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
 
-            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("Auth Definitions"));
+            assertTrue(authDefinitions.body().contains("Wallets"));
             assertTrue(authDefinitions.body().contains("BITCOIN"));
             assertTrue(authDefinitions.body().contains("LITECOIN"));
             assertTrue(authDefinitions.body().contains("MONERO"));
@@ -218,15 +222,15 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
 
+            HttpResponse<String> authChannelsPage = get(runningServer, "/auth_channels", Map.of());
+            assertEquals(200, authChannelsPage.statusCode());
+            assertTrue(authChannelsPage.body().contains("Auth Channels"));
+            assertTrue(authChannelsPage.body().contains("Web UI Channel"));
+            assertTrue(authChannelsPage.body().contains("REST API Channel"));
+            assertTrue(authChannelsPage.body().contains("Secondary Agent Bot Channels"));
+
             HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
-            assertEquals(200, coinsPage.statusCode());
-            assertTrue(coinsPage.body().contains("Wallet status overview for coins configured in config.toml."));
-            assertTrue(coinsPage.body().contains("BITCOIN"));
-            assertTrue(coinsPage.body().contains("LITECOIN"));
-            assertTrue(coinsPage.body().contains("MONERO"));
-            assertTrue(coinsPage.body().contains("/assets/img/bitcoin.svg"));
-            assertTrue(coinsPage.body().contains("/assets/img/litecoin.svg"));
-            assertTrue(coinsPage.body().contains("/assets/img/monero.svg"));
+            assertEquals(404, coinsPage.statusCode());
         }
     }
 
@@ -897,15 +901,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("telegram auto-deny timeout"));
-            assertTrue(authDefinitions.body().contains("3m"));
+            assertTrue(authDefinitions.body().contains("Auth channel configured"));
+            assertTrue(authDefinitions.body().contains("verification-agent:agent-a"));
+            assertTrue(authDefinitions.body().contains("verification-agent:agent-b"));
             assertTrue(authDefinitions.body().contains("2-of-N"));
             assertTrue(authDefinitions.body().contains("Veto channels"));
             assertTrue(authDefinitions.body().contains("telegram"));
-            assertTrue(authDefinitions.body().contains("data-secret-value=\"agent-a\""));
-            assertTrue(authDefinitions.body().contains("data-secret-value=\"agent-b\""));
+            assertTrue(authDefinitions.body().contains("agent-a @ http://127.0.0.1:9562"));
+            assertTrue(authDefinitions.body().contains("agent-b @ http://127.0.0.1:9563"));
         }
     }
 
@@ -995,7 +1000,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/auth_definitions", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("7d 2h"));
             assertTrue(authDefinitions.body().contains("sum in window >"));
@@ -1005,11 +1010,218 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
-            assertTrue(authDefinitions.body().contains("MCP auth channels"));
-            assertTrue(authDefinitions.body().contains("data-secret-value=\"btc-main\""));
-            assertTrue(authDefinitions.body().contains("data-secret-value=\"btc-backup\""));
+            assertTrue(authDefinitions.body().contains("Verification agents"));
+            assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:9564"));
+            assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:9565"));
             assertTrue(authDefinitions.body().contains(">***<"));
-            assertTrue(authDefinitions.body().contains("aria-label=\"Reveal MCP value\""));
+            assertTrue(authDefinitions.body().contains("aria-label=\"Reveal wallet balance\""));
+        }
+    }
+
+    @Test
+    void authDefinitionsPageShowsRestApiAndEnabledSecondaryAgentChannels() throws Exception {
+        int port = freePort();
+        int enabledSecondaryAgentPort = freePort();
+        int disabledSecondaryAgentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-auth-defs-rest.password");
+        Path restApiSecretFile = tempDir.resolve("secrets/rest-api-auth-defs.secret");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-auth-defs-rest.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs-rest.conf");
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+
+                [agents.secondary.agent-enabled]
+                enabled = true
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+
+                [agents.secondary.agent-disabled]
+                enabled = false
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+
+                [coins.bitcoin]
+                enabled = true
+
+                [coins.bitcoin.secret-files]
+                bitcoin-daemon-config-file = "%s"
+                bitcoin-wallet-config-file = "%s"
+
+                [coins.bitcoin.auth]
+                web-ui = true
+                rest-api = true
+                telegram = false
+                """.formatted(
+                port,
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(restApiSecretFile),
+                enabledSecondaryAgentPort,
+                tomlPath(tempDir.resolve("secrets/agent-enabled-auth-defs.secret")),
+                disabledSecondaryAgentPort,
+                tomlPath(tempDir.resolve("secrets/agent-disabled-auth-defs.secret")),
+                tomlPath(daemonSecretFile),
+                tomlPath(walletSecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-auth-defs-rest-and-secondary-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            assertEquals(200, authDefinitions.statusCode());
+            assertTrue(authDefinitions.body().contains("Auth channel configured"));
+            assertTrue(authDefinitions.body().contains("web-ui: <strong>enabled</strong>"));
+            assertTrue(authDefinitions.body().contains("rest-api: <strong>enabled</strong>"));
+            assertTrue(authDefinitions.body().contains("telegram: <strong>disabled</strong>"));
+            assertTrue(authDefinitions.body().contains("verification-agent:agent-enabled"));
+            assertFalse(authDefinitions.body().contains("verification-agent:agent-disabled"));
+        }
+    }
+
+    @Test
+    void authChannelsPageShowsConfiguredChannelsAndMaskedTelegramIdentifiers() throws Exception {
+        int port = freePort();
+        int primaryAgentPort = freePort();
+        int secondaryAgentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-auth-channels.password");
+        Path telegramSecretFile = tempDir.resolve("secrets/telegram-auth-channels.secret");
+        Path primarySecretFile = tempDir.resolve("secrets/agent-primary-auth-channels.secret");
+        Path secondarySecretFile = tempDir.resolve("secrets/agent-a-auth-channels.secret");
+
+        Path telegramSecretDir = telegramSecretFile.getParent();
+        if (telegramSecretDir != null) {
+            Files.createDirectories(telegramSecretDir);
+        }
+        Files.writeString(
+                telegramSecretFile,
+                "bot-token=test-bot-token\nchat-ids=-1004005006\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [web-ui]
+                enabled = true
+
+                [web-ui.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [web-ui.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [web-ui.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [web-ui.auto-reload]
+                enabled = false
+                assets-enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+
+                [agents.primary]
+                enabled = true
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+
+                [agents.secondary.agent-a]
+                enabled = true
+                bind = "127.0.0.1"
+                port = %d
+                secret-file = "%s"
+                """.formatted(
+                port,
+                tomlPath(webUiPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(telegramSecretFile),
+                primaryAgentPort,
+                tomlPath(primarySecretFile),
+                secondaryAgentPort,
+                tomlPath(secondarySecretFile)
+        );
+
+        Path configFile = tempDir.resolve("config-auth-channels-page-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> authChannels = get(runningServer, "/auth_channels", Map.of());
+            assertEquals(200, authChannels.statusCode());
+            assertTrue(authChannels.body().contains("Auth Channels"));
+            assertTrue(authChannels.body().contains("Web UI Channel"));
+            assertTrue(authChannels.body().contains("REST API Channel"));
+            assertTrue(authChannels.body().contains("Telegram Connected Users"));
+            assertTrue(authChannels.body().contains("Primary Agent Bot Channel"));
+            assertTrue(authChannels.body().contains("Secondary Agent Bot Channels"));
+            assertTrue(authChannels.body().contains("<span class=\"menu-active\">auth channels</span>"));
+            assertTrue(authChannels.body().contains("data-secret-value=\"-1004005006\""));
+            assertTrue(authChannels.body().contains(">***<"));
+            assertTrue(authChannels.body().contains("aria-label=\"Reveal Telegram identifier\""));
+            assertTrue(authChannels.body().contains("approved"));
+            assertFalse(authChannels.body().contains("<th>Type</th>"));
+            assertTrue(authChannels.body().contains("http://127.0.0.1:" + primaryAgentPort + "/health"));
+            assertTrue(authChannels.body().contains("http://127.0.0.1:" + primaryAgentPort + "/oauth/token"));
+            assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/health"));
+            assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/oauth/token"));
         }
     }
 
@@ -1094,17 +1306,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
             HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
-            assertEquals(200, coinsPage.statusCode());
-            assertTrue(coinsPage.body().contains("Coins"));
-            assertTrue(coinsPage.body().contains("BITCOIN"));
-            assertTrue(coinsPage.body().contains("LITECOIN"));
-            assertTrue(coinsPage.body().contains("MONERO"));
-            assertTrue(coinsPage.body().contains("data-balance-value=\"unknown\""));
-            assertTrue(coinsPage.body().contains(">***<"));
-            assertTrue(coinsPage.body().contains("aria-label=\"Reveal balance\""));
-            assertTrue(coinsPage.body().contains("connected"));
-            assertTrue(coinsPage.body().contains("read"));
-            assertTrue(coinsPage.body().contains("write"));
+            assertEquals(404, coinsPage.statusCode());
         }
     }
 

@@ -158,29 +158,29 @@ public class LandingPageController {
         renderLandingForPage(ctx, "telegram");
     }
 
-    public void handleAuthDefinitionsPage(Context ctx) {
+    public void handleWalletsPage(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);
             return;
         }
 
         ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderAuthDefinitions(
+        ctx.result(landingPageService.renderWallets(
                 passwordProtectionEnabled,
-                buildAuthDefinitionsModel()
+                buildWalletsModel()
         ));
     }
 
-    public void handleCoinsPage(Context ctx) {
+    public void handleAuthChannelsPage(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);
             return;
         }
 
         ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderCoins(
+        ctx.result(landingPageService.renderAuthChannels(
                 passwordProtectionEnabled,
-                buildCoinsModel()
+                buildAuthChannelsModel()
         ));
     }
 
@@ -814,42 +814,135 @@ public class LandingPageController {
         return "in " + days + "d";
     }
 
-    private Map<String, Object> buildCoinsModel() {
+    private Map<String, Object> buildAuthChannelsModel() {
         Map<String, Object> root = new LinkedHashMap<>();
 
-        List<Map<String, Object>> coins = new ArrayList<>();
-        coins.add(buildCoinWalletStatus("bitcoin", config.bitcoin()));
-        coins.add(buildCoinWalletStatus("litecoin", config.litecoin()));
-        coins.add(buildCoinWalletStatus("monero", config.monero()));
+        Map<String, Object> webUi = new LinkedHashMap<>();
+        webUi.put("enabled", config.landingEnabled());
+        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
+        webUi.put("passwordFile", safe(config.landingPasswordFile()));
+        root.put("webUi", Map.copyOf(webUi));
 
-        root.put("coins", List.copyOf(coins));
+        Map<String, Object> restApi = new LinkedHashMap<>();
+        boolean restApiEnabled = config.restApiEnabled();
+        restApi.put("enabled", restApiEnabled);
+        restApi.put("healthPath", "/api/v1/health");
+        restApi.put("apiKeyHeader", "X-API-Key");
+        restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
+        restApi.put("apiKeyProtectionEnabled", restApiEnabled);
+        restApi.put("secretFile", restApiEnabled ? safe(config.restApiSecretFile()) : "-");
+        root.put("restApi", Map.copyOf(restApi));
+
+        root.put("telegramEnabled", telegramEnabled);
+        root.put("telegramUsers", buildTelegramChannelUsers());
+        root.put("primaryAgent", buildPrimaryAgentChannel());
+        root.put("secondaryAgents", buildSecondaryAgentChannels());
+
         return Map.copyOf(root);
     }
 
-    private Map<String, Object> buildCoinWalletStatus(String coinId, KonkinConfig.CoinConfig coinConfig) {
-        KonkinConfig.CoinAuthConfig auth = coinConfig.auth();
+    private List<Map<String, Object>> buildTelegramChannelUsers() {
+        if (!telegramEnabled) {
+            return List.of();
+        }
 
-        boolean connected = coinConfig.enabled();
-        boolean readable = coinConfig.enabled() && (auth.webUi() || auth.restApi() || auth.telegram());
-        boolean writable = coinConfig.enabled() && auth.restApi();
-        String balanceValue = coinConfig.enabled() ? "unknown" : "-";
+        List<String> approvedChatIds = approvedChatIds();
+        Set<String> approvedSet = new HashSet<>();
+        LinkedHashSet<String> orderedChatIds = new LinkedHashSet<>();
+        Map<String, TelegramService.ChatRequest> discoveredByChatId = new LinkedHashMap<>();
 
-        Map<String, Object> coin = new LinkedHashMap<>();
-        coin.put("coin", coinId);
-        coin.put("coinIconName", coinIconName(coinId));
-        coin.put("enabled", coinConfig.enabled());
-        coin.put("connected", connected);
-        coin.put("readable", readable);
-        coin.put("writable", writable);
-        coin.put("balanceValue", balanceValue);
-        return Map.copyOf(coin);
+        for (String approvedChatId : approvedChatIds) {
+            if (approvedChatId == null || approvedChatId.isBlank()) {
+                continue;
+            }
+            String chatId = approvedChatId.trim();
+            approvedSet.add(chatId);
+            orderedChatIds.add(chatId);
+        }
+
+        for (TelegramService.ChatRequest request : telegramService.discoverChatRequests()) {
+            if (request == null || request.chatId() == null || request.chatId().isBlank()) {
+                continue;
+            }
+
+            String chatId = request.chatId().trim();
+            orderedChatIds.add(chatId);
+            discoveredByChatId.put(chatId, request);
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (String chatId : orderedChatIds) {
+            TelegramService.ChatRequest request = discoveredByChatId.get(chatId);
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatType", request == null || request.chatType() == null || request.chatType().isBlank() ? "unknown" : request.chatType().trim());
+            row.put("chatTitle", request == null || request.chatTitle() == null || request.chatTitle().isBlank() ? "(no title)" : request.chatTitle().trim());
+            row.put("chatUsername", request == null || request.chatUsername() == null ? "" : request.chatUsername().trim());
+            row.put("approved", approvedSet.contains(chatId));
+            rows.add(Map.copyOf(row));
+        }
+
+        return List.copyOf(rows);
     }
 
-    private Map<String, Object> buildAuthDefinitionsModel() {
+    private Map<String, Object> buildPrimaryAgentChannel() {
+        KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();
+        if (primaryAgent == null) {
+            return Map.of("configured", false);
+        }
+
+        boolean enabled = primaryAgent.enabled();
+        String bind = safe(primaryAgent.bind());
+        int port = primaryAgent.port();
+        String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("configured", true);
+        row.put("name", "primary");
+        row.put("type", "primary");
+        row.put("enabled", enabled);
+        row.put("bind", bind);
+        row.put("port", port > 0 ? Integer.toString(port) : "-");
+        row.put("healthPath", enabled ? endpointBase + "/health" : "-");
+        row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
+        row.put("secretFile", safe(primaryAgent.secretFile()));
+        return Map.copyOf(row);
+    }
+
+    private List<Map<String, Object>> buildSecondaryAgentChannels() {
+        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
+        if (secondaryAgents == null || secondaryAgents.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : secondaryAgents.entrySet()) {
+            String agentName = safe(entry.getKey());
+            KonkinConfig.AgentConfig agentConfig = entry.getValue();
+
+            boolean enabled = agentConfig != null && agentConfig.enabled();
+            String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
+            int port = agentConfig == null ? 0 : agentConfig.port();
+            String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("name", agentName);
+            row.put("enabled", enabled);
+            row.put("bind", bind);
+            row.put("port", port > 0 ? Integer.toString(port) : "-");
+            row.put("healthPath", enabled ? endpointBase + "/health" : "-");
+            row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
+            row.put("secretFile", agentConfig == null ? "-" : safe(agentConfig.secretFile()));
+            rows.add(Map.copyOf(row));
+        }
+
+        return List.copyOf(rows);
+    }
+
+    private Map<String, Object> buildWalletsModel() {
         Map<String, Object> root = new LinkedHashMap<>();
-        root.put("webUiEnabled", config.landingEnabled());
-        root.put("telegramEnabled", config.telegramEnabled());
-        root.put("telegramAutoDenyTimeout", formatDurationFriendly(config.telegramAutoDenyTimeout()));
+        root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
         coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
@@ -857,6 +950,44 @@ public class LandingPageController {
         coins.add(buildCoinAuthDefinition("monero", config.monero()));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
+    }
+
+    private List<Map<String, Object>> buildConfiguredAuthChannels() {
+        List<Map<String, Object>> channels = new ArrayList<>();
+
+        Map<String, Object> webUi = new LinkedHashMap<>();
+        webUi.put("name", "web-ui");
+        webUi.put("enabled", config.landingEnabled());
+        channels.add(Map.copyOf(webUi));
+
+        if (config.restApiEnabled()) {
+            Map<String, Object> restApi = new LinkedHashMap<>();
+            restApi.put("name", "rest-api");
+            restApi.put("enabled", true);
+            channels.add(Map.copyOf(restApi));
+        }
+
+        Map<String, Object> telegram = new LinkedHashMap<>();
+        telegram.put("name", "telegram");
+        telegram.put("enabled", config.telegramEnabled());
+        channels.add(Map.copyOf(telegram));
+
+        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
+        if (secondaryAgents != null && !secondaryAgents.isEmpty()) {
+            for (Map.Entry<String, KonkinConfig.AgentConfig> entry : secondaryAgents.entrySet()) {
+                KonkinConfig.AgentConfig agentConfig = entry.getValue();
+                if (agentConfig == null || !agentConfig.enabled()) {
+                    continue;
+                }
+
+                Map<String, Object> secondary = new LinkedHashMap<>();
+                secondary.put("name", "verification-agent:" + safe(entry.getKey()));
+                secondary.put("enabled", true);
+                channels.add(Map.copyOf(secondary));
+            }
+        }
+
+        return List.copyOf(channels);
     }
 
     private Map<String, Object> buildCoinAuthDefinition(String coinId, KonkinConfig.CoinConfig coinConfig) {
@@ -876,20 +1007,41 @@ public class LandingPageController {
             warnings.add("telegram channel is configured, but telegram is globally disabled.");
         }
 
-        List<String> mcpAuthChannels = new ArrayList<>();
-        for (String mcpAuthChannel : auth.mcpAuthChannels()) {
-            mcpAuthChannels.add(safe(mcpAuthChannel));
+        List<Map<String, Object>> verificationAgents = new ArrayList<>();
+        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
+        for (String channelName : auth.mcpAuthChannels()) {
+            String safeChannelName = safe(channelName);
+            KonkinConfig.AgentConfig agentConfig = secondaryAgents.get(channelName);
+
+            boolean enabled = agentConfig != null && agentConfig.enabled();
+            String bind = agentConfig == null ? "unknown" : safe(agentConfig.bind());
+            String connectUrl = (enabled && !"-".equals(bind)) ? "http://" + bind : "unknown";
+            String port = (agentConfig != null && agentConfig.port() > 0) ? Integer.toString(agentConfig.port()) : "unknown";
+
+            Map<String, Object> verificationAgent = new LinkedHashMap<>();
+            verificationAgent.put("name", safeChannelName);
+            verificationAgent.put("enabled", enabled);
+            verificationAgent.put("connectUrl", connectUrl);
+            verificationAgent.put("port", port);
+            verificationAgent.put("status", enabled ? "reachable (config)" : "unknown");
+            verificationAgents.add(Map.copyOf(verificationAgent));
         }
+
+        List<String> vetoChannels = auth.vetoChannels() == null ? List.of() : auth.vetoChannels();
 
         coin.put("coin", coinId);
         coin.put("coinIconName", coinIconName(coinId));
         coin.put("enabled", coinConfig.enabled());
-        coin.put("mcp", safe(auth.mcp()));
-        coin.put("mcpAuthChannels", List.copyOf(mcpAuthChannels));
+        coin.put("connectionStatus", coinConfig.enabled() ? "unknown" : "disabled");
+        coin.put("lastLifeSign", "unknown");
+        coin.put("daemonSecretFile", safe(coinConfig.bitcoinDaemonConfigSecretFile()));
+        coin.put("walletSecretFile", safe(coinConfig.bitcoinWalletConfigSecretFile()));
+        coin.put("maskedBalance", "unknown");
         coin.put("channels", Map.copyOf(channels));
         coin.put("channelWarnings", List.copyOf(warnings));
-        coin.put("minApprovalsRequired", auth.minApprovalsRequired());
-        coin.put("vetoChannels", List.copyOf(auth.vetoChannels()));
+        coin.put("verificationAgents", List.copyOf(verificationAgents));
+        coin.put("quorumLine", auth.minApprovalsRequired() + "-of-N");
+        coin.put("vetoChannelsLine", vetoChannels.isEmpty() ? "none" : String.join(", ", vetoChannels));
         coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));
         coin.put("autoDenyRules", mapApprovalRules(auth.autoDeny()));
         return Map.copyOf(coin);

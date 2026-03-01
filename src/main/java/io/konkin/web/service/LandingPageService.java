@@ -22,8 +22,8 @@ public class LandingPageService {
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
-    private static final String AUTH_DEFINITIONS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
-    private static final String COINS_TEMPLATE_NAME = "landing-coins.ftl";
+    private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
+    private static final String AUTH_CHANNELS_TEMPLATE_NAME = "landing-auth-channels.ftl";
 
     private final Configuration freemarker;
     private final String staticHostedPath;
@@ -81,8 +81,8 @@ public class LandingPageService {
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
         model.put("githubPath", "https://github.com/otherfren/konkin");
-        model.put("authDefinitionsPath", "/auth_definitions");
-        model.put("coinsPath", "/coins");
+        model.put("walletsPath", "/wallets");
+        model.put("authChannelsPath", "/auth_channels");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);
@@ -111,42 +111,42 @@ public class LandingPageService {
         return renderTemplate(selectedTemplate, model);
     }
 
-    public String renderAuthDefinitions(boolean showLogout, Map<String, Object> authDefinitions) {
+    public String renderWallets(boolean showLogout, Map<String, Object> walletsData) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
-        model.put("authDefinitionsPath", "/auth_definitions");
+        model.put("walletsPath", "/wallets");
         model.put("githubPath", "https://github.com/otherfren/konkin");
-        model.put("coinsPath", "/coins");
+        model.put("authChannelsPath", "/auth_channels");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
-        model.put("activePage", "auth_definitions");
+        model.put("activePage", "wallets");
         model.put("telegramPageAvailable", telegramEnabled);
-        model.put("authDefinitions", authDefinitions == null ? Map.of() : authDefinitions);
+        model.put("wallets", walletsData == null ? Map.of() : walletsData);
 
-        return renderTemplate(AUTH_DEFINITIONS_TEMPLATE_NAME, model);
+        return renderTemplate(WALLETS_TEMPLATE_NAME, model);
     }
 
-    public String renderCoins(boolean showLogout, Map<String, Object> coinsData) {
+    public String renderAuthChannels(boolean showLogout, Map<String, Object> authChannelsData) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
-        model.put("authDefinitionsPath", "/auth_definitions");
-        model.put("coinsPath", "/coins");
+        model.put("walletsPath", "/wallets");
+        model.put("authChannelsPath", "/auth_channels");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
-        model.put("activePage", "coins");
+        model.put("activePage", "auth_channels");
         model.put("telegramPageAvailable", telegramEnabled);
-        model.put("coinsData", coinsData == null ? Map.of() : coinsData);
+        model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
-        return renderTemplate(COINS_TEMPLATE_NAME, model);
+        return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
     }
 
     public String renderLogin(boolean invalidPassword) {

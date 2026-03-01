@@ -579,7 +579,8 @@ p {
 
 .telegram-table th,
 .telegram-table td {
-    vertical-align: top;
+    vertical-align: middle;
+    text-align: center;
 }
 
 .telegram-inline-form {
@@ -768,6 +769,120 @@ p {
     font-size: 0.94rem;
 }
 
+.auth-channels-content {
+    display: grid;
+    gap: 16px;
+    justify-items: center;
+}
+
+.auth-channels-content > * {
+    width: 100%;
+}
+
+.auth-channels-content .queue-title,
+.auth-channels-subtitle {
+    text-align: center;
+}
+
+.auth-channels-subtitle {
+    margin: 8px 0 0;
+    color: #d5dcff;
+    font-size: 0.94rem;
+}
+
+.auth-channels-content .telegram-empty {
+    text-align: center;
+}
+
+.auth-channels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.auth-channel-card {
+    padding: 16px;
+    border: 1px solid rgba(92, 107, 255, 0.26);
+    border-radius: 12px;
+    background: radial-gradient(circle at top right, rgba(84, 66, 196, 0.17), rgba(23, 26, 33, 0.94) 45%);
+    text-align: center;
+}
+
+.auth-kv-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+
+.auth-kv-item {
+    border: 1px solid rgba(58, 66, 86, 0.9);
+    border-radius: 10px;
+    padding: 10px;
+    background: rgba(12, 15, 20, 0.7);
+}
+
+.auth-kv-label {
+    display: block;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.auth-kv-value {
+    display: block;
+    margin-top: 4px;
+    color: #e6ebff;
+}
+
+.auth-channel-table {
+    margin-top: 12px;
+    font-size: 0.84rem;
+}
+
+.auth-channel-table th,
+.auth-channel-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.auth-channel-status {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    padding: 3px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.auth-channel-status-approved {
+    color: #9cfcc2;
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.12);
+}
+
+.auth-channel-status-pending {
+    color: #ffc3c3;
+    border-color: rgba(255, 96, 96, 0.35);
+    background: rgba(255, 96, 96, 0.12);
+}
+
+.auth-channel-secret-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.auth-channel-secret-wrap .auth-secret-value {
+    min-width: 42px;
+}
+
 .auth-overview-panel {
     margin-top: 8px;
     padding: 16px;
@@ -833,9 +948,10 @@ p {
 .auth-card-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     gap: 10px;
     flex-wrap: wrap;
+    text-align: center;
 }
 
 .auth-coin-name {
@@ -887,6 +1003,17 @@ p {
     display: block;
     margin-top: 4px;
     color: #e6ebff;
+}
+
+.auth-inline-meta {
+    white-space: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.auth-compact-block {
+    padding-top: 8px;
+    padding-bottom: 8px;
 }
 
 .auth-mcp-panel {
@@ -953,6 +1080,11 @@ p {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.auth-channel-grid-compact {
+    margin-top: 6px;
+    gap: 8px;
 }
 
 .auth-channel-badge {
@@ -1034,7 +1166,19 @@ p {
 
 .auth-rule-table th,
 .auth-rule-table td {
-    text-align: left;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.auth-definitions-content .queue-table th,
+.auth-definitions-content .queue-table td {
+    text-align: center;
+}
+
+.auth-definitions-content .queue-table td .actions,
+.auth-definitions-content .queue-table td .auth-secret,
+.auth-definitions-content .queue-table td .auth-channel-secret-wrap {
+    justify-content: center;
 }
 
 .auth-rule-type {
@@ -1056,6 +1200,11 @@ p {
     color: #ffc3c3;
     background: rgba(255, 96, 96, 0.12);
     border: 1px solid rgba(255, 96, 96, 0.35);
+}
+
+.auth-chip-row-tight {
+    margin-top: 6px;
+    gap: 8px;
 }
 
 .site-footer {
@@ -1270,6 +1419,14 @@ p {
 
     .queue-table-shell {
         padding: 10px;
+    }
+
+    .auth-kv-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-channel-table {
+        font-size: 0.8rem;
     }
 
     .queue-action-btn {
