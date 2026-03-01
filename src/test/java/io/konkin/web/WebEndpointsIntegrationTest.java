@@ -146,6 +146,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannels = get(server, "/auth_channels", Map.of());
             assertEquals(404, authChannels.statusCode());
 
+            HttpResponse<String> driverAgent = get(server, "/driver_agent", Map.of());
+            assertEquals(404, driverAgent.statusCode());
+
             HttpResponse<String> coinsPage = get(server, "/coins", Map.of());
             assertEquals(404, coinsPage.statusCode());
 
@@ -227,7 +230,12 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authChannelsPage.body().contains("Auth Channels"));
             assertTrue(authChannelsPage.body().contains("Web UI Channel"));
             assertTrue(authChannelsPage.body().contains("REST API Channel"));
-            assertTrue(authChannelsPage.body().contains("Secondary Agent Bot Channels"));
+            assertTrue(authChannelsPage.body().contains("Auth Agent Bot Channels"));
+
+            HttpResponse<String> driverAgentPage = get(runningServer, "/driver_agent", Map.of());
+            assertEquals(200, driverAgentPage.statusCode());
+            assertTrue(driverAgentPage.body().contains("Driver Agent"));
+            assertTrue(driverAgentPage.body().contains("Driver Agent Endpoint"));
 
             HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
             assertEquals(404, coinsPage.statusCode());
@@ -417,7 +425,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 IllegalStateException.class,
                 () -> KonkinConfig.load(configFile.toString())
         );
-        assertTrue(exception.getMessage().contains("used by both server and agent 'primary'"));
+        assertTrue(exception.getMessage().contains("used by both server and agent 'driver'"));
     }
 
     @Test
@@ -1119,7 +1127,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void authChannelsPageShowsConfiguredChannelsAndMaskedTelegramIdentifiers() throws Exception {
+    void authChannelsAndDriverAgentPagesShowConfiguredChannelsAndMaskedTelegramIdentifiers() throws Exception {
         int port = freePort();
         int primaryAgentPort = freePort();
         int secondaryAgentPort = freePort();
@@ -1210,18 +1218,24 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authChannels.body().contains("Web UI Channel"));
             assertTrue(authChannels.body().contains("REST API Channel"));
             assertTrue(authChannels.body().contains("Telegram Connected Users"));
-            assertTrue(authChannels.body().contains("Primary Agent Bot Channel"));
-            assertTrue(authChannels.body().contains("Secondary Agent Bot Channels"));
+            assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));
+            assertFalse(authChannels.body().contains("Driver Agent Endpoint"));
             assertTrue(authChannels.body().contains("<span class=\"menu-active\">auth channels</span>"));
             assertTrue(authChannels.body().contains("data-secret-value=\"-1004005006\""));
             assertTrue(authChannels.body().contains(">***<"));
             assertTrue(authChannels.body().contains("aria-label=\"Reveal Telegram identifier\""));
             assertTrue(authChannels.body().contains("approved"));
             assertFalse(authChannels.body().contains("<th>Type</th>"));
-            assertTrue(authChannels.body().contains("http://127.0.0.1:" + primaryAgentPort + "/health"));
-            assertTrue(authChannels.body().contains("http://127.0.0.1:" + primaryAgentPort + "/oauth/token"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/health"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/oauth/token"));
+
+            HttpResponse<String> driverAgent = get(runningServer, "/driver_agent", Map.of());
+            assertEquals(200, driverAgent.statusCode());
+            assertTrue(driverAgent.body().contains("Driver Agent"));
+            assertTrue(driverAgent.body().contains("Driver Agent Endpoint"));
+            assertTrue(driverAgent.body().contains("<span class=\"menu-active\">driver agent</span>"));
+            assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/health"));
+            assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/oauth/token"));
         }
     }
 

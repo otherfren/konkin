@@ -71,7 +71,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
             JsonNode json = JSON.readTree(response.body());
             assertEquals("healthy", json.path("status").asText());
             assertEquals("agent-alpha", json.path("agent").asText());
-            assertEquals("secondary", json.path("type").asText());
+            assertEquals("auth", json.path("type").asText());
         }
     }
 

@@ -100,14 +100,14 @@ public class AgentEndpointServer {
         app.post("/oauth/token", oauthHandler::handleTokenExchange);
         app.get("/health", ctx -> ctx.json(Map.of("status", "healthy", "agent", agentName, "type", agentType)));
 
-        if ("primary".equals(agentType)) {
+        if ("driver".equals(agentType)) {
             app.get("/runtime/config/requirements", this::handleRuntimeConfigRequirements);
             app.post("/coins/{coin}/actions/send", this::handleSendCoinAction);
             app.get("/decisions/{requestId}", this::handleDecisionStatus);
             app.sse("/decisions/{requestId}/events", this::handleDecisionEvents);
         }
 
-        if ("secondary".equals(agentType)) {
+        if ("auth".equals(agentType)) {
             app.sse("/approvals/pending", this::handlePendingApprovals);
             app.post("/approvals/{requestId}/vote", this::handleVote);
         }
@@ -126,7 +126,7 @@ public class AgentEndpointServer {
 
     private void handlePendingApprovals(SseClient client) {
         if (authQueueStore == null || runtimeConfig == null) {
-            throw new IllegalStateException("Secondary approvals stream service is not configured.");
+            throw new IllegalStateException("Auth approvals stream service is not configured.");
         }
 
         client.keepAlive();
@@ -175,7 +175,7 @@ public class AgentEndpointServer {
 
     private void handleVote(io.javalin.http.Context ctx) {
         if (authQueueStore == null || runtimeConfig == null) {
-            throw new IllegalStateException("Secondary vote service is not configured.");
+            throw new IllegalStateException("Auth vote service is not configured.");
         }
 
         VoteRequest voteRequest = ctx.bodyAsClass(VoteRequest.class);
@@ -202,7 +202,7 @@ public class AgentEndpointServer {
             return;
         }
 
-        String channelId = ensureSecondaryChannelId();
+        String channelId = ensureAuthChannelId();
         List<VoteDetail> existingVotes = authQueueStore.listVotesForRequest(requestId);
         boolean alreadyVoted = existingVotes.stream()
                 .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
@@ -236,7 +236,7 @@ public class AgentEndpointServer {
         if (approvalsDenied > 0) {
             nextState = "DENIED";
             reasonCode = "vote_denied";
-            reasonText = "Denied by secondary approval vote";
+            reasonText = "Denied by auth approval vote";
             resolvedAt = now;
         } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
             nextState = "APPROVED";
@@ -298,7 +298,7 @@ public class AgentEndpointServer {
 
     private void handleRuntimeConfigRequirements(io.javalin.http.Context ctx) {
         if (primaryConfigRequirementsService == null) {
-            throw new IllegalStateException("Primary runtime config requirements service is not configured.");
+            throw new IllegalStateException("Driver runtime config requirements service is not configured.");
         }
 
         String coin = ctx.queryParam("coin");
@@ -307,7 +307,7 @@ public class AgentEndpointServer {
 
     private void handleSendCoinAction(io.javalin.http.Context ctx) {
         if (authQueueStore == null || runtimeConfig == null) {
-            throw new IllegalStateException("Primary send-action service is not configured.");
+            throw new IllegalStateException("Driver send-action service is not configured.");
         }
 
         String coin = normalizeCoin(ctx.pathParam("coin"));
@@ -374,7 +374,7 @@ public class AgentEndpointServer {
                 requestId,
                 null,
                 "QUEUED",
-                "primary_agent",
+                "driver_agent",
                 agentName,
                 "queued_for_approval",
                 now
@@ -392,7 +392,7 @@ public class AgentEndpointServer {
 
     private void handleDecisionStatus(io.javalin.http.Context ctx) {
         if (authQueueStore == null) {
-            throw new IllegalStateException("Primary decision-status service is not configured.");
+            throw new IllegalStateException("Driver decision-status service is not configured.");
         }
 
         String requestId = requireNonBlank(ctx.pathParam("requestId"), "requestId path parameter is required");
@@ -406,7 +406,7 @@ public class AgentEndpointServer {
 
     private void handleDecisionEvents(SseClient client) {
         if (authQueueStore == null) {
-            throw new IllegalStateException("Primary decision-events service is not configured.");
+            throw new IllegalStateException("Driver decision-events service is not configured.");
         }
 
         String requestId = requireNonBlank(client.ctx().pathParam("requestId"), "requestId path parameter is required");
@@ -625,7 +625,7 @@ public class AgentEndpointServer {
         }
     }
 
-    private String ensureSecondaryChannelId() {
+    private String ensureAuthChannelId() {
         ApprovalChannelRow existing = authQueueStore.findChannelById(agentName);
         if (existing != null) {
             return existing.id();
@@ -646,7 +646,7 @@ public class AgentEndpointServer {
 
         ApprovalChannelRow reloaded = authQueueStore.findChannelById(agentName);
         if (reloaded == null) {
-            throw new IllegalStateException("Failed to resolve approval channel for secondary agent: " + agentName);
+            throw new IllegalStateException("Failed to resolve approval channel for auth agent: " + agentName);
         }
         return reloaded.id();
     }

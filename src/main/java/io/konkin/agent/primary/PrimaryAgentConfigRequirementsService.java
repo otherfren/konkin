@@ -15,7 +15,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Evaluates runtime config readiness for primary-agent operations.
+ * Evaluates runtime config readiness for driver-agent operations.
  */
 public class PrimaryAgentConfigRequirementsService {
 
@@ -84,7 +84,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.enabled",
                     CHECK_MISSING,
-                    "Primary agent endpoint is disabled or not configured.",
+                    "Driver agent endpoint is disabled or not configured.",
                     "Set [agents.primary].enabled=true in config.toml.",
                     true
             );
@@ -93,7 +93,7 @@ public class PrimaryAgentConfigRequirementsService {
         return item(
                 "agents.primary.enabled",
                 CHECK_OK,
-                "Primary agent endpoint is enabled.",
+                "Driver agent endpoint is enabled.",
                 "",
                 true
         );
@@ -105,7 +105,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.endpoint",
                     CHECK_MISSING,
-                    "Primary endpoint bind/port is unavailable because primary agent is disabled.",
+                    "Driver endpoint bind/port is unavailable because driver agent is disabled.",
                     "Enable [agents.primary] and provide bind/port.",
                     true
             );
@@ -115,7 +115,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.endpoint",
                     CHECK_INVALID,
-                    "Primary endpoint bind/port is invalid.",
+                    "Driver endpoint bind/port is invalid.",
                     "Set non-empty bind and port > 0 under [agents.primary].",
                     true
             );
@@ -124,7 +124,7 @@ public class PrimaryAgentConfigRequirementsService {
         return item(
                 "agents.primary.endpoint",
                 CHECK_OK,
-                "Primary endpoint bind/port is configured.",
+                "Driver endpoint bind/port is configured.",
                 "",
                 true
         );
@@ -136,7 +136,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.secret-file",
                     CHECK_MISSING,
-                    "Primary secret-file is unavailable because primary agent is disabled.",
+                    "Driver secret-file is unavailable because driver agent is disabled.",
                     "Enable [agents.primary] and configure secret-file.",
                     true
             );
@@ -147,7 +147,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.secret-file",
                     CHECK_MISSING,
-                    "Primary agent secret file is missing.",
+                    "Driver agent secret file is missing.",
                     "Restart KONKIN once to auto-bootstrap or create the file manually.",
                     true
             );
@@ -161,7 +161,7 @@ public class PrimaryAgentConfigRequirementsService {
             return item(
                     "agents.primary.secret-file",
                     CHECK_INVALID,
-                    "Primary agent secret file is missing client-id or client-secret values.",
+                    "Driver agent secret file is missing client-id or client-secret values.",
                     "Set non-empty client-id and client-secret in the secret file.",
                     true
             );
@@ -170,7 +170,7 @@ public class PrimaryAgentConfigRequirementsService {
         return item(
                 "agents.primary.secret-file",
                 CHECK_OK,
-                "Primary agent secret file looks valid.",
+                "Driver agent secret file looks valid.",
                 "",
                 true
         );

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * DTO contracts for primary agent endpoints.
+ * DTO contracts for driver agent endpoints.
  */
 public final class PrimaryAgentContracts {
 

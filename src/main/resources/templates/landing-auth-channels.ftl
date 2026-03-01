@@ -20,6 +20,7 @@
         <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
         <#if activePage == "log"><span class="menu-active">audit</span><#else><a href="${auditLogPath}">audit</a></#if>
         <#if activePage == "wallets"><span class="menu-active">wallets</span><#else><a href="${walletsPath}">wallets</a></#if>
+        <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
         <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}">auth channels</a></#if>
         <#if telegramPageAvailable>
             <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
@@ -34,14 +35,13 @@
 
 <main class="main-section"><div class="content auth-channels-content">
     <h2 class="queue-title">Auth Channels</h2>
-    <p class="auth-channels-subtitle">Runtime overview of web-ui, rest-api, telegram users, and primary/verification-agent channels.</p>
+    <p class="auth-channels-subtitle">Runtime overview of web-ui, rest-api, telegram users, and auth-agent channels.</p>
 
     <#assign webUi = (authChannels.webUi!{})>
     <#assign restApi = (authChannels.restApi!{})>
     <#assign telegramEnabled = (authChannels.telegramEnabled!false)>
     <#assign telegramUsers = (authChannels.telegramUsers![])>
-    <#assign primaryAgent = (authChannels.primaryAgent!{})>
-    <#assign secondaryAgents = (authChannels.secondaryAgents![])>
+    <#assign authAgents = (authChannels.authAgents![])>
 
     <div class="auth-channels-grid">
         <section class="auth-channel-card" aria-labelledby="auth-channel-web-ui-title">
@@ -161,64 +161,16 @@
         </#if>
     </section>
 
-    <section class="auth-card" aria-labelledby="auth-channel-primary-title">
-        <div class="auth-card-header">
-            <h3 id="auth-channel-primary-title" class="auth-coin-name">Primary Agent Bot Channel</h3>
-            <span class="auth-chip <#if (primaryAgent.configured!false) && (primaryAgent.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                <#if (primaryAgent.configured!false)>
-                    ${(primaryAgent.enabled!false)?string('enabled', 'disabled')}
-                <#else>
-                    not configured
-                </#if>
-            </span>
-        </div>
-
-        <#if !(primaryAgent.configured!false)>
-            <p class="telegram-empty">No primary agent channel configured.</p>
-        <#else>
-            <table class="queue-table auth-channel-table">
-                <thead>
-                <tr>
-                    <th>Agent</th>
-                    <th>Agent Type</th>
-                    <th>Status</th>
-                    <th>Bind</th>
-                    <th>Port</th>
-                    <th>Health</th>
-                    <th>OAuth Token</th>
-                    <th>Secret File</th>
-                </tr>
-                </thead>
-                <tbody>
-                <tr>
-                    <td class="mono">${primaryAgent.name!'-'}</td>
-                    <td class="mono">${primaryAgent.type!'-'}</td>
-                    <td>
-                        <span class="auth-channel-status <#if (primaryAgent.enabled!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
-                            ${(primaryAgent.enabled!false)?string('enabled', 'disabled')}
-                        </span>
-                    </td>
-                    <td class="mono">${primaryAgent.bind!'-'}</td>
-                    <td class="mono">${primaryAgent.port!'-'}</td>
-                    <td class="mono">${primaryAgent.healthPath!'-'}</td>
-                    <td class="mono">${primaryAgent.oauthTokenPath!'-'}</td>
-                    <td class="mono">${primaryAgent.secretFile!'-'}</td>
-                </tr>
-                </tbody>
-            </table>
-        </#if>
-    </section>
-
     <section class="auth-card" aria-labelledby="auth-channel-secondary-title">
         <div class="auth-card-header">
-            <h3 id="auth-channel-secondary-title" class="auth-coin-name">Secondary Agent Bot Channels</h3>
-            <span class="auth-chip <#if secondaryAgents?size gt 0>auth-chip-on<#else>auth-chip-off</#if>">
-                ${secondaryAgents?size} configured
+            <h3 id="auth-channel-secondary-title" class="auth-coin-name">Auth Agent Bot Channels</h3>
+            <span class="auth-chip <#if authAgents?size gt 0>auth-chip-on<#else>auth-chip-off</#if>">
+                ${authAgents?size} configured
             </span>
         </div>
 
-        <#if secondaryAgents?size == 0>
-            <p class="telegram-empty">No secondary agent channels configured.</p>
+        <#if authAgents?size == 0>
+            <p class="telegram-empty">No auth agent channels configured.</p>
         <#else>
             <table class="queue-table auth-channel-table">
                 <thead>
@@ -233,7 +185,7 @@
                 </tr>
                 </thead>
                 <tbody>
-                <#list secondaryAgents as agent>
+                <#list authAgents as agent>
                     <tr>
                         <td class="mono">${agent.name!'-'}</td>
                         <td>

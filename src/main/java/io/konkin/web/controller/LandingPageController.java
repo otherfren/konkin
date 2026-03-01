@@ -184,6 +184,19 @@ public class LandingPageController {
         ));
     }
 
+    public void handleDriverAgentPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderDriverAgent(
+                passwordProtectionEnabled,
+                buildDriverAgentModel()
+        ));
+    }
+
     public void handleLoginPage(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
@@ -835,9 +848,14 @@ public class LandingPageController {
 
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers());
-        root.put("primaryAgent", buildPrimaryAgentChannel());
-        root.put("secondaryAgents", buildSecondaryAgentChannels());
+        root.put("authAgents", buildAuthAgentChannels());
 
+        return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildDriverAgentModel() {
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("driverAgent", buildDriverAgentChannel());
         return Map.copyOf(root);
     }
 
@@ -886,38 +904,38 @@ public class LandingPageController {
         return List.copyOf(rows);
     }
 
-    private Map<String, Object> buildPrimaryAgentChannel() {
-        KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();
-        if (primaryAgent == null) {
+    private Map<String, Object> buildDriverAgentChannel() {
+        KonkinConfig.AgentConfig driverAgent = config.primaryAgent();
+        if (driverAgent == null) {
             return Map.of("configured", false);
         }
 
-        boolean enabled = primaryAgent.enabled();
-        String bind = safe(primaryAgent.bind());
-        int port = primaryAgent.port();
+        boolean enabled = driverAgent.enabled();
+        String bind = safe(driverAgent.bind());
+        int port = driverAgent.port();
         String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("configured", true);
-        row.put("name", "primary");
-        row.put("type", "primary");
+        row.put("name", "driver");
+        row.put("type", "driver");
         row.put("enabled", enabled);
         row.put("bind", bind);
         row.put("port", port > 0 ? Integer.toString(port) : "-");
         row.put("healthPath", enabled ? endpointBase + "/health" : "-");
         row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
-        row.put("secretFile", safe(primaryAgent.secretFile()));
+        row.put("secretFile", safe(driverAgent.secretFile()));
         return Map.copyOf(row);
     }
 
-    private List<Map<String, Object>> buildSecondaryAgentChannels() {
-        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
-        if (secondaryAgents == null || secondaryAgents.isEmpty()) {
+    private List<Map<String, Object>> buildAuthAgentChannels() {
+        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
+        if (authAgents == null || authAgents.isEmpty()) {
             return List.of();
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : secondaryAgents.entrySet()) {
+        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : authAgents.entrySet()) {
             String agentName = safe(entry.getKey());
             KonkinConfig.AgentConfig agentConfig = entry.getValue();
 
@@ -972,18 +990,18 @@ public class LandingPageController {
         telegram.put("enabled", config.telegramEnabled());
         channels.add(Map.copyOf(telegram));
 
-        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
-        if (secondaryAgents != null && !secondaryAgents.isEmpty()) {
-            for (Map.Entry<String, KonkinConfig.AgentConfig> entry : secondaryAgents.entrySet()) {
+        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
+        if (authAgents != null && !authAgents.isEmpty()) {
+            for (Map.Entry<String, KonkinConfig.AgentConfig> entry : authAgents.entrySet()) {
                 KonkinConfig.AgentConfig agentConfig = entry.getValue();
                 if (agentConfig == null || !agentConfig.enabled()) {
                     continue;
                 }
 
-                Map<String, Object> secondary = new LinkedHashMap<>();
-                secondary.put("name", "verification-agent:" + safe(entry.getKey()));
-                secondary.put("enabled", true);
-                channels.add(Map.copyOf(secondary));
+                Map<String, Object> authAgent = new LinkedHashMap<>();
+                authAgent.put("name", "verification-agent:" + safe(entry.getKey()));
+                authAgent.put("enabled", true);
+                channels.add(Map.copyOf(authAgent));
             }
         }
 
@@ -1008,10 +1026,10 @@ public class LandingPageController {
         }
 
         List<Map<String, Object>> verificationAgents = new ArrayList<>();
-        Map<String, KonkinConfig.AgentConfig> secondaryAgents = config.secondaryAgents();
+        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
         for (String channelName : auth.mcpAuthChannels()) {
             String safeChannelName = safe(channelName);
-            KonkinConfig.AgentConfig agentConfig = secondaryAgents.get(channelName);
+            KonkinConfig.AgentConfig agentConfig = authAgents.get(channelName);
 
             boolean enabled = agentConfig != null && agentConfig.enabled();
             String bind = agentConfig == null ? "unknown" : safe(agentConfig.bind());

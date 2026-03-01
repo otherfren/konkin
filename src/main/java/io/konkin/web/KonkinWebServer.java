@@ -283,6 +283,7 @@ public class KonkinWebServer {
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
+            app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);
@@ -335,6 +336,7 @@ public class KonkinWebServer {
             log.info("  /details             — request details cleartext (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /wallets             — wallets overview (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /auth_channels       — auth channels overview (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
+            log.info("  /driver_agent        — driver agent overview (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             if (config.telegramEnabled()) {
                 log.info("  /telegram            — telegram onboarding and manual send page");
                 log.info("  /telegram/approve    — approve discovered telegram chat request");
@@ -359,6 +361,7 @@ public class KonkinWebServer {
             log.info("  /details             — disabled via config");
             log.info("  /wallets             — disabled via config");
             log.info("  /auth_channels       — disabled via config");
+            log.info("  /driver_agent        — disabled via config");
             log.info("  /telegram            — disabled via config (landing disabled)");
             log.info("  /telegram/approve    — disabled via config (landing disabled)");
             log.info("  /telegram/send       — disabled via config (landing disabled)");
@@ -373,7 +376,7 @@ public class KonkinWebServer {
         if (primaryAgent != null && primaryAgent.enabled()) {
             AgentEndpointServer endpoint = new AgentEndpointServer(
                     "konkin-primary",
-                    "primary",
+                    "driver",
                     primaryAgent,
                     tokenStore,
                     new PrimaryAgentConfigRequirementsService(config),
@@ -394,7 +397,7 @@ public class KonkinWebServer {
 
             AgentEndpointServer endpoint = new AgentEndpointServer(
                     entry.getKey(),
-                    "secondary",
+                    "auth",
                     secondaryAgent,
                     tokenStore,
                     null,

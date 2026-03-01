@@ -792,7 +792,7 @@ public class KonkinConfig {
         portOwners.put(port, "server");
 
         if (primaryAgent != null) {
-            ensureUniquePort(portOwners, primaryAgent.port(), "agent 'primary'");
+            ensureUniquePort(portOwners, primaryAgent.port(), "agent 'driver'");
         }
 
         for (Map.Entry<String, AgentConfig> entry : secondaryAgents.entrySet()) {
@@ -1011,13 +1011,13 @@ public class KonkinConfig {
         }
 
         if (primaryAgent != null && primaryAgent.enabled()) {
-            ensureAgentSecretFileExists(Path.of(primaryAgent.secretFile()), PRIMARY_AGENT_CLIENT_ID, "primary");
+            ensureAgentSecretFileExists(Path.of(primaryAgent.secretFile()), PRIMARY_AGENT_CLIENT_ID, "driver");
         }
 
         for (Map.Entry<String, AgentConfig> entry : secondaryAgents.entrySet()) {
             AgentConfig agentConfig = entry.getValue();
             if (agentConfig.enabled()) {
-                ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "secondary");
+                ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "auth");
             }
         }
 

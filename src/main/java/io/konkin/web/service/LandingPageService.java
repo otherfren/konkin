@@ -24,6 +24,7 @@ public class LandingPageService {
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
     private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
     private static final String AUTH_CHANNELS_TEMPLATE_NAME = "landing-auth-channels.ftl";
+    private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
 
     private final Configuration freemarker;
     private final String staticHostedPath;
@@ -82,6 +83,7 @@ public class LandingPageService {
         model.put("telegramPath", "/telegram");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -119,6 +121,7 @@ public class LandingPageService {
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
         model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("authChannelsPath", "/auth_channels");
         model.put("title", "KONKIN.io");
@@ -138,6 +141,7 @@ public class LandingPageService {
         model.put("auditLogPath", "/log");
         model.put("telegramPath", "/telegram");
         model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
@@ -147,6 +151,26 @@ public class LandingPageService {
         model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
+    }
+
+    public String renderDriverAgent(boolean showLogout, Map<String, Object> driverAgentData) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/log");
+        model.put("telegramPath", "/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", "driver_agent");
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("driverAgent", driverAgentData == null ? Map.of() : driverAgentData);
+
+        return renderTemplate(DRIVER_AGENT_TEMPLATE_NAME, model);
     }
 
     public String renderLogin(boolean invalidPassword) {
