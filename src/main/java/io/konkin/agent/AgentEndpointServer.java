@@ -6,12 +6,17 @@ import io.javalin.http.HttpStatus;
 import io.javalin.http.UnauthorizedResponse;
 import io.javalin.http.sse.SseClient;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
+import io.konkin.agent.primary.contract.PrimaryAgentContracts.DecisionEventResponse;
+import io.konkin.agent.primary.contract.PrimaryAgentContracts.DecisionStatusResponse;
 import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionAcceptedResponse;
 import io.konkin.agent.primary.contract.PrimaryAgentContracts.SendCoinActionRequest;
 import io.konkin.config.KonkinConfig;
 import io.konkin.config.KonkinConfig.AgentConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.entity.ApprovalRequestRow;
+import io.konkin.db.entity.ExecutionAttemptDetail;
+import io.konkin.db.entity.RequestDependencies;
+import io.konkin.db.entity.StateTransitionDetail;
 import io.konkin.db.entity.StateTransitionRow;
 
 import java.nio.charset.StandardCharsets;
@@ -20,14 +25,18 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AgentEndpointServer {
 
@@ -90,6 +99,8 @@ public class AgentEndpointServer {
         if ("primary".equals(agentType)) {
             app.get("/runtime/config/requirements", this::handleRuntimeConfigRequirements);
             app.post("/coins/{coin}/actions/send", this::handleSendCoinAction);
+            app.get("/decisions/{requestId}", this::handleDecisionStatus);
+            app.sse("/decisions/{requestId}/events", this::handleDecisionEvents);
         }
 
         if ("secondary".equals(agentType)) {
@@ -247,6 +258,166 @@ public class AgentEndpointServer {
         ));
     }
 
+    private void handleDecisionStatus(io.javalin.http.Context ctx) {
+        if (authQueueStore == null) {
+            throw new IllegalStateException("Primary decision-status service is not configured.");
+        }
+
+        String requestId = requireNonBlank(ctx.pathParam("requestId"), "requestId path parameter is required");
+        DecisionStatusResponse status = loadDecisionStatus(requestId);
+        if (status == null) {
+            ctx.status(HttpStatus.NOT_FOUND);
+            return;
+        }
+        ctx.json(status);
+    }
+
+    private void handleDecisionEvents(SseClient client) {
+        if (authQueueStore == null) {
+            throw new IllegalStateException("Primary decision-events service is not configured.");
+        }
+
+        String requestId = requireNonBlank(client.ctx().pathParam("requestId"), "requestId path parameter is required");
+        DecisionStatusResponse initial = loadDecisionStatus(requestId);
+        if (initial == null) {
+            sendDecisionEvent(client, "not_found", requestId, "UNKNOWN", Map.of("message", "request_not_found"));
+            client.close();
+            return;
+        }
+
+        AtomicReference<String> lastState = new AtomicReference<>(initial.state());
+        sendDecisionEvent(client, "snapshot", initial.requestId(), initial.state(), toDecisionPayload(initial));
+        if (initial.terminal()) {
+            client.close();
+            return;
+        }
+
+        ScheduledFuture<?> heartbeatTask = heartbeatScheduler.scheduleAtFixedRate(
+                () -> sendHeartbeat(client),
+                30,
+                30,
+                TimeUnit.SECONDS
+        );
+
+        ScheduledFuture<?> pollTask = heartbeatScheduler.scheduleAtFixedRate(() -> {
+            if (client.terminated()) {
+                return;
+            }
+
+            DecisionStatusResponse current = loadDecisionStatus(requestId);
+            if (current == null) {
+                sendDecisionEvent(client, "not_found", requestId, "UNKNOWN", Map.of("message", "request_not_found"));
+                client.close();
+                return;
+            }
+
+            String previousState = lastState.getAndSet(current.state());
+            if (!Objects.equals(previousState, current.state())) {
+                Map<String, Object> payload = new LinkedHashMap<>(toDecisionPayload(current));
+                payload.put("fromState", previousState);
+                payload.put("toState", current.state());
+                sendDecisionEvent(client, "state_transition", current.requestId(), current.state(), payload);
+            }
+
+            if (current.terminal()) {
+                client.close();
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+
+        client.onClose(() -> {
+            heartbeatTask.cancel(true);
+            pollTask.cancel(true);
+        });
+    }
+
+    private DecisionStatusResponse loadDecisionStatus(String requestId) {
+        ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
+        if (row == null) {
+            return null;
+        }
+
+        String latestReasonCode = row.stateReasonCode();
+        String latestReasonText = row.stateReasonText();
+        String txid = null;
+
+        RequestDependencies dependencies = authQueueStore.loadRequestDependencies(List.of(requestId)).get(requestId);
+        if (dependencies != null) {
+            for (StateTransitionDetail transition : dependencies.transitions()) {
+                if (transition.reasonCode() != null && !transition.reasonCode().isBlank()) {
+                    latestReasonCode = transition.reasonCode();
+                }
+                if (transition.reasonText() != null && !transition.reasonText().isBlank()) {
+                    latestReasonText = transition.reasonText();
+                }
+            }
+            for (ExecutionAttemptDetail attempt : dependencies.executionAttempts()) {
+                if (attempt.txid() != null && !attempt.txid().isBlank()) {
+                    txid = attempt.txid();
+                }
+            }
+        }
+
+        String state = row.state();
+        return new DecisionStatusResponse(
+                row.id(),
+                row.coin(),
+                state,
+                isTerminalState(state),
+                row.minApprovalsRequired(),
+                row.approvalsGranted(),
+                row.approvalsDenied(),
+                latestReasonCode,
+                latestReasonText,
+                txid
+        );
+    }
+
+    private static Map<String, Object> toDecisionPayload(DecisionStatusResponse status) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("terminal", status.terminal());
+        payload.put("minApprovalsRequired", status.minApprovalsRequired());
+        payload.put("approvalsGranted", status.approvalsGranted());
+        payload.put("approvalsDenied", status.approvalsDenied());
+        if (status.latestReasonCode() != null) {
+            payload.put("latestReasonCode", status.latestReasonCode());
+        }
+        if (status.latestReasonText() != null) {
+            payload.put("latestReasonText", status.latestReasonText());
+        }
+        if (status.txid() != null) {
+            payload.put("txid", status.txid());
+        }
+        return Map.copyOf(payload);
+    }
+
+    private void sendDecisionEvent(
+            SseClient client,
+            String eventType,
+            String requestId,
+            String state,
+            Map<String, Object> payload
+    ) {
+        if (client.terminated()) {
+            return;
+        }
+
+        try {
+            client.sendEvent("decision", new DecisionEventResponse(
+                    eventType,
+                    requestId,
+                    state,
+                    Instant.now(),
+                    payload == null ? Map.of() : Map.copyOf(payload)
+            ));
+        } catch (Exception ignored) {
+            // client likely disconnected between terminated() check and send
+        }
+    }
+
+    private static boolean isTerminalState(String state) {
+        return state != null && TERMINAL_STATES.contains(state.trim().toUpperCase());
+    }
+
     private static String normalizeCoin(String coin) {
         if (coin == null || coin.isBlank()) {
             throw new BadRequestResponse("coin path parameter is required");
@@ -301,6 +472,16 @@ public class AgentEndpointServer {
 
     private record VoteRequest(String decision, String reason) {
     }
+
+    private static final Set<String> TERMINAL_STATES = Set.of(
+            "DENIED",
+            "TIMED_OUT",
+            "CANCELLED",
+            "COMPLETED",
+            "FAILED",
+            "REJECTED",
+            "EXPIRED"
+    );
 
     private static final class HeartbeatThreadFactory implements ThreadFactory {
         private final String agentName;

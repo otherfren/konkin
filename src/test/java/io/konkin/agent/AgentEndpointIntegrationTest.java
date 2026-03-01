@@ -3,10 +3,12 @@ package io.konkin.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
+import io.konkin.db.JdbiFactory;
 import io.konkin.web.KonkinWebServer;
 import io.konkin.web.WebIntegrationTestSupport;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -218,6 +220,120 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
             assertEquals("QUEUED", saved.path("state").asText());
             assertEquals("bc1qtestdestination", saved.path("toAddress").asText());
             assertEquals("0.25000000", saved.path("amountNative").asText());
+        }
+    }
+
+    @Test
+    void primaryDecisionStatusWithoutBearerReturnsUnauthorized() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            HttpResponse<String> response = get(server.agentBaseUri(), "/decisions/req-unknown", Map.of());
+            assertEquals(401, response.statusCode());
+        }
+    }
+
+    @Test
+    void primaryDecisionStatusWithBearerReturnsSnapshotForQueuedRequest() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> acceptedResponse = postJson(
+                    server.agentBaseUri(),
+                    "/coins/bitcoin/actions/send",
+                    """
+                    {
+                      \"toAddress\": \"bc1qstatusdestination\",
+                      \"amountNative\": \"0.05000000\"
+                    }
+                    """,
+                    Map.of("Authorization", "Bearer " + token)
+            );
+            assertEquals(202, acceptedResponse.statusCode());
+
+            String requestId = JSON.readTree(acceptedResponse.body()).path("requestId").asText();
+            HttpResponse<String> statusResponse = get(
+                    server.agentBaseUri(),
+                    "/decisions/" + requestId,
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, statusResponse.statusCode());
+            JsonNode status = JSON.readTree(statusResponse.body());
+            assertEquals(requestId, status.path("requestId").asText());
+            assertEquals("bitcoin", status.path("coin").asText());
+            assertEquals("QUEUED", status.path("state").asText());
+            assertFalse(status.path("terminal").asBoolean());
+            assertEquals(1, status.path("minApprovalsRequired").asInt());
+            assertEquals(0, status.path("approvalsGranted").asInt());
+            assertEquals(0, status.path("approvalsDenied").asInt());
+        }
+    }
+
+    @Test
+    void primaryDecisionStatusWithBearerReturnsNotFoundForUnknownRequest() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/decisions/req-does-not-exist",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+            assertEquals(404, response.statusCode());
+        }
+    }
+
+    @Test
+    void primaryDecisionEventsWithBearerReturnsTerminalSnapshotAndClosesStream() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
+                "rpcuser=alice\nrpcpassword=secret\n",
+                "wallet=main\nwallet-passphrase=pass\n"
+        )) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> acceptedResponse = postJson(
+                    server.agentBaseUri(),
+                    "/coins/bitcoin/actions/send",
+                    """
+                    {
+                      \"toAddress\": \"bc1qeventdestination\",
+                      \"amountNative\": \"0.07500000\"
+                    }
+                    """,
+                    Map.of("Authorization", "Bearer " + token)
+            );
+            assertEquals(202, acceptedResponse.statusCode());
+
+            String requestId = JSON.readTree(acceptedResponse.body()).path("requestId").asText();
+            markRequestCompleted(server.dbManager().dataSource(), requestId);
+
+            HttpResponse<String> sseResponse = getSse(
+                    server.agentBaseUri(),
+                    "/decisions/" + requestId + "/events",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, sseResponse.statusCode());
+            String contentType = sseResponse.headers().firstValue("content-type").orElse("");
+            assertTrue(contentType.startsWith("text/event-stream"));
+
+            String sseData = firstSseDataPayload(sseResponse.body());
+            JsonNode event = JSON.readTree(sseData);
+            assertEquals("snapshot", event.path("eventType").asText());
+            assertEquals(requestId, event.path("requestId").asText());
+            assertEquals("COMPLETED", event.path("state").asText());
+            assertTrue(event.path("payload").path("terminal").asBoolean());
+            assertEquals("executed", event.path("payload").path("latestReasonCode").asText());
+            assertEquals("Transaction broadcast", event.path("payload").path("latestReasonText").asText());
+            assertEquals("txid-abc123", event.path("payload").path("txid").asText());
         }
     }
 
@@ -436,6 +552,86 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 .POST(HttpRequest.BodyPublishers.ofString(body));
         headers.forEach(builder::header);
         return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static HttpResponse<String> getSse(URI baseUri, String path, Map<String, String> headers)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(8))
+                .header("Accept", "text/event-stream")
+                .GET();
+        headers.forEach(builder::header);
+        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private static String firstSseDataPayload(String sseBody) {
+        for (String line : sseBody.split("\\R")) {
+            if (line.startsWith("data:")) {
+                String payload = line.substring("data:".length()).trim();
+                if (!payload.isEmpty()) {
+                    return payload;
+                }
+            }
+        }
+        throw new IllegalStateException("No SSE data payload found in response body");
+    }
+
+    private static void markRequestCompleted(DataSource dataSource, String requestId) {
+        Instant now = Instant.now();
+        JdbiFactory.create(dataSource).useTransaction(handle -> {
+            handle.createUpdate("""
+                            UPDATE approval_requests
+                            SET state = :state,
+                                state_reason_code = :reasonCode,
+                                state_reason_text = :reasonText,
+                                approvals_granted = :granted,
+                                approvals_denied = :denied,
+                                updated_at = :updatedAt,
+                                resolved_at = :resolvedAt
+                            WHERE id = :id
+                            """)
+                    .bind("state", "COMPLETED")
+                    .bind("reasonCode", "executed")
+                    .bind("reasonText", "Transaction broadcast")
+                    .bind("granted", 1)
+                    .bind("denied", 0)
+                    .bind("updatedAt", now)
+                    .bind("resolvedAt", now)
+                    .bind("id", requestId)
+                    .execute();
+
+            handle.createUpdate("""
+                            INSERT INTO approval_state_transitions (
+                                request_id, from_state, to_state, actor_type, actor_id, reason_code, reason_text, created_at
+                            ) VALUES (
+                                :requestId, :fromState, :toState, :actorType, :actorId, :reasonCode, :reasonText, :createdAt
+                            )
+                            """)
+                    .bind("requestId", requestId)
+                    .bind("fromState", "QUEUED")
+                    .bind("toState", "COMPLETED")
+                    .bind("actorType", "executor")
+                    .bind("actorId", "integration-test")
+                    .bind("reasonCode", "executed")
+                    .bind("reasonText", "Transaction broadcast")
+                    .bind("createdAt", now.plusMillis(1))
+                    .execute();
+
+            handle.createUpdate("""
+                            INSERT INTO approval_execution_attempts (
+                                request_id, attempt_no, started_at, finished_at, result, txid
+                            ) VALUES (
+                                :requestId, :attemptNo, :startedAt, :finishedAt, :result, :txid
+                            )
+                            """)
+                    .bind("requestId", requestId)
+                    .bind("attemptNo", 1)
+                    .bind("startedAt", now)
+                    .bind("finishedAt", now.plusSeconds(1))
+                    .bind("result", "success")
+                    .bind("txid", "txid-abc123")
+                    .execute();
+        });
     }
 
     private static void waitForAgentHealth(int port) throws Exception {
