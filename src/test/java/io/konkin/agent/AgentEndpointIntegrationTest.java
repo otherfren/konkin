@@ -449,7 +449,49 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void primaryRuntimeConfigRequirementsWithConfiguredSecretsReturnsReady() throws Exception {
+    void primaryRuntimeConfigRequirementsWithTestDummyCoinReturnsReadyWhenDebugAndCoinAreEnabled() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(true, false, true)) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/runtime/config/requirements?coin=testdummycoin",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("testdummycoin", json.path("coin").asText());
+            assertEquals("READY", json.path("status").asText());
+            assertTrue(json.path("checks").isArray());
+            assertEquals(0, json.path("missing").size());
+            assertEquals(0, json.path("invalid").size());
+        }
+    }
+
+    @Test
+    void primaryRuntimeConfigRequirementsWithTestDummyCoinReturnsNotReadyWhenDebugIsDisabled() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(false, false, true)) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/runtime/config/requirements?coin=testdummycoin",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("testdummycoin", json.path("coin").asText());
+            assertEquals("NOT_READY", json.path("status").asText());
+            assertTrue(json.path("message").asText().contains("not ready"));
+            assertTrue(json.path("checks").isArray());
+            assertTrue(json.path("checks").toString().contains("coins.testdummycoin.enabled"));
+        }
+    }
+
+    @Test
+    void primaryRuntimeConfigRequirementsWithoutCoinReturnsServerReadyWhenServerIsReady() throws Exception {
         try (AgentRunningServer server = startPrimaryAgentServerWithBitcoinSecrets(
                 "rpcuser=alice\nrpcpassword=secret\n",
                 "wallet=main\nwallet-passphrase=pass\n"
@@ -464,11 +506,53 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
             assertEquals(200, response.statusCode());
             JsonNode json = JSON.readTree(response.body());
-            assertEquals("bitcoin", json.path("coin").asText());
+            assertEquals("server", json.path("coin").asText());
             assertEquals("READY", json.path("status").asText());
+            assertTrue(json.path("message").asText().contains("Server readiness passed"));
             assertTrue(json.path("checks").isArray());
             assertEquals(0, json.path("missing").size());
             assertEquals(0, json.path("invalid").size());
+        }
+    }
+
+    @Test
+    void primaryRuntimeConfigRequirementsWithoutCoinReturnsReadyInDebugModeUsingTestDummyCoin() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(true, false, true)) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/runtime/config/requirements",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(200, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("server", json.path("coin").asText());
+            assertEquals("READY", json.path("status").asText());
+            assertEquals(0, json.path("missing").size());
+            assertEquals(0, json.path("invalid").size());
+        }
+    }
+
+    @Test
+    void primaryRuntimeConfigRequirementsWithoutCoinReturnsServiceUnavailableWhenServerIsNotReady() throws Exception {
+        try (AgentRunningServer server = startPrimaryAgentServerForSendActionScenarios(false, false, true)) {
+            String token = issueAccessToken(server);
+
+            HttpResponse<String> response = get(
+                    server.agentBaseUri(),
+                    "/runtime/config/requirements",
+                    Map.of("Authorization", "Bearer " + token)
+            );
+
+            assertEquals(503, response.statusCode());
+            JsonNode json = JSON.readTree(response.body());
+            assertEquals("server_not_ready", json.path("error").asText());
+            assertTrue(json.path("message").asText().contains("Server is not ready yet"));
+            assertEquals("server", json.path("readiness").path("coin").asText());
+            assertEquals("NOT_READY", json.path("readiness").path("status").asText());
+            assertTrue(json.path("readiness").path("checks").isArray());
         }
     }
 

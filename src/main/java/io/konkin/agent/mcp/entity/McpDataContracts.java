@@ -24,6 +24,7 @@ public final class McpDataContracts {
     public record RuntimeConfigRequirementsResponse(
             String coin,
             String status,
+            String message,
             List<RequirementItem> checks,
             List<RequirementItem> missing,
             List<RequirementItem> invalid

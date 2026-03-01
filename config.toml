@@ -113,6 +113,17 @@ type = "cumulated-value-gt"
 value = 1.5
 period = "7d"
 
+[coins.testdummycoin]
+enabled = true
+
+[coins.testdummycoin.auth]
+web-ui = true
+rest-api = true
+telegram = true
+mcp = "tdc-main"
+mcp-auth-channels = ["agent-default"]
+min-approvals-required = 1
+
 [coins.bitcoin.secret-files]
 # files are auto-generated on startup when missing
 bitcoin-daemon-config-file = "./secrets/bitcoin-daemon.conf"

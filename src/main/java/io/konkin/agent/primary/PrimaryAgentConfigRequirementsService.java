@@ -38,24 +38,60 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     public RuntimeConfigRequirementsResponse evaluate(String coin) {
-        String normalizedCoin = normalizeCoin(coin);
-        if (!"bitcoin".equals(normalizedCoin)) {
-            RequirementItem unsupported = item(
-                    "runtime.coin",
-                    CHECK_INVALID,
-                    "Coin '" + normalizedCoin + "' is not supported in phase 1.",
-                    "Use coin=bitcoin for phase 1 readiness checks.",
-                    true
-            );
-            return new RuntimeConfigRequirementsResponse(
-                    normalizedCoin,
-                    STATUS_NOT_READY,
-                    List.of(unsupported),
-                    List.of(),
-                    List.of(unsupported)
-            );
+        if (coin == null || coin.isBlank()) {
+            return evaluateServerReadiness();
         }
 
+        String normalizedCoin = coin.trim().toLowerCase(Locale.ROOT);
+        return evaluateCoinReadiness(normalizedCoin);
+    }
+
+    private RuntimeConfigRequirementsResponse evaluateServerReadiness() {
+        List<RequirementItem> checks = new ArrayList<>();
+        checks.add(checkAnyCoinRuntimeConfigured());
+        checks.add(checkAnyAuthChannelConfigured());
+
+        List<RequirementItem> missing = checks.stream()
+                .filter(item -> CHECK_MISSING.equals(item.status()))
+                .toList();
+        List<RequirementItem> invalid = checks.stream()
+                .filter(item -> CHECK_INVALID.equals(item.status()))
+                .toList();
+
+        String status = (missing.isEmpty() && invalid.isEmpty()) ? STATUS_READY : STATUS_NOT_READY;
+        String coinHint = isTestDummyRuntimeReadyForServer() ? "bitcoin or testdummycoin" : "bitcoin";
+        String message = STATUS_READY.equals(status)
+                ? "Server readiness passed. You can now call /runtime/config/requirements?coin=" + coinHint + " for coin-specific checks."
+                : "Server is not ready yet. Configure at least one wallet-connected coin and at least one auth channel (web-ui/rest-api/telegram chat).";
+
+        return new RuntimeConfigRequirementsResponse("server", status, message, List.copyOf(checks), missing, invalid);
+    }
+
+    private RuntimeConfigRequirementsResponse evaluateCoinReadiness(String normalizedCoin) {
+        return switch (normalizedCoin) {
+            case "bitcoin" -> evaluateBitcoinReadiness(normalizedCoin);
+            case "testdummycoin" -> evaluateTestDummyCoinReadiness(normalizedCoin);
+            default -> {
+                RequirementItem unsupported = item(
+                        "runtime.coin",
+                        CHECK_INVALID,
+                        "Coin '" + normalizedCoin + "' is not supported for readiness checks.",
+                        "Use coin=bitcoin (or coin=testdummycoin when debug mode is enabled).",
+                        true
+                );
+                yield new RuntimeConfigRequirementsResponse(
+                        normalizedCoin,
+                        STATUS_NOT_READY,
+                        "Unsupported coin requested for readiness checks.",
+                        List.of(unsupported),
+                        List.of(),
+                        List.of(unsupported)
+                );
+            }
+        };
+    }
+
+    private RuntimeConfigRequirementsResponse evaluateBitcoinReadiness(String normalizedCoin) {
         List<RequirementItem> checks = new ArrayList<>();
 
         checks.add(checkPrimaryAgentEnabled());
@@ -67,6 +103,38 @@ public class PrimaryAgentConfigRequirementsService {
         checks.add(checkBitcoinWalletSecret());
         checks.add(checkBitcoinAuthCoherence());
 
+        return toCoinReadinessResponse(
+                normalizedCoin,
+                checks,
+                "Coin '" + normalizedCoin + "' is ready for runtime operations.",
+                "Coin '" + normalizedCoin + "' is not ready for runtime operations."
+        );
+    }
+
+    private RuntimeConfigRequirementsResponse evaluateTestDummyCoinReadiness(String normalizedCoin) {
+        List<RequirementItem> checks = new ArrayList<>();
+
+        checks.add(checkPrimaryAgentEnabled());
+        checks.add(checkPrimaryAgentEndpoint());
+        checks.add(checkPrimaryAgentSecretFile());
+
+        checks.add(checkTestDummyCoinEnabled());
+        checks.add(checkTestDummyCoinAuthCoherence());
+
+        return toCoinReadinessResponse(
+                normalizedCoin,
+                checks,
+                "Coin '" + normalizedCoin + "' is ready for runtime operations.",
+                "Coin '" + normalizedCoin + "' is not ready for runtime operations."
+        );
+    }
+
+    private RuntimeConfigRequirementsResponse toCoinReadinessResponse(
+            String normalizedCoin,
+            List<RequirementItem> checks,
+            String readyMessage,
+            String notReadyMessage
+    ) {
         List<RequirementItem> missing = checks.stream()
                 .filter(item -> CHECK_MISSING.equals(item.status()))
                 .toList();
@@ -75,7 +143,120 @@ public class PrimaryAgentConfigRequirementsService {
                 .toList();
 
         String status = (missing.isEmpty() && invalid.isEmpty()) ? STATUS_READY : STATUS_NOT_READY;
-        return new RuntimeConfigRequirementsResponse(normalizedCoin, status, List.copyOf(checks), missing, invalid);
+        String message = STATUS_READY.equals(status) ? readyMessage : notReadyMessage;
+        return new RuntimeConfigRequirementsResponse(normalizedCoin, status, message, List.copyOf(checks), missing, invalid);
+    }
+
+    private RequirementItem checkAnyCoinRuntimeConfigured() {
+        if (isBitcoinRuntimeReadyForServer()) {
+            return item(
+                    "runtime.server.coins",
+                    CHECK_OK,
+                    "At least one wallet-connected coin is configured (bitcoin).",
+                    "",
+                    true
+            );
+        }
+
+        if (isTestDummyRuntimeReadyForServer()) {
+            return item(
+                    "runtime.server.coins",
+                    CHECK_OK,
+                    "At least one runtime coin is configured via debug mode (testdummycoin).",
+                    "",
+                    true
+            );
+        }
+
+        if (config.bitcoin().enabled()) {
+            RequirementItem daemonCheck = checkBitcoinDaemonSecret();
+            if (!CHECK_OK.equals(daemonCheck.status())) {
+                return item(
+                        "runtime.server.coins",
+                        daemonCheck.status(),
+                        "Bitcoin is enabled but not wallet-connected: " + daemonCheck.message(),
+                        daemonCheck.hint(),
+                        true
+                );
+            }
+
+            RequirementItem walletCheck = checkBitcoinWalletSecret();
+            if (!CHECK_OK.equals(walletCheck.status())) {
+                return item(
+                        "runtime.server.coins",
+                        walletCheck.status(),
+                        "Bitcoin is enabled but wallet setup is incomplete: " + walletCheck.message(),
+                        walletCheck.hint(),
+                        true
+                );
+            }
+        }
+
+        return item(
+                "runtime.server.coins",
+                CHECK_MISSING,
+                "No wallet-connected coin is configured yet.",
+                "Enable [coins.bitcoin].enabled=true with valid daemon/wallet secrets, or enable [debug].enabled=true and [coins.testdummycoin].enabled=true.",
+                true
+        );
+    }
+
+    private RequirementItem checkAnyAuthChannelConfigured() {
+        List<String> channels = new ArrayList<>();
+
+        if (config.landingEnabled()) {
+            channels.add("web-ui");
+        }
+        if (config.restApiEnabled()) {
+            channels.add("rest-api");
+        }
+
+        int telegramAgents = config.telegramChatIds() == null ? 0 : config.telegramChatIds().size();
+        if (config.telegramEnabled() && telegramAgents > 0) {
+            channels.add("telegram(" + telegramAgents + " chat agent(s))");
+        }
+
+        if (!channels.isEmpty()) {
+            return item(
+                    "runtime.server.auth-channels",
+                    CHECK_OK,
+                    "At least one auth channel is configured: " + String.join(", ", channels) + ".",
+                    "",
+                    true
+            );
+        }
+
+        if (config.telegramEnabled() && telegramAgents == 0) {
+            return item(
+                    "runtime.server.auth-channels",
+                    CHECK_INVALID,
+                    "Telegram is enabled but no telegram chat agent is configured.",
+                    "Set [telegram].chat-ids with at least one chat id, or enable web-ui/rest-api.",
+                    true
+            );
+        }
+
+        return item(
+                "runtime.server.auth-channels",
+                CHECK_MISSING,
+                "No auth channel is configured yet.",
+                "Enable at least one of [web-ui].enabled, [rest-api].enabled, or [telegram].enabled with [telegram].chat-ids.",
+                true
+        );
+    }
+
+    private boolean isBitcoinRuntimeReadyForServer() {
+        if (!config.bitcoin().enabled()) {
+            return false;
+        }
+
+        RequirementItem daemonCheck = checkBitcoinDaemonSecret();
+        RequirementItem walletCheck = checkBitcoinWalletSecret();
+        return CHECK_OK.equals(daemonCheck.status()) && CHECK_OK.equals(walletCheck.status());
+    }
+
+    private boolean isTestDummyRuntimeReadyForServer() {
+        return config.debugEnabled() && config.testDummyCoin().enabled();
     }
 
     private RequirementItem checkPrimaryAgentEnabled() {
@@ -287,7 +468,44 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkBitcoinAuthCoherence() {
-        KonkinConfig.CoinAuthConfig auth = config.bitcoin().auth();
+        return checkCoinAuthCoherence("bitcoin", config.bitcoin().auth(), "Bitcoin");
+    }
+
+    private RequirementItem checkTestDummyCoinEnabled() {
+        if (!config.debugEnabled()) {
+            return item(
+                    "coins.testdummycoin.enabled",
+                    CHECK_MISSING,
+                    "TestDummyCoin runtime requires debug mode and is unavailable while debug mode is disabled.",
+                    "Set [debug].enabled=true and [coins.testdummycoin].enabled=true in config.toml.",
+                    true
+            );
+        }
+
+        if (!config.testDummyCoin().enabled()) {
+            return item(
+                    "coins.testdummycoin.enabled",
+                    CHECK_MISSING,
+                    "TestDummyCoin runtime is disabled.",
+                    "Set [coins.testdummycoin].enabled=true in config.toml.",
+                    true
+            );
+        }
+
+        return item(
+                "coins.testdummycoin.enabled",
+                CHECK_OK,
+                "TestDummyCoin runtime is enabled.",
+                "",
+                true
+        );
+    }
+
+    private RequirementItem checkTestDummyCoinAuthCoherence() {
+        return checkCoinAuthCoherence("testdummycoin", config.testDummyCoin().auth(), "TestDummyCoin");
+    }
+
+    private RequirementItem checkCoinAuthCoherence(String coinId, KonkinConfig.CoinAuthConfig auth, String coinLabel) {
         int configuredChannels = 0;
         if (auth.webUi()) {
             configuredChannels++;
@@ -304,9 +522,9 @@ public class PrimaryAgentConfigRequirementsService {
 
         if (configuredChannels <= 0) {
             return item(
-                    "coins.bitcoin.auth.channels",
+                    "coins." + coinId + ".auth.channels",
                     CHECK_INVALID,
-                    "Bitcoin auth has zero enabled channels.",
+                    coinLabel + " auth has zero enabled channels.",
                     "Enable at least one of web-ui/rest-api/telegram/mcp-auth-channels.",
                     true
             );
@@ -314,17 +532,17 @@ public class PrimaryAgentConfigRequirementsService {
 
         if (auth.minApprovalsRequired() <= 0) {
             return item(
-                    "coins.bitcoin.auth.min-approvals-required",
+                    "coins." + coinId + ".auth.min-approvals-required",
                     CHECK_INVALID,
                     "min-approvals-required must be > 0.",
-                    "Set [coins.bitcoin.auth].min-approvals-required to a positive value.",
+                    "Set [coins." + coinId + ".auth].min-approvals-required to a positive value.",
                     true
             );
         }
 
         if (auth.minApprovalsRequired() > configuredChannels) {
             return item(
-                    "coins.bitcoin.auth.min-approvals-required",
+                    "coins." + coinId + ".auth.min-approvals-required",
                     CHECK_INVALID,
                     "min-approvals-required exceeds number of configured auth channels.",
                     "Lower min-approvals-required or enable additional channels.",
@@ -334,48 +552,41 @@ public class PrimaryAgentConfigRequirementsService {
 
         if (auth.webUi() && !config.landingEnabled()) {
             return item(
-                    "coins.bitcoin.auth.web-ui",
+                    "coins." + coinId + ".auth.web-ui",
                     CHECK_INVALID,
-                    "Bitcoin auth enables web-ui but web-ui is disabled globally.",
-                    "Enable [web-ui].enabled or disable [coins.bitcoin.auth].web-ui.",
+                    coinLabel + " auth enables web-ui but web-ui is disabled globally.",
+                    "Enable [web-ui].enabled or disable [coins." + coinId + ".auth].web-ui.",
                     true
             );
         }
 
         if (auth.restApi() && !config.restApiEnabled()) {
             return item(
-                    "coins.bitcoin.auth.rest-api",
+                    "coins." + coinId + ".auth.rest-api",
                     CHECK_INVALID,
-                    "Bitcoin auth enables rest-api but rest-api is disabled globally.",
-                    "Enable [rest-api].enabled or disable [coins.bitcoin.auth].rest-api.",
+                    coinLabel + " auth enables rest-api but rest-api is disabled globally.",
+                    "Enable [rest-api].enabled or disable [coins." + coinId + ".auth].rest-api.",
                     true
             );
         }
 
         if (auth.telegram() && !config.telegramEnabled()) {
             return item(
-                    "coins.bitcoin.auth.telegram",
+                    "coins." + coinId + ".auth.telegram",
                     CHECK_INVALID,
-                    "Bitcoin auth enables telegram but telegram is disabled globally.",
-                    "Enable [telegram].enabled or disable [coins.bitcoin.auth].telegram.",
+                    coinLabel + " auth enables telegram but telegram is disabled globally.",
+                    "Enable [telegram].enabled or disable [coins." + coinId + ".auth].telegram.",
                     true
             );
         }
 
         return item(
-                "coins.bitcoin.auth",
+                "coins." + coinId + ".auth",
                 CHECK_OK,
-                "Bitcoin auth channel configuration is coherent.",
+                coinLabel + " auth channel configuration is coherent.",
                 "",
                 true
         );
-    }
-
-    private static String normalizeCoin(String coin) {
-        if (coin == null || coin.isBlank()) {
-            return "bitcoin";
-        }
-        return coin.trim().toLowerCase(Locale.ROOT);
     }
 
     private static RequirementItem item(String key, String status, String message, String hint, boolean blocking) {

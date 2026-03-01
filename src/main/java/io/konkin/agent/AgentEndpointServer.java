@@ -374,8 +374,20 @@ public class AgentEndpointServer {
             throw new IllegalStateException("Driver runtime config requirements service is not configured.");
         }
 
-        String coin = ctx.queryParam("coin");
-        ctx.json(primaryConfigRequirementsService.evaluate(coin));
+        String coin = optionalTrim(ctx.queryParam("coin"));
+        var response = primaryConfigRequirementsService.evaluate(coin);
+
+        if (coin == null && "NOT_READY".equalsIgnoreCase(response.status())) {
+            ctx.status(HttpStatus.SERVICE_UNAVAILABLE);
+            ctx.json(Map.of(
+                    "error", "server_not_ready",
+                    "message", response.message(),
+                    "readiness", response
+            ));
+            return;
+        }
+
+        ctx.json(response);
     }
 
     private void handleSendCoinAction(io.javalin.http.Context ctx) {
