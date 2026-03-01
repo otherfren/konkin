@@ -16,8 +16,8 @@ import io.konkin.api.HealthController;
 import io.konkin.api.KvStoreController;
 import io.konkin.api.RequestChannelController;
 import io.konkin.api.StateTransitionController;
-import io.konkin.agent.AgentEndpointServer;
 import io.konkin.agent.AgentTokenStore;
+import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
@@ -64,7 +64,7 @@ public class KonkinWebServer {
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
     private boolean running;
-    private final List<AgentEndpointServer> agentEndpoints = new ArrayList<>();
+    private final List<McpAgentServer> agentEndpoints = new ArrayList<>();
     private AuthQueueStore authQueueStore;
 
     public void start() {
@@ -374,7 +374,7 @@ public class KonkinWebServer {
 
         KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();
         if (primaryAgent != null && primaryAgent.enabled()) {
-            AgentEndpointServer endpoint = new AgentEndpointServer(
+            McpAgentServer endpoint = new McpAgentServer(
                     "konkin-primary",
                     "driver",
                     primaryAgent,
@@ -383,9 +383,13 @@ public class KonkinWebServer {
                     authQueueStore,
                     config
             );
-            endpoint.start();
+            try {
+                endpoint.start();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to start driver MCP agent server", e);
+            }
             agentEndpoints.add(endpoint);
-            log.info("Agent endpoint started — name={}, type={}, bind={}, port={}",
+            log.info("MCP agent endpoint started — name={}, type={}, bind={}, port={}",
                     endpoint.agentName(), endpoint.agentType(), endpoint.bind(), endpoint.port());
         }
 
@@ -395,7 +399,7 @@ public class KonkinWebServer {
                 continue;
             }
 
-            AgentEndpointServer endpoint = new AgentEndpointServer(
+            McpAgentServer endpoint = new McpAgentServer(
                     entry.getKey(),
                     "auth",
                     secondaryAgent,
@@ -404,9 +408,13 @@ public class KonkinWebServer {
                     authQueueStore,
                     config
             );
-            endpoint.start();
+            try {
+                endpoint.start();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to start auth MCP agent server: " + entry.getKey(), e);
+            }
             agentEndpoints.add(endpoint);
-            log.info("Agent endpoint started — name={}, type={}, bind={}, port={}",
+            log.info("MCP agent endpoint started — name={}, type={}, bind={}, port={}",
                     endpoint.agentName(), endpoint.agentType(), endpoint.bind(), endpoint.port());
         }
     }
@@ -416,11 +424,11 @@ public class KonkinWebServer {
             return;
         }
 
-        for (AgentEndpointServer endpoint : agentEndpoints) {
+        for (McpAgentServer endpoint : agentEndpoints) {
             try {
                 endpoint.stop();
             } catch (RuntimeException e) {
-                log.warn("Failed to stop agent endpoint '{}' cleanly", endpoint.agentName(), e);
+                log.warn("Failed to stop MCP agent endpoint '{}' cleanly", endpoint.agentName(), e);
             }
         }
         agentEndpoints.clear();

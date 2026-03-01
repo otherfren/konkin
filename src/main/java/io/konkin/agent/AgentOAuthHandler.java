@@ -102,6 +102,10 @@ public class AgentOAuthHandler {
         }
     }
 
+    public boolean validateCredentials(String clientId, String clientSecret) {
+        return expectedClientId.equals(clientId) && expectedClientSecret.equals(clientSecret);
+    }
+
     private String normalize(String value) {
         return value == null ? "" : value.trim();
     }
