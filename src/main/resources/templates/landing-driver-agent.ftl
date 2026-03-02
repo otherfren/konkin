@@ -129,7 +129,7 @@
                 </div>
                 <div class="auth-kv-item">
                     <span class="auth-kv-label">Skill instructions</span>
-                    <span class="mono auth-kv-value">${mcpRegistration.skillPath!'-'}</span>
+                    <span class="mono auth-kv-value"><a target="_blank" href="https://konkin.io/${mcpRegistration.skillPath!'-'}">${mcpRegistration.skillPath!'-'}</a></span>
                 </div>
             </div>
 
@@ -139,11 +139,11 @@
                     <pre class="driver-command"><code>${(mcpRegistration.tokenCommand!'-')?html}</code></pre>
                 </div>
                 <div class="driver-command-block">
-                    <span class="auth-kv-label">2) Register MCP server</span>
+                    <span class="auth-kv-label">2) Register MCP server (TODO input select for other agents than claude)</span>
                     <pre class="driver-command"><code>${(mcpRegistration.registerCommand!'-')?html}</code></pre>
                 </div>
                 <div class="driver-command-block">
-                    <span class="auth-kv-label">3) Verify registration</span>
+                    <span class="auth-kv-label">3) Verify registration (TODO input select for other agents than claude)</span>
                     <pre class="driver-command"><code>${(mcpRegistration.verifyCommand!'-')?html}</code></pre>
                 </div>
             <#else>

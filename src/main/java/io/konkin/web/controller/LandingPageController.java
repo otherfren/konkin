@@ -1338,7 +1338,7 @@ public class LandingPageController {
         String registerCommand = enabled && !"-".equals(sseEndpoint)
                 ? """
                 claude mcp add --transport sse \\
-                  -H \"Authorization: Bearer YOUR_ACCESS_TOKEN\" \\
+                  -H \"Authorization: Bearer YOUR_BEARER_TOKEN\" \\
                   -s project \\
                   konkin \"%s\"
                 """.strip().formatted(sseEndpoint)

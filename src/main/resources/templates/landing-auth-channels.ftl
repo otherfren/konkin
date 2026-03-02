@@ -102,7 +102,7 @@
                 ${telegramEnabled?string('enabled', 'disabled')}
             </span>
         </div>
-        <p class="driver-panel-copy auth-channels-copy">Names and usernames come from persisted <span class="mono">telegram.secret</span> metadata. Discovered chats can be approved directly from this panel.</p>
+        <p class="driver-panel-copy auth-channels-copy">Names and usernames come from secret file <span class="mono">telegram.secret</span>.</p>
 
         <#if !telegramEnabled>
             <p class="telegram-empty">Telegram is globally disabled.</p>
