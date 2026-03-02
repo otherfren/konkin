@@ -18,7 +18,7 @@ You submit send requests; humans (or auth agents) approve or deny them before an
 
 ## Authentication
 
-Authentication is handled by your MCP client configuration (the bearer token in your settings). You do not need to authenticate manually. If you get auth errors, tell the operator their token may have expired.
+Authentication is handled by your MCP client configuration (the bearer token in your settings). You do not need to authenticate manually. Tokens do not expire and survive server restarts (stored in the database). If you get auth errors, tell the operator to check their token or re-issue one via `/oauth/token`.
 
 ---
 

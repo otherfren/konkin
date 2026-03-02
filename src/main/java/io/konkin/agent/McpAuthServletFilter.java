@@ -98,7 +98,7 @@ public class McpAuthServletFilter implements Filter {
 
         String accessToken = tokenStore.issueToken(agentName);
         sendJson(response, HttpServletResponse.SC_OK,
-                Map.of("access_token", accessToken, "token_type", "Bearer", "expires_in", 3600));
+                Map.of("access_token", accessToken, "token_type", "Bearer", "expires_in", 0));
     }
 
     private synchronized boolean isRateLimited() {

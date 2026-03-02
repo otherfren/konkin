@@ -369,7 +369,7 @@ public class KonkinWebServer {
     }
 
     private void startAgentEndpoints() {
-        AgentTokenStore tokenStore = new AgentTokenStore();
+        AgentTokenStore tokenStore = new AgentTokenStore(dataSource);
         agentEndpoints.clear();
 
         KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();

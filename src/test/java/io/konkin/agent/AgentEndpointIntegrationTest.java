@@ -59,7 +59,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
             JsonNode json = JSON.readTree(response.body());
             assertFalse(json.path("access_token").asText().isBlank());
             assertEquals("Bearer", json.path("token_type").asText());
-            assertEquals(3600, json.path("expires_in").asInt());
+            assertEquals(0, json.path("expires_in").asInt());
         }
     }
 

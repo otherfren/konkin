@@ -79,7 +79,7 @@ curl -s -X POST "http://127.0.0.1:9550/oauth/token" \
   -d "client_secret=YOUR_SECRET"
 ```
 
-Copy the `access_token` from the JSON response. Tokens expire after 1 hour.
+Copy the `access_token` from the JSON response. Tokens do not expire and survive server restarts (persisted in H2). Max 2 active tokens per agent; issuing a 3rd evicts the oldest.
 
 ### 3. Add MCP server to Claude Code
 
@@ -113,7 +113,7 @@ That file contains everything the agent needs: what MCP primitives to call, in w
 
 | Problem                                 | Fix                                                                                    |
 |-----------------------------------------|----------------------------------------------------------------------------------------|
-| `401 Unauthorized`                      | Token expired. Re-run the `/oauth/token` curl and update your settings.                |
+| `401 Unauthorized` | Token invalid. Re-run the `/oauth/token` curl and update your settings. Tokens survive restarts but a 3rd issuance evicts the oldest. |
 | `NOT_READY` from readiness check        | Coins not enabled or secret files missing. Check `config.toml` and `./secrets/`.       |
 | MCP server not showing in Claude        | Verify `~/.claude/settings.json` is valid JSON. Restart Claude Code.                   |
 | `429 rate_limited`                      | Too many failed auth attempts. Wait 60s, retry with correct credentials.               |

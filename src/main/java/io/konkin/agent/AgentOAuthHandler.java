@@ -80,7 +80,7 @@ public class AgentOAuthHandler {
         ctx.json(Map.of(
                 "access_token", accessToken,
                 "token_type", "Bearer",
-                "expires_in", 3600
+                "expires_in", 0
         ));
     }
 
