@@ -170,8 +170,7 @@ public class McpAgentServer {
             }
             jettyServer = null;
         }
-
-        tokenStore.revokeAll();
+        // Tokens are persisted in H2 — do NOT revoke on shutdown so they survive restarts.
     }
 
     public McpSyncServer mcpSyncServer() {

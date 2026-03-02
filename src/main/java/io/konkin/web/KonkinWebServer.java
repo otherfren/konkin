@@ -369,6 +369,10 @@ public class KonkinWebServer {
     }
 
     private void startAgentEndpoints() {
+        if (dataSource == null) {
+            log.warn("No DataSource available — skipping agent endpoints");
+            return;
+        }
         AgentTokenStore tokenStore = new AgentTokenStore(dataSource);
         agentEndpoints.clear();
 
