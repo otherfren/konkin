@@ -1,5 +1,10 @@
 package io.konkin.web;
 
+import io.konkin.config.AgentConfig;
+import io.konkin.config.ApprovalCriteria;
+import io.konkin.config.ApprovalRule;
+import io.konkin.config.CoinAuthConfig;
+import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -404,7 +409,7 @@ public class LandingPageMapper {
     }
 
     private Map<String, Object> buildDriverAgentChannel() {
-        KonkinConfig.AgentConfig driverAgent = config.primaryAgent();
+        AgentConfig driverAgent = config.primaryAgent();
         if (driverAgent == null) {
             return Map.of(
                     "configured", false,
@@ -442,15 +447,15 @@ public class LandingPageMapper {
     // ── Auth agent channels ────────────────────────────────────────────────
 
     public List<Map<String, Object>> buildAuthAgentChannels() {
-        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config.secondaryAgents();
         if (authAgents == null || authAgents.isEmpty()) {
             return List.of();
         }
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : authAgents.entrySet()) {
+        for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
             String agentName = safe(entry.getKey());
-            KonkinConfig.AgentConfig agentConfig = entry.getValue();
+            AgentConfig agentConfig = entry.getValue();
 
             boolean enabled = agentConfig != null && agentConfig.enabled();
             String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
@@ -508,10 +513,10 @@ public class LandingPageMapper {
         telegram.put("enabled", config.telegramEnabled());
         channels.add(Map.copyOf(telegram));
 
-        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config.secondaryAgents();
         if (authAgents != null && !authAgents.isEmpty()) {
-            for (Map.Entry<String, KonkinConfig.AgentConfig> entry : authAgents.entrySet()) {
-                KonkinConfig.AgentConfig agentConfig = entry.getValue();
+            for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
+                AgentConfig agentConfig = entry.getValue();
                 if (agentConfig == null || !agentConfig.enabled()) {
                     continue;
                 }
@@ -528,9 +533,9 @@ public class LandingPageMapper {
 
     // ── Coin auth definition ───────────────────────────────────────────────
 
-    public Map<String, Object> buildCoinAuthDefinition(String coinId, KonkinConfig.CoinConfig coinConfig) {
+    public Map<String, Object> buildCoinAuthDefinition(String coinId, CoinConfig coinConfig) {
         Map<String, Object> coin = new LinkedHashMap<>();
-        KonkinConfig.CoinAuthConfig auth = coinConfig.auth();
+        CoinAuthConfig auth = coinConfig.auth();
 
         Map<String, Object> channels = new LinkedHashMap<>();
         channels.put("webUi", auth.webUi());
@@ -546,10 +551,10 @@ public class LandingPageMapper {
         }
 
         List<Map<String, Object>> verificationAgents = new ArrayList<>();
-        Map<String, KonkinConfig.AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config.secondaryAgents();
         for (String channelName : auth.mcpAuthChannels()) {
             String safeChannelName = safe(channelName);
-            KonkinConfig.AgentConfig agentConfig = authAgents.get(channelName);
+            AgentConfig agentConfig = authAgents.get(channelName);
 
             boolean enabled = agentConfig != null && agentConfig.enabled();
             String bind = agentConfig == null ? "unknown" : safe(agentConfig.bind());
@@ -587,15 +592,15 @@ public class LandingPageMapper {
 
     // ── Approval rules ─────────────────────────────────────────────────────
 
-    private List<Map<String, Object>> mapApprovalRules(List<KonkinConfig.ApprovalRule> rules) {
+    private List<Map<String, Object>> mapApprovalRules(List<ApprovalRule> rules) {
         List<Map<String, Object>> mappedRules = new ArrayList<>();
         if (rules == null || rules.isEmpty()) {
             return List.of();
         }
 
         int index = 1;
-        for (KonkinConfig.ApprovalRule rule : rules) {
-            KonkinConfig.ApprovalCriteria criteria = rule == null ? null : rule.criteria();
+        for (ApprovalRule rule : rules) {
+            ApprovalCriteria criteria = rule == null ? null : rule.criteria();
 
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("index", index++);

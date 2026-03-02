@@ -2,6 +2,8 @@ package io.konkin.agent.primary;
 
 import io.konkin.agent.mcp.entity.McpDataContracts.RequirementItem;
 import io.konkin.agent.mcp.entity.McpDataContracts.RuntimeConfigRequirementsResponse;
+import io.konkin.config.AgentConfig;
+import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.KonkinConfig;
 
 import java.io.IOException;
@@ -260,7 +262,7 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkPrimaryAgentEnabled() {
-        KonkinConfig.AgentConfig primary = config.primaryAgent();
+        AgentConfig primary = config.primaryAgent();
         if (primary == null || !primary.enabled()) {
             return item(
                     "agents.primary.enabled",
@@ -281,7 +283,7 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkPrimaryAgentEndpoint() {
-        KonkinConfig.AgentConfig primary = config.primaryAgent();
+        AgentConfig primary = config.primaryAgent();
         if (primary == null || !primary.enabled()) {
             return item(
                     "agents.primary.endpoint",
@@ -312,7 +314,7 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkPrimaryAgentSecretFile() {
-        KonkinConfig.AgentConfig primary = config.primaryAgent();
+        AgentConfig primary = config.primaryAgent();
         if (primary == null || !primary.enabled()) {
             return item(
                     "agents.primary.secret-file",
@@ -505,7 +507,7 @@ public class PrimaryAgentConfigRequirementsService {
         return checkCoinAuthCoherence("testdummycoin", config.testDummyCoin().auth(), "TestDummyCoin");
     }
 
-    private RequirementItem checkCoinAuthCoherence(String coinId, KonkinConfig.CoinAuthConfig auth, String coinLabel) {
+    private RequirementItem checkCoinAuthCoherence(String coinId, CoinAuthConfig auth, String coinLabel) {
         int configuredChannels = 0;
         if (auth.webUi()) {
             configuredChannels++;

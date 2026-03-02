@@ -19,6 +19,7 @@ import io.konkin.api.StateTransitionController;
 import io.konkin.agent.AgentTokenStore;
 import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
+import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.DebugDataSeeder;
@@ -401,7 +402,7 @@ public class KonkinWebServer {
         AgentTokenStore tokenStore = new AgentTokenStore(dataSource);
         agentEndpoints.clear();
 
-        KonkinConfig.AgentConfig primaryAgent = config.primaryAgent();
+        AgentConfig primaryAgent = config.primaryAgent();
         if (primaryAgent != null && primaryAgent.enabled()) {
             McpAgentServer endpoint = new McpAgentServer(
                     "konkin-primary",
@@ -422,8 +423,8 @@ public class KonkinWebServer {
                     endpoint.agentName(), endpoint.agentType(), endpoint.bind(), endpoint.port());
         }
 
-        for (Map.Entry<String, KonkinConfig.AgentConfig> entry : config.secondaryAgents().entrySet()) {
-            KonkinConfig.AgentConfig secondaryAgent = entry.getValue();
+        for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
+            AgentConfig secondaryAgent = entry.getValue();
             if (!secondaryAgent.enabled()) {
                 continue;
             }

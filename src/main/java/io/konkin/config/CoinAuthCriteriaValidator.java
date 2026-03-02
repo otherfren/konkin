@@ -13,7 +13,7 @@ public final class CoinAuthCriteriaValidator {
 
     public static void validateChannelAvailability(
             String coinName,
-            KonkinConfig.CoinAuthConfig auth,
+            CoinAuthConfig auth,
             boolean webUiEnabled,
             boolean restApiEnabled,
             boolean telegramEnabled
@@ -37,9 +37,9 @@ public final class CoinAuthCriteriaValidator {
         }
     }
 
-    public static void validateNoContradictions(String coinName, KonkinConfig.CoinAuthConfig auth) {
-        List<KonkinConfig.ApprovalRule> autoAccept = auth.autoAccept();
-        List<KonkinConfig.ApprovalRule> autoDeny = auth.autoDeny();
+    public static void validateNoContradictions(String coinName, CoinAuthConfig auth) {
+        List<ApprovalRule> autoAccept = auth.autoAccept();
+        List<ApprovalRule> autoDeny = auth.autoDeny();
 
         for (int acceptIndex = 0; acceptIndex < autoAccept.size(); acceptIndex++) {
             NormalizedCriteria accept = NormalizedCriteria.from(
@@ -75,7 +75,7 @@ public final class CoinAuthCriteriaValidator {
             Duration period,
             String sourcePath
     ) {
-        private static NormalizedCriteria from(KonkinConfig.ApprovalCriteria criteria, String sourcePath) {
+        private static NormalizedCriteria from(ApprovalCriteria criteria, String sourcePath) {
             return switch (criteria.type()) {
                 case VALUE_GT -> new NormalizedCriteria(
                         CriteriaDomain.VALUE,

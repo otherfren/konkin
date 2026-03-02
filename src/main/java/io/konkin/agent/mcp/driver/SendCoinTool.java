@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
+import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -67,7 +68,7 @@ public final class SendCoinTool {
                         "No coin runtime is enabled on this server. Enable at least one coin before calling send actions.");
             }
 
-            KonkinConfig.CoinConfig coinConfig = sendActionCoinConfig(runtimeConfig, coin);
+            CoinConfig coinConfig = sendActionCoinConfig(runtimeConfig, coin);
             if (coinConfig == null) {
                 return errorResult("unsupported_coin",
                         "Coin '" + coin + "' is not supported by this endpoint. Supported coins: bitcoin, testdummycoin.");
@@ -151,7 +152,7 @@ public final class SendCoinTool {
                 || config.testDummyCoin().enabled();
     }
 
-    private static KonkinConfig.CoinConfig sendActionCoinConfig(KonkinConfig config, String coin) {
+    private static CoinConfig sendActionCoinConfig(KonkinConfig config, String coin) {
         return switch (coin) {
             case "bitcoin" -> config.bitcoin();
             case "testdummycoin" -> config.testDummyCoin();

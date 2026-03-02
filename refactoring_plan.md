@@ -22,6 +22,8 @@ Der `LandingPageController` hat zu viele Verantwortlichkeiten: Request-Handling,
 - **TOML-Parsing kapseln:** Das Laden und Parsen der TOML-Struktur in eine `KonkinConfigLoader` Klasse verschieben, sodass `KonkinConfig` primär ein Datenhalter (POJO/Record) bleibt.
 - **Hilfsfunktionen für Parsing:** Methoden wie `parseDuration`, `parseHumanDurationOrNull`, `parseIntOrDefault` in eine `ConfigUtils` Klasse verschieben.
 
+die Tests müssen danach alle wieder laufen
+
 ## 3. AuthQueueStore (857 Zeilen)
 
 Der `AuthQueueStore` enthält alle Datenbankzugriffe für das Approval-System, inklusive komplexer Filter-Logik und Paging.

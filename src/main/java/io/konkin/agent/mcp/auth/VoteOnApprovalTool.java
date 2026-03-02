@@ -3,6 +3,7 @@ package io.konkin.agent.mcp.auth;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
 import io.konkin.db.entity.ApprovalChannelRow;
@@ -169,7 +170,7 @@ public final class VoteOnApprovalTool {
         };
     }
 
-    private static boolean isAgentAssigned(String agentName, KonkinConfig.CoinConfig coinConfig) {
+    private static boolean isAgentAssigned(String agentName, CoinConfig coinConfig) {
         if (coinConfig == null || coinConfig.auth() == null || !coinConfig.enabled()) return false;
         for (String channel : coinConfig.auth().mcpAuthChannels()) {
             if (channel != null && channel.equalsIgnoreCase(agentName)) return true;
