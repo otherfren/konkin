@@ -389,25 +389,99 @@ public class LandingPageMapper {
                 """.strip().formatted(tokenEndpoint)
                 : "-";
 
-        String registerCommand = enabled && !"-".equals(sseEndpoint)
-                ? """
-                claude mcp add --transport sse \\
-                  -H "Authorization: Bearer YOUR_BEARER_TOKEN" \\
-                  -s project \\
-                  konkin "%s"
-                """.strip().formatted(sseEndpoint)
-                : "-";
-
         Map<String, Object> mcpRegistration = new LinkedHashMap<>();
         mcpRegistration.put("configured", configured);
         mcpRegistration.put("enabled", enabled);
         mcpRegistration.put("sseEndpoint", sseEndpoint);
         mcpRegistration.put("tokenEndpoint", tokenEndpoint);
-        mcpRegistration.put("registerCommand", registerCommand);
+        mcpRegistration.put("agentCommands", buildAgentCommands(enabled, sseEndpoint));
         mcpRegistration.put("tokenCommand", tokenCommand);
-        mcpRegistration.put("verifyCommand", "claude mcp list");
         mcpRegistration.put("skillPath", "documents/SKILL-driver-agent.md");
         return Map.copyOf(mcpRegistration);
+    }
+
+    private List<Map<String, Object>> buildAgentCommands(boolean enabled, String sseEndpoint) {
+        if (!enabled || "-".equals(sseEndpoint)) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> agents = new ArrayList<>();
+
+        Map<String, Object> claudeCode = new LinkedHashMap<>();
+        claudeCode.put("id", "claude-code");
+        claudeCode.put("label", "Claude Code");
+        claudeCode.put("registerCommand", """
+                claude mcp add --transport sse \\
+                  -H "Authorization: Bearer YOUR_BEARER_TOKEN" \\
+                  -s project \\
+                  konkin "%s"\
+                """.strip().formatted(sseEndpoint));
+        claudeCode.put("verifyCommand", "claude mcp list");
+        agents.add(Map.copyOf(claudeCode));
+
+        Map<String, Object> claudeDesktop = new LinkedHashMap<>();
+        claudeDesktop.put("id", "claude-desktop");
+        claudeDesktop.put("label", "Claude Desktop");
+        claudeDesktop.put("registerCommand", """
+                Add to claude_desktop_config.json:
+                  macOS  ~/Library/Application Support/Claude/
+                  Win    %%APPDATA%%\\Claude\\
+
+                {
+                  "mcpServers": {
+                    "konkin": {
+                      "url": "%s",
+                      "headers": {
+                        "Authorization": "Bearer YOUR_BEARER_TOKEN"
+                      }
+                    }
+                  }
+                }\
+                """.strip().formatted(sseEndpoint));
+        claudeDesktop.put("verifyCommand", "Restart Claude Desktop, check MCP server icon");
+        agents.add(Map.copyOf(claudeDesktop));
+
+        Map<String, Object> cursor = new LinkedHashMap<>();
+        cursor.put("id", "cursor");
+        cursor.put("label", "Cursor");
+        cursor.put("registerCommand", """
+                Add to .cursor/mcp.json in your project root:
+
+                {
+                  "mcpServers": {
+                    "konkin": {
+                      "url": "%s",
+                      "headers": {
+                        "Authorization": "Bearer YOUR_BEARER_TOKEN"
+                      }
+                    }
+                  }
+                }\
+                """.strip().formatted(sseEndpoint));
+        cursor.put("verifyCommand", "Open Cursor Settings > MCP, check konkin status");
+        agents.add(Map.copyOf(cursor));
+
+        Map<String, Object> windsurf = new LinkedHashMap<>();
+        windsurf.put("id", "windsurf");
+        windsurf.put("label", "Windsurf");
+        windsurf.put("registerCommand", """
+                Add to ~/.codeium/windsurf/mcp_config.json:
+
+                {
+                  "mcpServers": {
+                    "konkin": {
+                      "serverUrl": "%s",
+                      "headers": {
+                        "Authorization": "Bearer YOUR_BEARER_TOKEN"
+                      }
+                    }
+                  }
+                }\
+                """.strip().formatted(sseEndpoint));
+        windsurf.put("verifyCommand", "Check Windsurf Cascade panel for MCP tools");
+        agents.add(Map.copyOf(windsurf));
+
+        return List.copyOf(agents);
     }
 
     private Map<String, Object> buildDriverAgentChannel() {

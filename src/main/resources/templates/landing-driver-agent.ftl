@@ -138,14 +138,43 @@
                     <span class="auth-kv-label">1) Get bearer token</span>
                     <pre class="driver-command"><code>${(mcpRegistration.tokenCommand!'-')?html}</code></pre>
                 </div>
-                <div class="driver-command-block">
-                    <span class="auth-kv-label">2) Register MCP server (TODO input select for other agents than claude)</span>
-                    <pre class="driver-command"><code>${(mcpRegistration.registerCommand!'-')?html}</code></pre>
-                </div>
-                <div class="driver-command-block">
-                    <span class="auth-kv-label">3) Verify registration (TODO input select for other agents than claude)</span>
-                    <pre class="driver-command"><code>${(mcpRegistration.verifyCommand!'-')?html}</code></pre>
-                </div>
+                <#assign agentCommands = mcpRegistration.agentCommands![]>
+                <#if agentCommands?has_content>
+                    <div class="driver-command-block">
+                        <div class="driver-agent-select-row">
+                            <span class="auth-kv-label">Agent</span>
+                            <select id="driver-agent-select" class="driver-agent-select" aria-label="Select agent">
+                                <#list agentCommands as agent>
+                                    <option value="${agent.id?html}">${agent.label?html}</option>
+                                </#list>
+                            </select>
+                        </div>
+                    </div>
+                    <#list agentCommands as agent>
+                        <div class="driver-agent-commands" data-agent-id="${agent.id?html}"<#if !agent?is_first> style="display:none"</#if>>
+                            <div class="driver-command-block">
+                                <span class="auth-kv-label">2) Register MCP server</span>
+                                <pre class="driver-command"><code>${(agent.registerCommand!'-')?html}</code></pre>
+                            </div>
+                            <div class="driver-command-block">
+                                <span class="auth-kv-label">3) Verify registration</span>
+                                <pre class="driver-command"><code>${(agent.verifyCommand!'-')?html}</code></pre>
+                            </div>
+                        </div>
+                    </#list>
+                    <script>
+                        (function() {
+                            var sel = document.getElementById('driver-agent-select');
+                            if (!sel) return;
+                            sel.addEventListener('change', function() {
+                                var blocks = document.querySelectorAll('.driver-agent-commands');
+                                for (var i = 0; i < blocks.length; i++) {
+                                    blocks[i].style.display = blocks[i].getAttribute('data-agent-id') === sel.value ? '' : 'none';
+                                }
+                            });
+                        })();
+                    </script>
+                </#if>
             <#else>
                 <p class="telegram-empty">Enable the driver agent to render ready-to-run token and MCP registration commands.</p>
             </#if>

@@ -1388,6 +1388,28 @@ p {
     line-height: 1.5;
 }
 
+.driver-agent-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.driver-agent-select {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.82rem;
+    padding: 5px 10px;
+    border: 1px solid rgba(58, 66, 86, 0.9);
+    border-radius: 8px;
+    background: rgba(12, 15, 20, 0.78);
+    color: #dbe4ff;
+    cursor: pointer;
+    outline: none;
+}
+
+.driver-agent-select:focus {
+    border-color: var(--accent);
+}
+
 .driver-command-block {
     margin-top: 10px;
 }

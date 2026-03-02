@@ -28,7 +28,6 @@
         <jackson.version>2.21.1</jackson.version>
         <freemarker.version>2.3.34</freemarker.version>
         <jdbi.version>3.51.0</jdbi.version>
-        <btc-rpc-client.version>master-SNAPSHOT</btc-rpc-client.version>
         <jsonrpc4j.version>1.5.3</jsonrpc4j.version>
         <jackson-jsr310.version>2.21.1</jackson-jsr310.version>
         <mcp.version>1.0.0</mcp.version>
@@ -142,6 +141,14 @@
             <scope>compile</scope>
         </dependency>
 
+        <!-- Source: https://mvnrepository.com/artifact/com.msgilligan/cj-btc-jsonrpc -->
+        <dependency>
+            <groupId>com.msgilligan</groupId>
+            <artifactId>cj-btc-jsonrpc</artifactId>
+            <version>0.7.0-alpha3</version>
+            <scope>compile</scope>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -210,6 +217,10 @@
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
+        </repository>
+        <repository>
+            <id>consensusj-gitlab-maven</id>
+            <url>https://gitlab.com/api/v4/projects/8482916/packages/maven</url>
         </repository>
     </repositories>
 
