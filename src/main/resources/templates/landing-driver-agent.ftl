@@ -38,6 +38,8 @@
     <p class="auth-channels-subtitle">Runtime overview of the driver agent endpoint that initiates wallet requests and queues them.</p>
 
     <#assign driverAgentEndpoint = (driverAgent.driverAgent!{})>
+    <#assign authMethod = (driverAgent.authMethod!{})>
+    <#assign mcpRegistration = (driverAgent.mcpRegistration!{})>
 
     <section class="auth-card" aria-labelledby="driver-agent-title">
         <div class="auth-card-header">
@@ -58,12 +60,13 @@
                 <thead>
                 <tr>
                     <th>Agent</th>
-                    <th>Agent Type</th>
+                    <th>Role</th>
                     <th>Status</th>
                     <th>Bind</th>
                     <th>Port</th>
-                    <th>Health</th>
-                    <th>OAuth Token</th>
+                    <th>Health Endpoint</th>
+                    <th>OAuth Token Endpoint</th>
+                    <th>MCP SSE Endpoint</th>
                     <th>Secret File</th>
                 </tr>
                 </thead>
@@ -80,12 +83,74 @@
                     <td class="mono">${driverAgentEndpoint.port!'-'}</td>
                     <td class="mono">${driverAgentEndpoint.healthPath!'-'}</td>
                     <td class="mono">${driverAgentEndpoint.oauthTokenPath!'-'}</td>
+                    <td class="mono">${driverAgentEndpoint.ssePath!'-'}</td>
                     <td class="mono">${driverAgentEndpoint.secretFile!'-'}</td>
                 </tr>
                 </tbody>
             </table>
         </#if>
     </section>
+
+    <div class="driver-panels-grid">
+        <section class="auth-overview-panel" aria-labelledby="driver-auth-method-title">
+            <h3 id="driver-auth-method-title" class="auth-section-title">Auth Method</h3>
+            <p class="driver-panel-copy">Driver agent authentication uses OAuth 2.0 client credentials. This aligns with the README credential and bearer-token flow.</p>
+            <div class="auth-kv-grid">
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Method</span>
+                    <span class="mono auth-kv-value">${authMethod.method!'-'}</span>
+                </div>
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Client ID</span>
+                    <span class="mono auth-kv-value">${authMethod.clientId!'-'}</span>
+                </div>
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Token endpoint</span>
+                    <span class="mono auth-kv-value">${authMethod.tokenEndpoint!'-'}</span>
+                </div>
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Authorization header</span>
+                    <span class="mono auth-kv-value">${authMethod.authorizationHeader!'-'}</span>
+                </div>
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Secret file</span>
+                    <span class="mono auth-kv-value">${authMethod.secretFile!'-'}</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="auth-overview-panel" aria-labelledby="driver-mcp-registration-title">
+            <h3 id="driver-mcp-registration-title" class="auth-section-title">MCP Registration</h3>
+            <p class="driver-panel-copy">README flow: issue bearer token, register SSE endpoint in Claude Code, then load the driver skill instructions.</p>
+            <div class="auth-kv-grid">
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">SSE endpoint</span>
+                    <span class="mono auth-kv-value">${mcpRegistration.sseEndpoint!'-'}</span>
+                </div>
+                <div class="auth-kv-item">
+                    <span class="auth-kv-label">Skill instructions</span>
+                    <span class="mono auth-kv-value">${mcpRegistration.skillPath!'-'}</span>
+                </div>
+            </div>
+
+            <#if (mcpRegistration.enabled!false)>
+                <div class="driver-command-block">
+                    <span class="auth-kv-label">1) Get bearer token</span>
+                    <pre class="driver-command"><code>${(mcpRegistration.tokenCommand!'-')?html}</code></pre>
+                </div>
+                <div class="driver-command-block">
+                    <span class="auth-kv-label">2) Register MCP server</span>
+                    <pre class="driver-command"><code>${(mcpRegistration.registerCommand!'-')?html}</code></pre>
+                </div>
+                <div class="driver-command-block">
+                    <span class="auth-kv-label">3) Verify registration</span>
+                    <pre class="driver-command"><code>${(mcpRegistration.verifyCommand!'-')?html}</code></pre>
+                </div>
+            <#else>
+                <p class="telegram-empty">Enable the driver agent to render ready-to-run token and MCP registration commands.</p>
+            </#if>
+        </section>
+    </div>
 </div></main>
 
 <footer class="site-footer">

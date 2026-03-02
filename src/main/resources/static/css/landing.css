@@ -346,6 +346,22 @@ body {
     background: rgba(247, 147, 26, 0.08);
 }
 
+.queue-action-cancel {
+    border-color: #2f3a49;
+    color: #d2d7e1;
+}
+
+.queue-action-cancel:hover {
+    color: #ffffff;
+    border-color: #52637b;
+    background: rgba(44, 56, 74, 0.35);
+}
+
+.queue-decision-form,
+.queue-confirm-inline-form {
+    margin: 0;
+}
+
 .empty-row {
     text-align: center;
     color: var(--muted);
@@ -570,6 +586,104 @@ p {
     border: 1px solid #6b2a2a;
     background: #341515;
     color: #ffb0b0;
+}
+
+.queue-notice {
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.queue-notice-success {
+    border: 1px solid rgba(74, 222, 128, 0.2);
+    background: rgba(74, 222, 128, 0.08);
+    color: #8ef0b1;
+}
+
+.queue-notice-error {
+    border: 1px solid #6b2a2a;
+    background: #341515;
+    color: #ffb0b0;
+}
+
+.queue-confirm-panel {
+    margin: 0 0 14px;
+    padding: 12px;
+    border: 1px solid rgba(247, 147, 26, 0.3);
+    border-radius: 10px;
+    background: rgba(247, 147, 26, 0.06);
+}
+
+.queue-confirm-title {
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.86rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #f7b460;
+    font-weight: 400;
+}
+
+.queue-confirm-copy {
+    margin: 8px 0 0;
+    color: #dbe2f1;
+    font-size: 0.92rem;
+}
+
+.queue-confirm-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.queue-confirm-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.66);
+}
+
+.queue-confirm-modal.is-open {
+    display: flex;
+}
+
+.queue-confirm-modal-card {
+    width: min(420px, 100%);
+    border: 1px solid rgba(247, 147, 26, 0.35);
+    border-radius: 12px;
+    background: #0f1115;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    padding: 16px;
+}
+
+.queue-confirm-modal-title {
+    margin: 0;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.86rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #f7b460;
+    font-weight: 400;
+}
+
+.queue-confirm-modal-copy {
+    margin: 10px 0 0;
+    color: #dbe2f1;
+    font-size: 0.92rem;
+}
+
+.queue-confirm-modal-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 .telegram-content {
@@ -881,6 +995,30 @@ p {
 
 .auth-channel-secret-wrap .auth-secret-value {
     min-width: 42px;
+}
+
+.auth-channel-name {
+    font-weight: 500;
+    color: #e6ebff;
+}
+
+.auth-channel-action-note {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+}
+
+.auth-agent-hints {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.auth-channels-copy {
+    text-align: center;
 }
 
 .auth-overview-panel {
@@ -1207,6 +1345,41 @@ p {
     gap: 8px;
 }
 
+.driver-panels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.driver-panel-copy {
+    margin: 10px 0 0;
+    color: #d5dcff;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.driver-command-block {
+    margin-top: 10px;
+}
+
+.driver-command {
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(58, 66, 86, 0.9);
+    border-radius: 10px;
+    background: rgba(12, 15, 20, 0.78);
+    overflow-x: auto;
+}
+
+.driver-command code {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    color: #dbe4ff;
+    white-space: pre;
+}
+
 .site-footer {
     border-top: 1px solid var(--line);
     background: rgba(23, 26, 33, 0.95);
@@ -1429,6 +1602,10 @@ p {
         font-size: 0.8rem;
     }
 
+    .driver-panels-grid {
+        grid-template-columns: 1fr;
+    }
+
     .queue-action-btn {
         min-width: 72px;
         padding: 5px 8px;
@@ -1436,5 +1613,16 @@ p {
 
     .details-box {
         max-width: 82vw;
+    }
+
+    .queue-confirm-modal-actions {
+        width: 100%;
+        justify-content: stretch;
+        flex-direction: column-reverse;
+    }
+
+    .queue-confirm-modal-actions .queue-action-btn,
+    .queue-confirm-actions .queue-action-btn {
+        width: 100%;
     }
 }

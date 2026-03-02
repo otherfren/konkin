@@ -42,6 +42,42 @@
     <#assign qPageSize = (queuePage.pageSize!25)>
     <#assign qTotalRows = (queuePage.totalRows!0)>
     <#assign qTotalPages = (queuePage.totalPages!0)>
+    <#assign queueNotice = (queuePage.queueNotice!'')>
+    <#assign queueNoticeError = (queuePage.queueNoticeError!false)>
+    <#assign queueConfirmRequired = (queuePage.queueConfirmRequired!false)>
+    <#assign queueConfirmDecision = (queuePage.queueConfirmDecision!'approve')>
+    <#assign queueConfirmRequestId = (queuePage.queueConfirmRequestId!'')>
+    <#assign queueConfirmRequestIdShort = (queuePage.queueConfirmRequestIdShort!'-')>
+    <#assign queueConfirmActionPath = (queuePage.queueConfirmActionPath!'/queue/approve')>
+
+    <#if queueNotice?has_content>
+        <div class="queue-notice <#if queueNoticeError>queue-notice-error<#else>queue-notice-success</#if>">
+            ${queueNotice?html}
+        </div>
+    </#if>
+
+    <#if queueConfirmRequired>
+        <section class="queue-confirm-panel" aria-labelledby="queue-confirm-title">
+            <h3 id="queue-confirm-title" class="queue-confirm-title">Confirmation required</h3>
+            <p class="queue-confirm-copy">
+                Confirm <strong>${queueConfirmDecision?html}</strong> for request <span class="mono">${queueConfirmRequestIdShort?html}</span>.
+            </p>
+            <div class="queue-confirm-actions">
+                <form method="post" action="${queueConfirmActionPath}" class="queue-confirm-inline-form">
+                    <input type="hidden" name="request_id" value="${queueConfirmRequestId?html}">
+                    <input type="hidden" name="confirm" value="yes">
+                    <button
+                        type="submit"
+                        class="queue-action-btn <#if queueConfirmDecision == 'deny'>queue-action-deny<#else>queue-action-approve</#if>"
+                    >confirm ${queueConfirmDecision?html}</button>
+                </form>
+                <a
+                    href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${qPage}&queue_page_size=${qPageSize}"
+                    class="queue-action-btn queue-action-cancel"
+                >cancel</a>
+            </div>
+        </section>
+    </#if>
 
     <#macro queuePager extraClass="">
         <div class="pager${extraClass}">
@@ -120,10 +156,16 @@
                             <td class="mono queue-nowrap queue-small-text">${row.requestedAt!'-'}</td>
                             <td class="mono queue-nowrap queue-small-text">${row.expiresIn!'-'}</td>
                             <td class="action-cell">
-                                <button type="button" class="queue-action-btn queue-action-approve" disabled>approve</button>
+                                <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve">
+                                    <input type="hidden" name="request_id" value="${(row.id!'')?html}">
+                                    <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
+                                </form>
                             </td>
                             <td class="action-cell">
-                                <button type="button" class="queue-action-btn queue-action-deny" disabled>deny</button>
+                                <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny">
+                                    <input type="hidden" name="request_id" value="${(row.id!'')?html}">
+                                    <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
+                                </form>
                             </td>
                             <td class="action-cell details-cell">
                                 <a
@@ -140,6 +182,17 @@
         </table>
 
         <@queuePager />
+    </div>
+
+    <div id="queue-confirm-modal" class="queue-confirm-modal" hidden>
+        <div class="queue-confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="queue-confirm-modal-title">
+            <h3 id="queue-confirm-modal-title" class="queue-confirm-modal-title">Confirm queue decision</h3>
+            <p id="queue-confirm-modal-message" class="queue-confirm-modal-copy">Proceed with this action?</p>
+            <div class="queue-confirm-modal-actions">
+                <button type="button" id="queue-confirm-modal-cancel" class="queue-action-btn queue-action-cancel">cancel</button>
+                <button type="button" id="queue-confirm-modal-submit" class="queue-action-btn queue-action-approve">confirm</button>
+            </div>
+        </div>
     </div>
 </div></main>
 
@@ -232,6 +285,87 @@
             expandedRow = detailsRow;
             expandedTrigger = trigger;
             expandedTrigger.classList.add('is-open');
+        });
+    }
+
+    const decisionForms = document.querySelectorAll('.queue-decision-form[data-decision]');
+    const confirmModal = document.getElementById('queue-confirm-modal');
+    const confirmMessage = document.getElementById('queue-confirm-modal-message');
+    const confirmCancel = document.getElementById('queue-confirm-modal-cancel');
+    const confirmSubmit = document.getElementById('queue-confirm-modal-submit');
+    let pendingDecisionForm = null;
+
+    const closeConfirmModal = () => {
+        if (!confirmModal) {
+            return;
+        }
+        confirmModal.classList.remove('is-open');
+        confirmModal.hidden = true;
+        pendingDecisionForm = null;
+    };
+
+    const openConfirmModal = form => {
+        if (!confirmModal || !confirmMessage || !confirmSubmit) {
+            return;
+        }
+
+        pendingDecisionForm = form;
+        const decision = form.getAttribute('data-decision') === 'deny' ? 'deny' : 'approve';
+        const requestField = form.querySelector('input[name="request_id"]');
+        const requestId = requestField ? requestField.value.trim() : '';
+        const requestIdShort = requestId.length > 5 ? (requestId.slice(0, 5) + '...') : (requestId || 'unknown');
+
+        confirmMessage.textContent = 'Confirm ' + decision + ' for request ' + requestIdShort + '?';
+        confirmSubmit.textContent = decision === 'deny' ? 'confirm deny' : 'confirm approve';
+        confirmSubmit.classList.remove('queue-action-approve', 'queue-action-deny');
+        confirmSubmit.classList.add(decision === 'deny' ? 'queue-action-deny' : 'queue-action-approve');
+
+        confirmModal.hidden = false;
+        window.requestAnimationFrame(() => confirmModal.classList.add('is-open'));
+    };
+
+    if (confirmModal && confirmMessage && confirmCancel && confirmSubmit) {
+        for (const form of decisionForms) {
+            form.addEventListener('submit', event => {
+                if (form.dataset.confirmed === 'yes') {
+                    return;
+                }
+                event.preventDefault();
+                openConfirmModal(form);
+            });
+        }
+
+        confirmCancel.addEventListener('click', () => {
+            closeConfirmModal();
+        });
+
+        confirmModal.addEventListener('click', event => {
+            if (event.target === confirmModal) {
+                closeConfirmModal();
+            }
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && confirmModal.classList.contains('is-open')) {
+                closeConfirmModal();
+            }
+        });
+
+        confirmSubmit.addEventListener('click', () => {
+            if (!pendingDecisionForm) {
+                return;
+            }
+
+            let confirmInput = pendingDecisionForm.querySelector('input[name="confirm"]');
+            if (!confirmInput) {
+                confirmInput = document.createElement('input');
+                confirmInput.type = 'hidden';
+                confirmInput.name = 'confirm';
+                pendingDecisionForm.appendChild(confirmInput);
+            }
+            confirmInput.value = 'yes';
+            pendingDecisionForm.dataset.confirmed = 'yes';
+            pendingDecisionForm.submit();
         });
     }
 })();

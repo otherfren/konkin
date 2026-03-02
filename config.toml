@@ -43,17 +43,17 @@ bind = "127.0.0.1"
 port = 9550
 secret-file = "./secrets/agent-primary.secret"
 
-[agents.secondary.agent-default]
+[agents.secondary.agent-arthur]
 enabled = true
 bind = "127.0.0.1"
 port = 9560
-secret-file = "./secrets/agent-default.secret"
+secret-file = "./secrets/agent-arthur.secret"
 
-[agents.secondary.agent-backup]
+[agents.secondary.agent-merlin]
 enabled = true
 bind = "127.0.0.1"
 port = 9561
-secret-file = "./secrets/agent-backup.secret"
+secret-file = "./secrets/agent-merlin.secret"
 
 [debug]
 enabled = true
@@ -100,7 +100,7 @@ telegram = true
 mcp = "xmr-main"
 min-approvals-required = 2
 veto-channels = ["telegram"]
-mcp-auth-channels = ["agent-default", "agent-backup"]
+mcp-auth-channels = ["agent-arthur", "agent-merlin"]
 
 [[coins.monero.auth.auto-accept]]
 [coins.monero.auth.auto-accept.criteria]
@@ -121,7 +121,7 @@ web-ui = true
 rest-api = true
 telegram = true
 mcp = "tdc-main"
-mcp-auth-channels = ["agent-default"]
+mcp-auth-channels = ["agent-arthur"]
 min-approvals-required = 1
 
 [coins.bitcoin.secret-files]
@@ -134,9 +134,9 @@ web-ui = true
 rest-api = true
 telegram = true
 # MCP auth channel identifiers shown in Auth Definitions
-mcp-auth-channels = ["agent-default", "agent-backup"]
+mcp-auth-channels = ["agent-arthur", "agent-merlin"]
 min-approvals-required = 1
-veto-channels = ["telegram", "agent-default"]
+veto-channels = ["telegram", "agent-merlin"]
 
 [[coins.bitcoin.auth.auto-accept]]
 [coins.bitcoin.auth.auto-accept.criteria]

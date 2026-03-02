@@ -57,7 +57,7 @@ public class LandingPageService {
     }
 
     public String renderLanding(boolean showLogout, String activePage) {
-        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), List.of(), Map.of(), List.of(), Map.of(), List.of(), Map.of());
+        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), false, "", "", "-", "", List.of(), Map.of(), List.of(), Map.of(), List.of(), Map.of());
     }
 
     public String renderLanding(
@@ -68,6 +68,11 @@ public class LandingPageService {
             String telegramDraft,
             List<Map<String, String>> telegramChatRequests,
             List<Map<String, String>> telegramApprovedChats,
+            boolean telegramConfirmRequired,
+            String telegramConfirmMode,
+            String telegramConfirmChatId,
+            String telegramConfirmChatIdShort,
+            String telegramConfirmActionPath,
             List<Map<String, Object>> queueRows,
             Map<String, Object> queuePage,
             List<Map<String, Object>> auditRows,
@@ -94,6 +99,11 @@ public class LandingPageService {
         model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
         model.put("telegramChatRequests", telegramChatRequests == null ? List.of() : telegramChatRequests);
         model.put("telegramApprovedChats", telegramApprovedChats == null ? List.of() : telegramApprovedChats);
+        model.put("telegramConfirmRequired", telegramConfirmRequired);
+        model.put("telegramConfirmMode", telegramConfirmMode == null ? "" : telegramConfirmMode);
+        model.put("telegramConfirmChatId", telegramConfirmChatId == null ? "" : telegramConfirmChatId);
+        model.put("telegramConfirmChatIdShort", telegramConfirmChatIdShort == null ? "-" : telegramConfirmChatIdShort);
+        model.put("telegramConfirmActionPath", telegramConfirmActionPath == null ? "" : telegramConfirmActionPath);
         model.put("queueRows", queueRows == null ? List.of() : queueRows);
         model.put("queuePage", queuePage == null ? Map.of() : queuePage);
         model.put("auditRows", auditRows == null ? List.of() : auditRows);

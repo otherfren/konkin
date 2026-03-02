@@ -237,6 +237,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, driverAgentPage.statusCode());
             assertTrue(driverAgentPage.body().contains("Driver Agent"));
             assertTrue(driverAgentPage.body().contains("Driver Agent Endpoint"));
+            assertTrue(driverAgentPage.body().contains("Auth Method"));
+            assertTrue(driverAgentPage.body().contains("MCP Registration"));
+            assertTrue(driverAgentPage.body().contains("No driver agent configured."));
+            assertTrue(driverAgentPage.body().contains("Enable the driver agent to render ready-to-run token and MCP registration commands."));
 
             HttpResponse<String> coinsPage = get(runningServer, "/coins", Map.of());
             assertEquals(404, coinsPage.statusCode());
@@ -1283,7 +1287,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authChannels.body().contains(">***<"));
             assertTrue(authChannels.body().contains("aria-label=\"Reveal Telegram identifier\""));
             assertTrue(authChannels.body().contains("approved"));
-            assertFalse(authChannels.body().contains("<th>Type</th>"));
+            assertTrue(authChannels.body().contains("<th>Type</th>"));
+            assertTrue(authChannels.body().contains("<th>Name</th>"));
+            assertTrue(authChannels.body().contains("<th>Action</th>"));
+            assertTrue(authChannels.body().contains("<th>Auth Channel ID</th>"));
+            assertTrue(authChannels.body().contains("managed in /telegram"));
+            assertTrue(authChannels.body().contains("verification-agent:agent-a"));
+            assertTrue(authChannels.body().contains("telegram.secret"));
+            assertTrue(authChannels.body().contains("mcp-auth-channels"));
+            assertTrue(authChannels.body().contains("Reference format"));
+            assertTrue(authChannels.body().contains("Runtime checks"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/health"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/oauth/token"));
 
@@ -1291,9 +1304,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, driverAgent.statusCode());
             assertTrue(driverAgent.body().contains("Driver Agent"));
             assertTrue(driverAgent.body().contains("Driver Agent Endpoint"));
+            assertTrue(driverAgent.body().contains("Auth Method"));
+            assertTrue(driverAgent.body().contains("MCP Registration"));
             assertTrue(driverAgent.body().contains("<span class=\"menu-active\">driver agent</span>"));
             assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/health"));
             assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/oauth/token"));
+            assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/sse"));
+            assertTrue(driverAgent.body().contains("konkin-primary"));
+            assertTrue(driverAgent.body().contains("claude mcp add --transport sse"));
+            assertTrue(driverAgent.body().contains("claude mcp list"));
+            assertTrue(driverAgent.body().contains("documents/SKILL-driver-agent.md"));
         }
     }
 

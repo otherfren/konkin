@@ -102,6 +102,7 @@
                 ${telegramEnabled?string('enabled', 'disabled')}
             </span>
         </div>
+        <p class="driver-panel-copy auth-channels-copy">Names and usernames come from persisted <span class="mono">telegram.secret</span> metadata. Discovered chats can be approved directly from this panel.</p>
 
         <#if !telegramEnabled>
             <p class="telegram-empty">Telegram is globally disabled.</p>
@@ -112,8 +113,11 @@
                 <thead>
                 <tr>
                     <th>Status</th>
+                    <th>Name</th>
+                    <th>Type</th>
                     <th>Chat ID</th>
                     <th>Username</th>
+                    <th>Action</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -124,6 +128,8 @@
                                 <#if (user.approved!false)>approved<#else>discovered</#if>
                             </span>
                         </td>
+                        <td><span class="auth-channel-name">${(user.chatDisplayName!'-')?html}</span></td>
+                        <td>${(user.chatType!'unknown')?html}</td>
                         <td>
                             <span class="auth-channel-secret-wrap">
                                 <span class="mono auth-secret-value" data-secret-value="${(user.chatId!'-')?html}" data-masked="true">***</span>
@@ -154,6 +160,22 @@
                                 <span class="mono">-</span>
                             </#if>
                         </td>
+                        <td class="action-cell">
+                            <#if (user.canApprove!false)>
+                                <form method="post" action="/telegram/approve" class="telegram-inline-form">
+                                    <input type="hidden" name="chat_id" value="${(user.chatId!'-')?html}">
+                                    <input type="hidden" name="chat_type" value="${(user.chatType!'')?html}">
+                                    <input type="hidden" name="chat_title" value="${(user.chatTitle!'')?html}">
+                                    <input type="hidden" name="chat_username" value="${(user.chatUsername!'')?html}">
+                                    <input type="hidden" name="source_page" value="auth_channels">
+                                    <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
+                                </form>
+                            <#elseif (user.approved!false)>
+                                <span class="auth-channel-action-note">managed in /telegram</span>
+                            <#else>
+                                <span class="mono">-</span>
+                            </#if>
+                        </td>
                     </tr>
                 </#list>
                 </tbody>
@@ -168,6 +190,7 @@
                 ${authAgents?size} configured
             </span>
         </div>
+        <p class="driver-panel-copy auth-channels-copy">Each enabled secondary agent exposes an auth endpoint and contributes a channel id. Use these channel ids in coin auth settings via <span class="mono">mcp-auth-channels</span>.</p>
 
         <#if authAgents?size == 0>
             <p class="telegram-empty">No auth agent channels configured.</p>
@@ -176,11 +199,12 @@
                 <thead>
                 <tr>
                     <th>Agent</th>
+                    <th>Auth Channel ID</th>
                     <th>Status</th>
                     <th>Bind</th>
                     <th>Port</th>
-                    <th>Health</th>
-                    <th>OAuth Token</th>
+                    <th>Health Endpoint</th>
+                    <th>OAuth Token Endpoint</th>
                     <th>Secret File</th>
                 </tr>
                 </thead>
@@ -188,6 +212,7 @@
                 <#list authAgents as agent>
                     <tr>
                         <td class="mono">${agent.name!'-'}</td>
+                        <td class="mono">${agent.authChannelId!'-'}</td>
                         <td>
                             <span class="auth-channel-status <#if (agent.enabled!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
                                 ${(agent.enabled!false)?string('enabled', 'disabled')}
@@ -202,6 +227,17 @@
                 </#list>
                 </tbody>
             </table>
+
+            <div class="auth-agent-hints">
+                <section class="auth-overview-panel" aria-labelledby="auth-agent-reference-title">
+                    <h3 id="auth-agent-reference-title" class="auth-section-title">Reference format</h3>
+                    <p class="driver-panel-copy">Auth channel ids use <span class="mono">verification-agent:<agent-name></span> and map directly to each configured secondary agent.</p>
+                </section>
+                <section class="auth-overview-panel" aria-labelledby="auth-agent-runtime-title">
+                    <h3 id="auth-agent-runtime-title" class="auth-section-title">Runtime checks</h3>
+                    <p class="driver-panel-copy">Use <span class="mono">/health</span> for liveness and <span class="mono">/oauth/token</span> to issue bearer tokens consumed by MCP auth tools.</p>
+                </section>
+            </div>
         </#if>
     </section>
 </div></main>

@@ -61,6 +61,12 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> telegramSubmit = postForm(server, "/telegram/send", "telegram_message=hello", Map.of());
             assertEquals(404, telegramSubmit.statusCode());
 
+            HttpResponse<String> telegramUnapprove = postForm(server, "/telegram/unapprove", "chat_id=-100123456789&confirm=yes", Map.of());
+            assertEquals(404, telegramUnapprove.statusCode());
+
+            HttpResponse<String> telegramReset = postForm(server, "/telegram/reset", "confirm=yes", Map.of());
+            assertEquals(404, telegramReset.statusCode());
+
             HttpResponse<String> staticAsset = get(server, "/assets/img/bitcoin.svg", Map.of());
             assertEquals(200, staticAsset.statusCode());
             assertTrue(staticAsset.body().contains("<svg"));
@@ -250,6 +256,103 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
+    void queueDecisionPostRequiresExplicitConfirmationBeforePersistingVote() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+            String requestId = "req-queue-confirm-11111";
+            insertApprovalRequest(dataSource, requestId, "nonce-queue-confirm", "PENDING");
+
+            HttpResponse<String> initialDecision = postForm(
+                    server,
+                    "/queue/approve",
+                    "request_id=" + requestId,
+                    Map.of()
+            );
+            assertEquals(200, initialDecision.statusCode());
+            assertTrue(initialDecision.body().contains("queue-confirm-panel"));
+            assertTrue(initialDecision.body().contains("confirm approve"));
+
+            assertEquals(0, countVotesForRequest(dataSource, requestId));
+            assertEquals("PENDING", stateForRequest(dataSource, requestId));
+            assertEquals(0, countTransitionsForRequest(dataSource, requestId));
+
+            HttpResponse<String> confirmedDecision = postForm(
+                    server,
+                    "/queue/approve",
+                    "request_id=" + requestId + "&confirm=yes",
+                    Map.of()
+            );
+            assertEquals(200, confirmedDecision.statusCode());
+            assertTrue(confirmedDecision.body().contains("Approval vote recorded for request"));
+            assertTrue(confirmedDecision.body().contains("queue-notice-success"));
+
+            assertEquals(1, countVotesForRequest(dataSource, requestId));
+            assertEquals("APPROVED", stateForRequest(dataSource, requestId));
+            assertEquals(1, countTransitionsForRequest(dataSource, requestId));
+            assertEquals(1, countTransitionsForRequestAndState(dataSource, requestId, "APPROVED"));
+            assertEquals(1, countChannelById(dataSource, "web-ui"));
+        }
+    }
+
+    @Test
+    void queueDenyDecisionStoresVoteAndMarksRequestDenied() throws Exception {
+        try (RunningServer server = startServer(true, false, "unused")) {
+            DataSource dataSource = server.dbManager().dataSource();
+            String requestId = "req-queue-deny-22222";
+            insertApprovalRequest(dataSource, requestId, "nonce-queue-deny", "PENDING");
+
+            HttpResponse<String> deny = postForm(
+                    server,
+                    "/queue/deny",
+                    "request_id=" + requestId + "&confirm=yes",
+                    Map.of()
+            );
+            assertEquals(200, deny.statusCode());
+            assertTrue(deny.body().contains("Deny vote recorded for request"));
+
+            assertEquals(1, countVotesForRequest(dataSource, requestId));
+            assertEquals("DENIED", stateForRequest(dataSource, requestId));
+            assertEquals(1, countTransitionsForRequestAndState(dataSource, requestId, "DENIED"));
+            assertEquals(1, countTransitionsForRequestActor(dataSource, requestId, "web_ui", "web-ui"));
+        }
+    }
+
+    @Test
+    void queueDecisionRequiresValidSessionWhenLandingProtectionEnabled() throws Exception {
+        String landingPassword = "landing-secret";
+        try (RunningServer server = startServer(true, true, landingPassword)) {
+            DataSource dataSource = server.dbManager().dataSource();
+            String requestId = "req-queue-protected-33333";
+            insertApprovalRequest(dataSource, requestId, "nonce-queue-protected", "PENDING");
+
+            HttpResponse<String> withoutSession = postForm(
+                    server,
+                    "/queue/approve",
+                    "request_id=" + requestId + "&confirm=yes",
+                    Map.of()
+            );
+            assertEquals(200, withoutSession.statusCode());
+            assertTrue(withoutSession.body().contains("Enter your landing password"));
+            assertEquals(0, countVotesForRequest(dataSource, requestId));
+
+            HttpResponse<String> login = postForm(server, "/login", "password=" + landingPassword, Map.of());
+            assertEquals(302, login.statusCode());
+            String sessionCookie = firstCookiePair(login.headers().firstValue("set-cookie").orElse(""));
+
+            HttpResponse<String> withSession = postForm(
+                    server,
+                    "/queue/approve",
+                    "request_id=" + requestId + "&confirm=yes",
+                    Map.of("Cookie", sessionCookie)
+            );
+            assertEquals(200, withSession.statusCode());
+            assertTrue(withSession.body().contains("Approval vote recorded for request"));
+            assertEquals(1, countVotesForRequest(dataSource, requestId));
+            assertEquals("APPROVED", stateForRequest(dataSource, requestId));
+        }
+    }
+
+    @Test
     void landingCssContainsResponsiveBurgerRulesWithoutJavaScript() throws Exception {
         try (RunningServer server = startServer(true, false, "unused")) {
             HttpResponse<String> css = get(server, "/assets/css/landing.css", Map.of());
@@ -257,6 +360,8 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(css.body().contains("@media (max-width: 860px)"));
             assertTrue(css.body().contains(".menu-toggle-btn"));
             assertTrue(css.body().contains(".menu-toggle:checked ~ .menu"));
+            assertTrue(css.body().contains(".queue-confirm-modal"));
+            assertTrue(css.body().contains(".queue-notice-success"));
         }
     }
 
@@ -564,7 +669,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             String secretContent = Files.readString(secretFile, StandardCharsets.UTF_8);
             assertTrue(secretContent.contains("chat-ids=" + approvedChatId));
-            assertFalse(secretContent.contains(discoveredChatId));
+            assertFalse(secretContent.contains("chat-ids=" + approvedChatId + "," + discoveredChatId));
         } finally {
             telegramApi.stop(0);
         }
@@ -735,7 +840,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             String secretAfterFirstRun = Files.readString(secretFile, StandardCharsets.UTF_8);
             assertTrue(secretAfterFirstRun.contains("chat-ids=" + approvedChatId));
-            assertFalse(secretAfterFirstRun.contains(discoveredChatId));
+            assertFalse(secretAfterFirstRun.contains("chat-ids=" + approvedChatId + "," + discoveredChatId));
 
             capturedPayload.set("");
 
@@ -766,10 +871,428 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             String secretAfterSecondRun = Files.readString(secretFile, StandardCharsets.UTF_8);
             assertTrue(secretAfterSecondRun.contains("chat-ids=" + approvedChatId));
-            assertFalse(secretAfterSecondRun.contains(discoveredChatId));
+            assertFalse(secretAfterSecondRun.contains("chat-ids=" + approvedChatId + "," + discoveredChatId));
         } finally {
             telegramApi.stop(0);
         }
+    }
+
+    @Test
+    void telegramApprovePersistsMetadataAndRendersApprovedChatDisplayName() throws Exception {
+        int telegramApiPort = freePort();
+        String discoveredChatId = "-100555666777";
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/getUpdates", exchange -> {
+            try (exchange) {
+                if (!"GET".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                byte[] body = ("""
+                        {"ok":true,"result":[{"update_id":10,"message":{"chat":{"id":"%s","type":"group","title":"Konkin Ops","username":"konkin_ops"}}}]}
+                        """).formatted(discoveredChatId).getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int port = freePort();
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram-approve.secret");
+        Files.writeString(
+                secretFile,
+                "chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS\nbot-token=test-bot-token\n",
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                port,
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-approve-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            assertEquals(200, telegramPage.statusCode());
+            assertTrue(telegramPage.body().contains(discoveredChatId));
+            assertTrue(telegramPage.body().contains("Konkin Ops"));
+
+            HttpResponse<String> approve = postForm(
+                    runningServer,
+                    "/telegram/approve",
+                    "chat_id=" + discoveredChatId + "&chat_type=group&chat_title=Konkin+Ops&chat_username=konkin_ops",
+                    Map.of()
+            );
+            assertEquals(200, approve.statusCode());
+            assertTrue(approve.body().contains("Approved Telegram chat"));
+            assertTrue(approve.body().contains("Konkin Ops"));
+            assertTrue(approve.body().contains("/telegram/unapprove"));
+
+            String secret = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secret.contains("chat-ids=" + discoveredChatId));
+            assertTrue(secret.contains("chat-type." + discoveredChatId + "=group"));
+            assertTrue(secret.contains("chat-title." + discoveredChatId + "=Konkin Ops"));
+            assertTrue(secret.contains("chat-username." + discoveredChatId + "=konkin_ops"));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
+    void telegramUnapproveSupportsNoJsConfirmationFlowAndPreservesMetadata() throws Exception {
+        int telegramApiPort = freePort();
+        String approvedChatId = "-100123456789";
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/getUpdates", exchange -> {
+            try (exchange) {
+                if (!"GET".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                byte[] body = "{\"ok\":true,\"result\":[]}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int port = freePort();
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram-unapprove.secret");
+        Files.writeString(
+                secretFile,
+                """
+                bot-token=test-bot-token
+                chat-ids=%s
+                chat-type.%s=group
+                chat-title.%s=Ops Chat
+                chat-username.%s=ops_room
+                """.formatted(approvedChatId, approvedChatId, approvedChatId, approvedChatId),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                port,
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-unapprove-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> pendingConfirm = postForm(
+                    runningServer,
+                    "/telegram/unapprove",
+                    "chat_id=" + approvedChatId,
+                    Map.of()
+            );
+            assertEquals(200, pendingConfirm.statusCode());
+            assertTrue(pendingConfirm.body().contains("Please confirm to unapprove chat"));
+            assertTrue(pendingConfirm.body().contains("queue-confirm-panel"));
+            assertTrue(pendingConfirm.body().contains("confirm unapprove"));
+
+            String secretBeforeConfirm = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretBeforeConfirm.contains("chat-ids=" + approvedChatId));
+
+            HttpResponse<String> confirmed = postForm(
+                    runningServer,
+                    "/telegram/unapprove",
+                    "chat_id=" + approvedChatId + "&confirm=yes",
+                    Map.of()
+            );
+            assertEquals(200, confirmed.statusCode());
+            assertTrue(confirmed.body().contains("Unapproved Telegram chat"));
+
+            String secretAfterConfirm = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretAfterConfirm.contains("chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS"));
+            assertTrue(secretAfterConfirm.contains("chat-title." + approvedChatId + "=Ops Chat"));
+            assertTrue(secretAfterConfirm.contains("chat-username." + approvedChatId + "=ops_room"));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
+    void telegramResetSupportsNoJsConfirmationFlowAndClearsApprovedChatIds() throws Exception {
+        int telegramApiPort = freePort();
+        String approvedChatIdOne = "-100111222333";
+        String approvedChatIdTwo = "-100444555666";
+
+        HttpServer telegramApi = HttpServer.create(new InetSocketAddress("127.0.0.1", telegramApiPort), 0);
+        telegramApi.createContext("/bottest-bot-token/getUpdates", exchange -> {
+            try (exchange) {
+                if (!"GET".equals(exchange.getRequestMethod())) {
+                    exchange.sendResponseHeaders(405, -1);
+                    return;
+                }
+
+                byte[] body = "{\"ok\":true,\"result\":[]}".getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, body.length);
+                exchange.getResponseBody().write(body);
+            }
+        });
+        telegramApi.start();
+
+        int port = freePort();
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram-reset.secret");
+        Files.writeString(
+                secretFile,
+                """
+                bot-token=test-bot-token
+                chat-ids=%s,%s
+                chat-title.%s=Ops One
+                chat-title.%s=Ops Two
+                """.formatted(approvedChatIdOne, approvedChatIdTwo, approvedChatIdOne, approvedChatIdTwo),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:%d"
+                """.formatted(
+                port,
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                telegramApiPort
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-reset-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+
+            HttpResponse<String> pendingConfirm = postForm(runningServer, "/telegram/reset", "", Map.of());
+            assertEquals(200, pendingConfirm.statusCode());
+            assertTrue(pendingConfirm.body().contains("Please confirm reset of all approved Telegram chats."));
+            assertTrue(pendingConfirm.body().contains("confirm reset"));
+
+            String secretBeforeConfirm = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretBeforeConfirm.contains("chat-ids=" + approvedChatIdOne + "," + approvedChatIdTwo));
+
+            HttpResponse<String> confirmed = postForm(runningServer, "/telegram/reset", "confirm=yes", Map.of());
+            assertEquals(200, confirmed.statusCode());
+            assertTrue(confirmed.body().contains("Reset persisted approved Telegram chats."));
+
+            String secretAfterConfirm = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(secretAfterConfirm.contains("chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS"));
+            assertTrue(secretAfterConfirm.contains("chat-title." + approvedChatIdOne + "=Ops One"));
+            assertTrue(secretAfterConfirm.contains("chat-title." + approvedChatIdTwo + "=Ops Two"));
+        } finally {
+            telegramApi.stop(0);
+        }
+    }
+
+    @Test
+    void telegramStartupSyncPreservesExistingMetadataWhenMergingConfiguredChatIds() throws Exception {
+        int port = freePort();
+        String configuredChatId = "-100999000111";
+        String existingSecretChatId = "-100123456789";
+
+        Path landingPasswordFile = tempDir.resolve("unused-landing.password");
+        Path secretFile = tempDir.resolve("telegram-sync.secret");
+        Files.writeString(
+                secretFile,
+                """
+                bot-token=test-bot-token
+                chat-ids=%s
+                chat-title.%s=Synced Ops
+                chat-username.%s=synced_ops
+                """.formatted(existingSecretChatId, existingSecretChatId, existingSecretChatId),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE_NEW
+        );
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+
+        String configToml = """
+                config-version = 1
+
+                [server]
+                host = "127.0.0.1"
+                port = %d
+
+                [landing]
+                enabled = true
+
+                [landing.password-protection]
+                enabled = false
+                password-file = "%s"
+
+                [landing.template]
+                directory = "%s"
+                name = "landing.ftl"
+
+                [landing.static]
+                directory = "%s"
+                hosted-path = "/assets"
+
+                [landing.auto-reload]
+                enabled = false
+
+                [telegram]
+                enabled = true
+                secret-file = "%s"
+                api-base-url = "http://127.0.0.1:65534"
+                chat-ids = ["%s"]
+                """.formatted(
+                port,
+                tomlPath(landingPasswordFile),
+                tomlPath(templateDir),
+                tomlPath(staticDir),
+                tomlPath(secretFile),
+                configuredChatId
+        );
+
+        Path configFile = tempDir.resolve("config-telegram-sync-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+        }
+
+        String secretAfterStartup = Files.readString(secretFile, StandardCharsets.UTF_8);
+        assertTrue(secretAfterStartup.contains("chat-ids=" + configuredChatId + "," + existingSecretChatId));
+        assertTrue(secretAfterStartup.contains("chat-title." + existingSecretChatId + "=Synced Ops"));
+        assertTrue(secretAfterStartup.contains("chat-username." + existingSecretChatId + "=synced_ops"));
     }
 
     @Test
@@ -916,6 +1439,85 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
                         .bind("id", requestId)
                         .execute()
         );
+    }
+
+    private static int countVotesForRequest(DataSource dataSource, String requestId) {
+        Long count = JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("SELECT COUNT(*) FROM approval_votes WHERE request_id = :requestId")
+                        .bind("requestId", requestId)
+                        .mapTo(Long.class)
+                        .one()
+        );
+        return count == null ? 0 : count.intValue();
+    }
+
+    private static String stateForRequest(DataSource dataSource, String requestId) {
+        return JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("SELECT state FROM approval_requests WHERE id = :id")
+                        .bind("id", requestId)
+                        .mapTo(String.class)
+                        .findOne()
+                        .orElse("")
+        );
+    }
+
+    private static int countTransitionsForRequest(DataSource dataSource, String requestId) {
+        Long count = JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("SELECT COUNT(*) FROM approval_state_transitions WHERE request_id = :requestId")
+                        .bind("requestId", requestId)
+                        .mapTo(Long.class)
+                        .one()
+        );
+        return count == null ? 0 : count.intValue();
+    }
+
+    private static int countTransitionsForRequestAndState(DataSource dataSource, String requestId, String toState) {
+        Long count = JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("""
+                        SELECT COUNT(*)
+                        FROM approval_state_transitions
+                        WHERE request_id = :requestId
+                          AND to_state = :toState
+                        """)
+                        .bind("requestId", requestId)
+                        .bind("toState", toState)
+                        .mapTo(Long.class)
+                        .one()
+        );
+        return count == null ? 0 : count.intValue();
+    }
+
+    private static int countTransitionsForRequestActor(
+            DataSource dataSource,
+            String requestId,
+            String actorType,
+            String actorId
+    ) {
+        Long count = JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("""
+                        SELECT COUNT(*)
+                        FROM approval_state_transitions
+                        WHERE request_id = :requestId
+                          AND actor_type = :actorType
+                          AND actor_id = :actorId
+                        """)
+                        .bind("requestId", requestId)
+                        .bind("actorType", actorType)
+                        .bind("actorId", actorId)
+                        .mapTo(Long.class)
+                        .one()
+        );
+        return count == null ? 0 : count.intValue();
+    }
+
+    private static int countChannelById(DataSource dataSource, String channelId) {
+        Long count = JdbiFactory.create(dataSource).withHandle(h ->
+                h.createQuery("SELECT COUNT(*) FROM approval_channels WHERE id = :id")
+                        .bind("id", channelId)
+                        .mapTo(Long.class)
+                        .one()
+        );
+        return count == null ? 0 : count.intValue();
     }
 
     private static int countOccurrences(String source, String token) {

@@ -122,7 +122,7 @@ public class KonkinWebServer {
 
             if (!approvedChatIds.equals(secret.chatIds())) {
                 boolean persisted = telegramSecretService.writeSecret(
-                        new TelegramSecretService.TelegramSecret(secret.botToken(), approvedChatIds)
+                        new TelegramSecretService.TelegramSecret(secret.botToken(), approvedChatIds, secret.chatMetaById())
                 );
                 if (persisted) {
                     log.info("Telegram approved chat IDs synced to secret file {}: {}",
@@ -287,10 +287,14 @@ public class KonkinWebServer {
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);
+            app.post("/queue/approve", webUiPageControllerFinal::handleQueueApprove);
+            app.post("/queue/deny", webUiPageControllerFinal::handleQueueDeny);
 
             if (config.telegramEnabled()) {
                 app.get("/telegram", webUiPageControllerFinal::handleTelegramPage);
                 app.post("/telegram/approve", webUiPageControllerFinal::handleTelegramApprove);
+                app.post("/telegram/unapprove", webUiPageControllerFinal::handleTelegramUnapprove);
+                app.post("/telegram/reset", webUiPageControllerFinal::handleTelegramReset);
                 app.post("/telegram/send", webUiPageControllerFinal::handleTelegramSubmit);
             }
 
@@ -340,10 +344,14 @@ public class KonkinWebServer {
             if (config.telegramEnabled()) {
                 log.info("  /telegram            — telegram onboarding and manual send page");
                 log.info("  /telegram/approve    — approve discovered telegram chat request");
+                log.info("  /telegram/unapprove  — unapprove a telegram chat");
+                log.info("  /telegram/reset      — reset approved telegram chats");
                 log.info("  /telegram/send       — telegram send endpoint");
             } else {
                 log.info("  /telegram            — disabled via config");
                 log.info("  /telegram/approve    — disabled via config");
+                log.info("  /telegram/unapprove  — disabled via config");
+                log.info("  /telegram/reset      — disabled via config");
                 log.info("  /telegram/send       — disabled via config");
             }
 
@@ -364,6 +372,8 @@ public class KonkinWebServer {
             log.info("  /driver_agent        — disabled via config");
             log.info("  /telegram            — disabled via config (landing disabled)");
             log.info("  /telegram/approve    — disabled via config (landing disabled)");
+            log.info("  /telegram/unapprove  — disabled via config (landing disabled)");
+            log.info("  /telegram/reset      — disabled via config (landing disabled)");
             log.info("  /telegram/send       — disabled via config (landing disabled)");
         }
     }

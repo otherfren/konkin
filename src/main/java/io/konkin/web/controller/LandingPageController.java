@@ -8,6 +8,7 @@ import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.AuthQueueStore;
+import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
 import io.konkin.db.entity.LogQueueFilterOptions;
@@ -37,6 +38,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -55,6 +57,7 @@ public class LandingPageController {
     private static final DateTimeFormatter TS_MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneOffset.UTC);
     private static final DateTimeFormatter TS_LOG_MINUTE_FORMAT = DateTimeFormatter.ofPattern("yyyy MM dd HH:mm").withZone(ZoneOffset.UTC);
     private static final Set<String> SUPPORTED_COIN_ICONS = Set.of("bitcoin", "ethereum", "monero", "litecoin");
+    private static final String WEB_UI_CHANNEL_ID = "web-ui";
 
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
@@ -246,6 +249,14 @@ public class LandingPageController {
         ctx.redirect("/");
     }
 
+    public void handleQueueApprove(Context ctx) {
+        handleQueueDecision(ctx, "approve");
+    }
+
+    public void handleQueueDeny(Context ctx) {
+        handleQueueDecision(ctx, "deny");
+    }
+
     public void handleTelegramApprove(Context ctx) {
         if (!telegramEnabled) {
             ctx.status(404);
@@ -257,20 +268,117 @@ public class LandingPageController {
             return;
         }
 
+        String sourcePage = defaultIfBlank(ctx.formParam("source_page"), "").trim();
+        boolean sourceAuthChannels = "auth_channels".equalsIgnoreCase(sourcePage);
+
         String chatIdInput = ctx.formParam("chat_id");
         String chatId = chatIdInput == null ? "" : chatIdInput.trim();
         if (chatId.isEmpty()) {
+            if (sourceAuthChannels) {
+                ctx.redirect("/auth_channels");
+                return;
+            }
             renderLandingForPage(ctx, "telegram", "Chat ID cannot be empty.", true, "");
             return;
         }
 
-        if (telegramSecretService.approveChatId(chatId)) {
-            renderLandingForPage(ctx, "telegram", "Approved Telegram chat ID " + chatId + ".", false, "");
+        String chatType = defaultIfBlank(ctx.formParam("chat_type"), "").trim();
+        String chatTitle = defaultIfBlank(ctx.formParam("chat_title"), "").trim();
+        String chatUsername = defaultIfBlank(ctx.formParam("chat_username"), "").trim();
+
+        if (telegramSecretService.approveChat(chatId, chatType, chatTitle, chatUsername)) {
+            if (sourceAuthChannels) {
+                ctx.redirect("/auth_channels");
+            } else {
+                renderLandingForPage(ctx, "telegram", "Approved Telegram chat " + abbreviateId(chatId) + ".", false, "");
+            }
             return;
         }
 
-        log.warn("Failed Telegram chat ID approval from {} for chatId={}", ctx.ip(), chatId);
-        renderLandingForPage(ctx, "telegram", "Failed to approve Telegram chat ID.", true, "");
+        log.warn("Failed Telegram chat approval from {} for chatId={}", ctx.ip(), chatId);
+        if (sourceAuthChannels) {
+            ctx.redirect("/auth_channels");
+            return;
+        }
+        renderLandingForPage(ctx, "telegram", "Failed to approve Telegram chat.", true, "");
+    }
+
+    public void handleTelegramUnapprove(Context ctx) {
+        if (!telegramEnabled) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String chatId = defaultIfBlank(ctx.formParam("chat_id"), "").trim();
+        if (chatId.isEmpty()) {
+            renderLandingForPage(ctx, "telegram", "Missing Telegram chat ID.", true, "");
+            return;
+        }
+
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        if (!"yes".equalsIgnoreCase(confirm)) {
+            renderLandingForPage(
+                    ctx,
+                    "telegram",
+                    "Please confirm to unapprove chat " + abbreviateId(chatId) + ".",
+                    false,
+                    "",
+                    "",
+                    false,
+                    null,
+                    new TelegramConfirmData("unapprove", chatId)
+            );
+            return;
+        }
+
+        if (telegramSecretService.unapproveChatId(chatId)) {
+            renderLandingForPage(ctx, "telegram", "Unapproved Telegram chat " + abbreviateId(chatId) + ".", false, "");
+            return;
+        }
+
+        log.warn("Failed Telegram chat unapproval from {} for chatId={}", ctx.ip(), chatId);
+        renderLandingForPage(ctx, "telegram", "Failed to unapprove Telegram chat.", true, "");
+    }
+
+    public void handleTelegramReset(Context ctx) {
+        if (!telegramEnabled) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        if (!"yes".equalsIgnoreCase(confirm)) {
+            renderLandingForPage(
+                    ctx,
+                    "telegram",
+                    "Please confirm reset of all approved Telegram chats.",
+                    false,
+                    "",
+                    "",
+                    false,
+                    null,
+                    new TelegramConfirmData("reset", "")
+            );
+            return;
+        }
+
+        if (telegramSecretService.resetApprovedChatIds()) {
+            renderLandingForPage(ctx, "telegram", "Reset persisted approved Telegram chats.", false, "");
+            return;
+        }
+
+        log.warn("Failed Telegram approved-chat reset from {}", ctx.ip());
+        renderLandingForPage(ctx, "telegram", "Failed to reset approved Telegram chats.", true, "");
     }
 
     public void handleTelegramSubmit(Context ctx) {
@@ -316,7 +424,7 @@ public class LandingPageController {
     }
 
     private void renderLandingForPage(Context ctx, String activePage) {
-        renderLandingForPage(ctx, activePage, "", false, "");
+        renderLandingForPage(ctx, activePage, "", false, "", "", false, null, null);
     }
 
     private void renderLandingForPage(
@@ -326,11 +434,64 @@ public class LandingPageController {
             boolean telegramNoticeError,
             String telegramDraft
     ) {
+        renderLandingForPage(ctx, activePage, telegramNotice, telegramNoticeError, telegramDraft, "", false, null, null);
+    }
+
+    private void renderLandingForPage(
+            Context ctx,
+            String activePage,
+            String telegramNotice,
+            boolean telegramNoticeError,
+            String telegramDraft,
+            String queueNotice,
+            boolean queueNoticeError,
+            QueueConfirmData queueConfirmData
+    ) {
+        renderLandingForPage(
+                ctx,
+                activePage,
+                telegramNotice,
+                telegramNoticeError,
+                telegramDraft,
+                queueNotice,
+                queueNoticeError,
+                queueConfirmData,
+                null
+        );
+    }
+
+    private void renderLandingForPage(
+            Context ctx,
+            String activePage,
+            String telegramNotice,
+            boolean telegramNoticeError,
+            String telegramDraft,
+            String queueNotice,
+            boolean queueNoticeError,
+            QueueConfirmData queueConfirmData,
+            TelegramConfirmData telegramConfirmData
+    ) {
         if (!passwordProtectionEnabled || hasValidSession(ctx)) {
             TelegramPageData telegramPageData = loadTelegramPageData();
             TablePageData queuePageData = loadQueuePageData(ctx);
+            queuePageData = applyQueueUiState(queuePageData, queueNotice, queueNoticeError, queueConfirmData);
             TablePageData auditPageData = loadAuditPageData(ctx);
             TablePageData logQueuePageData = loadLogQueuePageData(ctx);
+
+            boolean telegramConfirmRequired = false;
+            String telegramConfirmMode = "";
+            String telegramConfirmChatId = "";
+            String telegramConfirmChatIdShort = "-";
+            String telegramConfirmActionPath = "";
+
+            if (telegramConfirmData != null) {
+                String confirmMode = "reset".equalsIgnoreCase(telegramConfirmData.mode()) ? "reset" : "unapprove";
+                telegramConfirmRequired = true;
+                telegramConfirmMode = confirmMode;
+                telegramConfirmChatId = defaultIfBlank(telegramConfirmData.chatId(), "").trim();
+                telegramConfirmChatIdShort = "reset".equals(confirmMode) ? "-" : abbreviateId(telegramConfirmChatId);
+                telegramConfirmActionPath = "reset".equals(confirmMode) ? "/telegram/reset" : "/telegram/unapprove";
+            }
 
             ctx.contentType("text/html; charset=UTF-8");
             ctx.result(landingPageService.renderLanding(
@@ -341,6 +502,11 @@ public class LandingPageController {
                     telegramDraft,
                     telegramPageData.chatRequests(),
                     telegramPageData.approvedChats(),
+                    telegramConfirmRequired,
+                    telegramConfirmMode,
+                    telegramConfirmChatId,
+                    telegramConfirmChatIdShort,
+                    telegramConfirmActionPath,
                     queuePageData.rows(),
                     queuePageData.pageMeta(),
                     auditPageData.rows(),
@@ -358,21 +524,26 @@ public class LandingPageController {
             return new TelegramPageData(List.of(), List.of());
         }
 
-        List<String> approvedChatIds = approvedChatIds();
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
+            log.warn("Failed to persist discovered Telegram chat metadata");
+        }
+
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        Map<String, TelegramSecretService.ChatMeta> metadataByChatId = secret.chatMetaById();
+
+        List<String> approvedChatIds = TelegramSecretService.mergeChatIds(configuredTelegramChatIds, secret.chatIds());
         Set<String> approvedSet = new HashSet<>(approvedChatIds);
 
-        Map<String, String> usernameByChatId = new LinkedHashMap<>();
+        Map<String, TelegramService.ChatRequest> discoveredByChatId = new LinkedHashMap<>();
         List<Map<String, String>> requestRows = new ArrayList<>();
-        for (TelegramService.ChatRequest request : telegramService.discoverChatRequests()) {
-            if (request.chatId() == null || request.chatId().isBlank()) {
+        for (TelegramService.ChatRequest request : discoveredRequests) {
+            if (request == null || request.chatId() == null || request.chatId().isBlank()) {
                 continue;
             }
 
             String chatId = request.chatId().trim();
-            String username = request.chatUsername() == null ? "" : request.chatUsername().trim();
-            if (!username.isEmpty()) {
-                usernameByChatId.put(chatId, username);
-            }
+            discoveredByChatId.put(chatId, request);
 
             if (approvedSet.contains(chatId)) {
                 continue;
@@ -380,16 +551,52 @@ public class LandingPageController {
 
             Map<String, String> row = new LinkedHashMap<>();
             row.put("chatId", chatId);
-            row.put("chatType", request.chatType() == null || request.chatType().isBlank() ? "unknown" : request.chatType().trim());
-            row.put("chatTitle", request.chatTitle() == null || request.chatTitle().isBlank() ? "(no title)" : request.chatTitle().trim());
+            row.put("chatType", firstNonBlank(request.chatType(), "unknown"));
+            row.put("chatTitle", firstNonBlank(request.chatTitle(), "(no title)"));
+            row.put("chatUsername", firstNonBlank(request.chatUsername(), ""));
             requestRows.add(Map.copyOf(row));
         }
 
         List<Map<String, String>> approvedRows = new ArrayList<>();
         for (String chatId : approvedChatIds) {
+            TelegramSecretService.ChatMeta persisted = metadataByChatId.get(chatId);
+            TelegramService.ChatRequest discovered = discoveredByChatId.get(chatId);
+
+            String chatType = firstNonBlank(
+                    persisted == null ? null : persisted.chatType(),
+                    discovered == null ? null : discovered.chatType(),
+                    "unknown"
+            );
+            String chatTitle = firstNonBlank(
+                    persisted == null ? null : persisted.chatTitle(),
+                    discovered == null ? null : discovered.chatTitle(),
+                    "(no title)"
+            );
+            String chatUsername = firstNonBlank(
+                    persisted == null ? null : persisted.chatUsername(),
+                    discovered == null ? null : discovered.chatUsername(),
+                    ""
+            );
+            String displayName = firstNonBlank(
+                    persisted == null ? null : persisted.displayName(),
+                    discovered == null
+                            ? null
+                            : firstNonBlank(
+                            discovered.chatTitle(),
+                            discovered.chatUsername() == null || discovered.chatUsername().isBlank()
+                                    ? ""
+                                    : "@" + discovered.chatUsername().trim()
+                    ),
+                    chatUsername.isEmpty() ? "" : "@" + chatUsername,
+                    chatId
+            );
+
             Map<String, String> row = new LinkedHashMap<>();
             row.put("chatId", chatId);
-            row.put("chatUsername", usernameByChatId.getOrDefault(chatId, ""));
+            row.put("chatType", chatType);
+            row.put("chatTitle", chatTitle);
+            row.put("chatUsername", chatUsername);
+            row.put("chatDisplayName", displayName);
             approvedRows.add(Map.copyOf(row));
         }
 
@@ -445,6 +652,34 @@ public class LandingPageController {
                 authQueueStore.pagePendingApprovalRequests(sortBy, sortDir, page, pageSize);
 
         return mapApprovalPageData(result);
+    }
+
+    private static TablePageData applyQueueUiState(
+            TablePageData source,
+            String queueNotice,
+            boolean queueNoticeError,
+            QueueConfirmData queueConfirmData
+    ) {
+        Map<String, Object> pageMeta = new LinkedHashMap<>(source.pageMeta());
+        pageMeta.put("queueNotice", queueNotice == null ? "" : queueNotice);
+        pageMeta.put("queueNoticeError", queueNoticeError);
+
+        if (queueConfirmData == null) {
+            pageMeta.put("queueConfirmRequired", false);
+            pageMeta.put("queueConfirmDecision", "");
+            pageMeta.put("queueConfirmRequestId", "");
+            pageMeta.put("queueConfirmRequestIdShort", "");
+            pageMeta.put("queueConfirmActionPath", "");
+        } else {
+            String decision = "deny".equalsIgnoreCase(queueConfirmData.decision()) ? "deny" : "approve";
+            pageMeta.put("queueConfirmRequired", true);
+            pageMeta.put("queueConfirmDecision", decision);
+            pageMeta.put("queueConfirmRequestId", queueConfirmData.requestId());
+            pageMeta.put("queueConfirmRequestIdShort", abbreviateId(queueConfirmData.requestId()));
+            pageMeta.put("queueConfirmActionPath", "deny".equals(decision) ? "/queue/deny" : "/queue/approve");
+        }
+
+        return new TablePageData(source.rows(), Map.copyOf(pageMeta));
     }
 
     private TablePageData loadLogQueuePageData(Context ctx) {
@@ -733,6 +968,210 @@ public class LandingPageController {
         return (value == null || value.isBlank()) ? fallback : value;
     }
 
+    private static String firstNonBlank(String... values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+
+        for (String value : values) {
+            if (value != null) {
+                String trimmed = value.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    private void handleQueueDecision(Context ctx, String decision) {
+        if (authQueueStore == null) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String normalizedDecision = "deny".equalsIgnoreCase(decision) ? "deny" : "approve";
+        String requestId = defaultIfBlank(ctx.formParam("request_id"), "").trim();
+        if (requestId.isEmpty()) {
+            renderLandingForPage(ctx, "queue", "", false, "", "Missing approval request id.", true, null);
+            return;
+        }
+
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        if (!"yes".equalsIgnoreCase(confirm)) {
+            String actionLabel = "deny".equals(normalizedDecision) ? "deny" : "approve";
+            renderLandingForPage(
+                    ctx,
+                    "queue",
+                    "",
+                    false,
+                    "",
+                    "Please confirm to " + actionLabel + " request " + abbreviateId(requestId) + ".",
+                    false,
+                    new QueueConfirmData(actionLabel, requestId)
+            );
+            return;
+        }
+
+        applyQueueDecision(ctx, requestId, normalizedDecision);
+    }
+
+    private void applyQueueDecision(Context ctx, String requestId, String decision) {
+        ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+        if (requestRow == null || !isVoteableState(requestRow.state())) {
+            renderLandingForPage(ctx, "queue", "", false, "", "Request not found or already resolved.", true, null);
+            return;
+        }
+
+        String channelId;
+        try {
+            channelId = ensureWebUiChannelId();
+        } catch (RuntimeException e) {
+            log.warn("Failed to resolve web-ui approval channel for request {}: {}", requestId, e.getMessage());
+            renderLandingForPage(ctx, "queue", "", false, "", "Failed to resolve web-ui approval channel.", true, null);
+            return;
+        }
+
+        List<VoteDetail> existingVotes = authQueueStore.listVotesForRequest(requestId);
+        boolean alreadyVoted = existingVotes.stream()
+                .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
+        if (alreadyVoted) {
+            renderLandingForPage(ctx, "queue", "", false, "", "This web-ui session already voted on this request.", true, null);
+            return;
+        }
+
+        Instant now = Instant.now();
+
+        try {
+            authQueueStore.insertVote(new VoteDetail(
+                    0L,
+                    requestId,
+                    channelId,
+                    decision,
+                    null,
+                    WEB_UI_CHANNEL_ID,
+                    now
+            ));
+
+            List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+            int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
+            int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
+
+            String previousState = requestRow.state();
+            String nextState = previousState;
+            String reasonCode = requestRow.stateReasonCode();
+            String reasonText = requestRow.stateReasonText();
+            Instant resolvedAt = requestRow.resolvedAt();
+
+            if (approvalsDenied > 0) {
+                nextState = "DENIED";
+                reasonCode = "vote_denied";
+                reasonText = "Denied by web-ui approval vote";
+                resolvedAt = now;
+            } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
+                nextState = "APPROVED";
+                reasonCode = "approval_threshold_met";
+                reasonText = "Minimum approvals reached";
+            } else if ("QUEUED".equalsIgnoreCase(previousState)) {
+                nextState = "PENDING";
+                reasonCode = "awaiting_more_votes";
+                reasonText = "Awaiting additional approvals";
+            }
+
+            ApprovalRequestRow updated = new ApprovalRequestRow(
+                    requestRow.id(),
+                    requestRow.coin(),
+                    requestRow.toolName(),
+                    requestRow.requestSessionId(),
+                    requestRow.nonceUuid(),
+                    requestRow.payloadHashSha256(),
+                    requestRow.nonceComposite(),
+                    requestRow.toAddress(),
+                    requestRow.amountNative(),
+                    requestRow.feePolicy(),
+                    requestRow.feeCapNative(),
+                    requestRow.memo(),
+                    requestRow.requestedAt(),
+                    requestRow.expiresAt(),
+                    nextState,
+                    reasonCode,
+                    reasonText,
+                    requestRow.minApprovalsRequired(),
+                    approvalsGranted,
+                    approvalsDenied,
+                    requestRow.policyActionAtCreation(),
+                    requestRow.createdAt(),
+                    now,
+                    resolvedAt
+            );
+            authQueueStore.updateApprovalRequest(updated);
+
+            if (!Objects.equals(previousState, nextState)) {
+                authQueueStore.insertStateTransition(new StateTransitionRow(
+                        0L,
+                        requestId,
+                        previousState,
+                        nextState,
+                        "web_ui",
+                        WEB_UI_CHANNEL_ID,
+                        reasonCode,
+                        now
+                ));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Queue decision {} failed from {} for requestId={}: {}", decision, ctx.ip(), requestId, e.getMessage());
+            renderLandingForPage(ctx, "queue", "", false, "", "Failed to persist queue decision.", true, null);
+            return;
+        }
+
+        String message = "deny".equals(decision)
+                ? "Deny vote recorded for request " + abbreviateId(requestId) + "."
+                : "Approval vote recorded for request " + abbreviateId(requestId) + ".";
+
+        renderLandingForPage(ctx, "queue", "", false, "", message, false, null);
+    }
+
+    private static boolean isVoteableState(String state) {
+        if (state == null || state.isBlank()) {
+            return false;
+        }
+
+        String normalized = state.trim().toUpperCase(Locale.ROOT);
+        return "QUEUED".equals(normalized) || "PENDING".equals(normalized);
+    }
+
+    private String ensureWebUiChannelId() {
+        ApprovalChannelRow existing = authQueueStore.findChannelById(WEB_UI_CHANNEL_ID);
+        if (existing != null) {
+            return existing.id();
+        }
+
+        try {
+            authQueueStore.insertChannel(new ApprovalChannelRow(
+                    WEB_UI_CHANNEL_ID,
+                    "web_ui",
+                    "Web UI",
+                    true,
+                    "landing-web-ui",
+                    Instant.now()
+            ));
+        } catch (RuntimeException ignored) {
+            // race-safe: reload below
+        }
+
+        ApprovalChannelRow reloaded = authQueueStore.findChannelById(WEB_UI_CHANNEL_ID);
+        if (reloaded == null) {
+            throw new IllegalStateException("Failed to resolve approval channel for web-ui");
+        }
+        return reloaded.id();
+    }
+
     private static String safe(String value) {
         return value == null || value.isBlank() ? "-" : value;
     }
@@ -855,8 +1294,66 @@ public class LandingPageController {
 
     private Map<String, Object> buildDriverAgentModel() {
         Map<String, Object> root = new LinkedHashMap<>();
-        root.put("driverAgent", buildDriverAgentChannel());
+        Map<String, Object> driverAgent = buildDriverAgentChannel();
+        root.put("driverAgent", driverAgent);
+        root.put("authMethod", buildDriverAgentAuthMethod(driverAgent));
+        root.put("mcpRegistration", buildDriverAgentMcpRegistration(driverAgent));
         return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildDriverAgentAuthMethod(Map<String, Object> driverAgent) {
+        boolean configured = Boolean.TRUE.equals(driverAgent.get("configured"));
+        boolean enabled = Boolean.TRUE.equals(driverAgent.get("enabled"));
+
+        String tokenEndpoint = driverAgent.get("oauthTokenPath") instanceof String value ? value : "-";
+        String secretFile = driverAgent.get("secretFile") instanceof String value ? value : "-";
+
+        Map<String, Object> authMethod = new LinkedHashMap<>();
+        authMethod.put("configured", configured);
+        authMethod.put("enabled", enabled);
+        authMethod.put("method", "OAuth 2.0 Client Credentials");
+        authMethod.put("clientId", "konkin-primary");
+        authMethod.put("tokenEndpoint", tokenEndpoint);
+        authMethod.put("authorizationHeader", "Authorization: Bearer <access_token>");
+        authMethod.put("secretFile", secretFile);
+        return Map.copyOf(authMethod);
+    }
+
+    private Map<String, Object> buildDriverAgentMcpRegistration(Map<String, Object> driverAgent) {
+        boolean configured = Boolean.TRUE.equals(driverAgent.get("configured"));
+        boolean enabled = Boolean.TRUE.equals(driverAgent.get("enabled"));
+
+        String tokenEndpoint = driverAgent.get("oauthTokenPath") instanceof String value ? value : "-";
+        String sseEndpoint = driverAgent.get("ssePath") instanceof String value ? value : "-";
+
+        String tokenCommand = enabled && !"-".equals(tokenEndpoint)
+                ? """
+                curl -s -X POST \"%s\" \\
+                  -d \"grant_type=client_credentials\" \\
+                  -d \"client_id=konkin-primary\" \\
+                  -d \"client_secret=YOUR_SECRET\"
+                """.strip().formatted(tokenEndpoint)
+                : "-";
+
+        String registerCommand = enabled && !"-".equals(sseEndpoint)
+                ? """
+                claude mcp add --transport sse \\
+                  -H \"Authorization: Bearer YOUR_ACCESS_TOKEN\" \\
+                  -s project \\
+                  konkin \"%s\"
+                """.strip().formatted(sseEndpoint)
+                : "-";
+
+        Map<String, Object> mcpRegistration = new LinkedHashMap<>();
+        mcpRegistration.put("configured", configured);
+        mcpRegistration.put("enabled", enabled);
+        mcpRegistration.put("sseEndpoint", sseEndpoint);
+        mcpRegistration.put("tokenEndpoint", tokenEndpoint);
+        mcpRegistration.put("registerCommand", registerCommand);
+        mcpRegistration.put("tokenCommand", tokenCommand);
+        mcpRegistration.put("verifyCommand", "claude mcp list");
+        mcpRegistration.put("skillPath", "documents/SKILL-driver-agent.md");
+        return Map.copyOf(mcpRegistration);
     }
 
     private List<Map<String, Object>> buildTelegramChannelUsers() {
@@ -864,8 +1361,16 @@ public class LandingPageController {
             return List.of();
         }
 
-        List<String> approvedChatIds = approvedChatIds();
-        Set<String> approvedSet = new HashSet<>();
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
+            log.warn("Failed to persist discovered Telegram chat metadata for auth_channels page");
+        }
+
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        Map<String, TelegramSecretService.ChatMeta> metadataByChatId = secret.chatMetaById();
+
+        List<String> approvedChatIds = TelegramSecretService.mergeChatIds(configuredTelegramChatIds, secret.chatIds());
+        Set<String> approvedSet = new HashSet<>(approvedChatIds);
         LinkedHashSet<String> orderedChatIds = new LinkedHashSet<>();
         Map<String, TelegramService.ChatRequest> discoveredByChatId = new LinkedHashMap<>();
 
@@ -873,12 +1378,17 @@ public class LandingPageController {
             if (approvedChatId == null || approvedChatId.isBlank()) {
                 continue;
             }
-            String chatId = approvedChatId.trim();
-            approvedSet.add(chatId);
-            orderedChatIds.add(chatId);
+            orderedChatIds.add(approvedChatId.trim());
         }
 
-        for (TelegramService.ChatRequest request : telegramService.discoverChatRequests()) {
+        for (String chatId : metadataByChatId.keySet()) {
+            if (chatId == null || chatId.isBlank()) {
+                continue;
+            }
+            orderedChatIds.add(chatId.trim());
+        }
+
+        for (TelegramService.ChatRequest request : discoveredRequests) {
             if (request == null || request.chatId() == null || request.chatId().isBlank()) {
                 continue;
             }
@@ -890,14 +1400,50 @@ public class LandingPageController {
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (String chatId : orderedChatIds) {
-            TelegramService.ChatRequest request = discoveredByChatId.get(chatId);
+            TelegramService.ChatRequest discovered = discoveredByChatId.get(chatId);
+            TelegramSecretService.ChatMeta persisted = metadataByChatId.get(chatId);
+
+            String chatType = firstNonBlank(
+                    persisted == null ? null : persisted.chatType(),
+                    discovered == null ? null : discovered.chatType(),
+                    "unknown"
+            );
+            String chatTitle = firstNonBlank(
+                    persisted == null ? null : persisted.chatTitle(),
+                    discovered == null ? null : discovered.chatTitle(),
+                    "(no title)"
+            );
+            String chatUsername = firstNonBlank(
+                    persisted == null ? null : persisted.chatUsername(),
+                    discovered == null ? null : discovered.chatUsername(),
+                    ""
+            );
+            String displayName = firstNonBlank(
+                    persisted == null ? null : persisted.displayName(),
+                    discovered == null
+                            ? null
+                            : firstNonBlank(
+                            discovered.chatTitle(),
+                            discovered.chatUsername() == null || discovered.chatUsername().isBlank()
+                                    ? ""
+                                    : "@" + discovered.chatUsername().trim()
+                    ),
+                    chatUsername.isEmpty() ? "" : "@" + chatUsername,
+                    chatId
+            );
+
+            boolean approved = approvedSet.contains(chatId);
+            boolean discoveredUser = discovered != null || persisted != null;
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("chatId", chatId);
-            row.put("chatType", request == null || request.chatType() == null || request.chatType().isBlank() ? "unknown" : request.chatType().trim());
-            row.put("chatTitle", request == null || request.chatTitle() == null || request.chatTitle().isBlank() ? "(no title)" : request.chatTitle().trim());
-            row.put("chatUsername", request == null || request.chatUsername() == null ? "" : request.chatUsername().trim());
-            row.put("approved", approvedSet.contains(chatId));
+            row.put("chatType", chatType);
+            row.put("chatTitle", chatTitle);
+            row.put("chatUsername", chatUsername);
+            row.put("chatDisplayName", displayName);
+            row.put("approved", approved);
+            row.put("discovered", discoveredUser);
+            row.put("canApprove", !approved && discoveredUser);
             rows.add(Map.copyOf(row));
         }
 
@@ -907,7 +1453,18 @@ public class LandingPageController {
     private Map<String, Object> buildDriverAgentChannel() {
         KonkinConfig.AgentConfig driverAgent = config.primaryAgent();
         if (driverAgent == null) {
-            return Map.of("configured", false);
+            return Map.of(
+                    "configured", false,
+                    "name", "driver",
+                    "type", "driver",
+                    "enabled", false,
+                    "bind", "-",
+                    "port", "-",
+                    "healthPath", "-",
+                    "oauthTokenPath", "-",
+                    "ssePath", "-",
+                    "secretFile", "-"
+            );
         }
 
         boolean enabled = driverAgent.enabled();
@@ -924,6 +1481,7 @@ public class LandingPageController {
         row.put("port", port > 0 ? Integer.toString(port) : "-");
         row.put("healthPath", enabled ? endpointBase + "/health" : "-");
         row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
+        row.put("ssePath", enabled ? endpointBase + "/sse" : "-");
         row.put("secretFile", safe(driverAgent.secretFile()));
         return Map.copyOf(row);
     }
@@ -946,6 +1504,7 @@ public class LandingPageController {
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("name", agentName);
+            row.put("authChannelId", "verification-agent:" + agentName);
             row.put("enabled", enabled);
             row.put("bind", bind);
             row.put("port", port > 0 ? Integer.toString(port) : "-");
@@ -1139,5 +1698,11 @@ public class LandingPageController {
     }
 
     private record TablePageData(List<Map<String, Object>> rows, Map<String, Object> pageMeta) {
+    }
+
+    private record QueueConfirmData(String decision, String requestId) {
+    }
+
+    private record TelegramConfirmData(String mode, String chatId) {
     }
 }
