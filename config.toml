@@ -57,7 +57,7 @@ secret-file = "./secrets/agent-backup.secret"
 
 [debug]
 enabled = true
-seed-fake-data = true
+seed-fake-data = false
 
 [telegram]
 enabled = true

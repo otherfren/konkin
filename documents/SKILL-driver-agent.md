@@ -26,24 +26,24 @@ Authentication is handled by your MCP client configuration (the bearer token in 
 
 ### Resources (read with `resources/read`)
 
-| URI | What it returns |
-|-----|-----------------|
-| `konkin://health` | Server health: `{"status":"healthy","agent":"...","type":"driver"}` |
-| `konkin://runtime/config/requirements` | Overall readiness. Check this FIRST. Stop if `NOT_READY`. |
+| URI                                           | What it returns                                                                                      |
+|-----------------------------------------------|------------------------------------------------------------------------------------------------------|
+| `konkin://health`                             | Server health: `{"status":"healthy","agent":"...","type":"driver"}`                                  |
+| `konkin://runtime/config/requirements`        | Overall readiness. Check this FIRST. Stop if `NOT_READY`.                                            |
 | `konkin://runtime/config/requirements/{coin}` | Coin-specific readiness. Replace `{coin}` with e.g. `bitcoin`, `testdummycoin`. Stop if `NOT_READY`. |
-| `konkin://decisions/{requestId}` | Approval status after you submit a send. Poll this by reading it again after a few seconds. |
+| `konkin://decisions/{requestId}`              | Approval status after you submit a send. Poll this by reading it again after a few seconds.          |
 
 ### Tools (call with `tools/call`)
 
-| Tool | Required params | Optional params | What it does |
-|------|----------------|-----------------|--------------|
+| Tool        | Required params                     | Optional params                                               | What it does                                                      |
+|-------------|-------------------------------------|---------------------------------------------------------------|-------------------------------------------------------------------|
 | `send_coin` | `coin`, `toAddress`, `amountNative` | `feePolicy` (normal/priority/economy), `feeCapNative`, `memo` | Submits a send request for human approval. Returns a `requestId`. |
 
 ### Prompts (get with `prompts/get`)
 
-| Prompt | Optional args | What it does |
-|--------|--------------|--------------|
-| `driver_readiness_check` | `coin` | Returns step-by-step instructions for readiness check + send. Use this if you are unsure what to do. |
+| Prompt                   | Optional args | What it does                                                                                         |
+|--------------------------|---------------|------------------------------------------------------------------------------------------------------|
+| `driver_readiness_check` | `coin`        | Returns step-by-step instructions for readiness check + send. Use this if you are unsure what to do. |
 
 ---
 
@@ -94,10 +94,10 @@ Use `testdummycoin` as the coin identifier for testing. It exercises the full ap
 
 ## Common Mistakes to Avoid
 
-| Wrong | Right |
-|-------|-------|
-| `curl http://127.0.0.1:9550/...` | Read the MCP resource directly via `resources/read` |
-| Bash loop polling with `sleep` | Read `konkin://decisions/{requestId}` via MCP, wait, read again |
-| Piping curl through python/jq to parse JSON | MCP responses are already structured — just read them |
-| Skipping readiness check | Always check `konkin://runtime/config/requirements` first |
+| Wrong                                           | Right                                                                    |
+|-------------------------------------------------|--------------------------------------------------------------------------|
+| `curl http://127.0.0.1:9550/...`                | Read the MCP resource directly via `resources/read`                      |
+| Bash loop polling with `sleep`                  | Read `konkin://decisions/{requestId}` via MCP, wait, read again          |
+| Piping curl through python/jq to parse JSON     | MCP responses are already structured — just read them                    |
+| Skipping readiness check                        | Always check `konkin://runtime/config/requirements` first                |
 | Reporting "sent successfully" after `send_coin` | `send_coin` only queues the request. Wait for a terminal decision state. |
