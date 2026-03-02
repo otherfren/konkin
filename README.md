@@ -1,13 +1,20 @@
 # Konkin
 
 Konkin is a self-hosted server that brokers blockchain send operations through human-in-the-loop approval workflows.
-An AI driver agent submits send requests via MCP; one or more auth agents (web-ui, Telegram, REST-Api or other AI) approve or deny them.
 
-## Quickstart
+An AI **driver agent** submits cryptocurrency send requests via MCP (Model Context Protocol).
+One or more **auth agents** — web UI, Telegram, REST API, or another AI — approve or deny them before anything gets executed on-chain.
 
-**Prerequisites:** Java 21+, Maven 3.9+
+---
 
-### 1. Build
+## Prerequisites
+
+- **Java 21** or newer
+- **Maven 3.9** or newer
+
+---
+
+## Build
 
 ```bash
 mvn clean install
@@ -15,68 +22,99 @@ mvn clean install
 
 This produces `target/konkin-server-0.1.0-SNAPSHOT.jar`.
 
-### 2. Configure
+---
 
-Copy or edit `config.toml` in the working directory. The defaults work out of the box for local development (H2 database, no Telegram).
+## Configure
 
-Key sections:
+Copy or edit `config.toml` in the working directory. The defaults work out of the box for local development (H2 database, no external services required).
 
 | Section                | Default                   | Purpose                                         |
 |------------------------|---------------------------|-------------------------------------------------|
 | `[server]`             | `127.0.0.1:7070`          | Web UI + REST API                               |
-| `[agents.primary]`     | `127.0.0.1:9550`          | Driver MCP server (for AI agent)                |
+| `[agents.primary]`     | `127.0.0.1:9550`          | Driver MCP server (the one your AI connects to) |
 | `[agents.secondary.*]` | `9560`, `9561`            | Auth MCP servers (for optional approval agents) |
 | `[coins.*]`            | bitcoin, litecoin, monero | Enabled coins and auth rules                    |
 
-Secret files (API keys, agent tokens) are auto-generated on first startup under `./secrets/`.
+Secret files are **auto-generated on first startup** under `./secrets/`.
 
-### 3. Run
+---
 
-```bash
-java -jar target/konkin-server-0.1.0-SNAPSHOT.jar
-```
-
-Or pass a custom config path:
+## Run
 
 ```bash
-java -jar target/konkin-server-0.1.0-SNAPSHOT.jar /path/to/config.toml
+java -jar target/konkin-server-0.1.0-SNAPSHOT.jar config.toml
 ```
 
-### 4. Verify
+On first run, Konkin creates `./secrets/` and prints credentials to stdout. **Copy them** — cleartext secrets are only shown once.
 
-- Web UI: http://127.0.0.1:7070
-- Health: http://127.0.0.1:7070/api/v1/health
-- Driver MCP health: `konkin://health` via MCP at `http://127.0.0.1:9550/sse`
+---
 
-### 5. Connect an AI driver agent
+## Verify
 
-The Konkin MCP server uses OAuth2 client credentials.
-The client secret is auto-generated at `./secrets/agent-*name*.secret` on first startup.
+| What             | URL                                   |
+|------------------|---------------------------------------|
+| Web UI           | `http://127.0.0.1:7070`               |
+| REST health      | `http://127.0.0.1:7070/api/v1/health` |
+| MCP SSE endpoint | `http://127.0.0.1:9550/sse`           |
 
-## Authentication:
+---
 
+## Connect Claude / Sonnet to Konkin
+
+### 1. Find your credentials
+
+Open `./secrets/agent-primary.secret` (auto-created on first boot):
+
+```properties
+client-id=konkin-primary
+client-secret=<your-generated-secret>
 ```
-POST http://127.0.0.1:9550/oauth/token
-grant_type=client_credentials&client_id=konkin-primary&client_secret=<from secrets/agent-primary.secret>
+
+### 2. Get a bearer token
+
+```bash
+curl -s -X POST "http://127.0.0.1:9550/oauth/token" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=konkin-primary" \
+  -d "client_secret=YOUR_SECRET"
 ```
 
-Use the returned Bearer token in the `Authorization` header for MCP requests.
+Copy the `access_token` from the JSON response. Tokens expire after 1 hour.
 
-Add to your MCP client config (e.g. Claude Code `~/.claude/settings.json`):
+### 3. Add MCP server to Claude Code
+
+Edit `~/.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "konkin-driver": {
+    "konkin": {
       "type": "sse",
       "url": "http://127.0.0.1:9550/sse",
-      "headers":
-      {
-        "Authorization": "Bearer <BEARER TOKEN>"
+      "headers": {
+        "Authorization": "Bearer YOUR_ACCESS_TOKEN"
       }
     }
   }
 }
 ```
 
-See `documents/SKILL-driver-agent.md` for the full driver agent operating guide.
+Restart Claude Code. You should see `konkin` in the MCP server list.
+
+### 4. Tell your agent how to use Konkin
+
+Copy the contents of **`documents/SKILL-driver-agent.md`** into your agent's instructions (e.g. paste it into Claude Code's custom instructions, or into your project's `.claude/` directory as a skill file).
+
+That file contains everything the agent needs: what MCP primitives to call, in what order, and what NOT to do (like generating curl commands instead of using the MCP connection).
+
+---
+
+## Troubleshooting
+
+| Problem                                 | Fix                                                                                    |
+|-----------------------------------------|----------------------------------------------------------------------------------------|
+| `401 Unauthorized`                      | Token expired. Re-run the `/oauth/token` curl and update your settings.                |
+| `NOT_READY` from readiness check        | Coins not enabled or secret files missing. Check `config.toml` and `./secrets/`.       |
+| MCP server not showing in Claude        | Verify `~/.claude/settings.json` is valid JSON. Restart Claude Code.                   |
+| `429 rate_limited`                      | Too many failed auth attempts. Wait 60s, retry with correct credentials.               |
+| Agent using curl/bash to talk to Konkin | Wrong. See `documents/SKILL-driver-agent.md` — the agent must use MCP primitives only. |
