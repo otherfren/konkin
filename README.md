@@ -81,25 +81,18 @@ curl -s -X POST "http://127.0.0.1:9550/oauth/token" \
 
 Copy the `access_token` from the JSON response. Tokens do not expire and survive server restarts (persisted in H2). Max 2 active tokens per agent; issuing a 3rd evicts the oldest.
 
-### 3. Add MCP server to Claude Code
+### 3. Register the MCP server with Claude Code
 
-Edit `~/.claude/settings.json`:
+From your project directory, run:
 
-```json
-{
-  "mcpServers": {
-    "konkin": {
-      "type": "sse",
-      "url": "http://127.0.0.1:9550/sse",
-      "headers": {
-        "Authorization": "Bearer YOUR_ACCESS_TOKEN"
-      }
-    }
-  }
-}
+```bash
+claude mcp add --transport sse \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -s project \
+  konkin "http://127.0.0.1:9550/sse"
 ```
 
-Restart Claude Code. You should see `konkin` in the MCP server list.
+This creates a `.mcp.json` in the project root. Restart Claude Code — you should see `konkin` in the MCP server list. Verify with `claude mcp list`.
 
 ### 4. Tell your agent how to use Konkin
 

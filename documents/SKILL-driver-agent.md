@@ -8,8 +8,13 @@ You submit send requests; humans (or auth agents) approve or deny them before an
 
 ## CRITICAL RULES — Read First
 
-1. **Use ONLY your MCP connection.** You interact with Konkin exclusively through MCP primitives: `resources/read`, `tools/call`, `prompts/get`. Your MCP client handles all HTTP/SSE transport automatically.
-2. **NEVER use curl, wget, shell scripts, or any CLI commands** to talk to Konkin. Do not generate bash commands that hit Konkin endpoints. Do not write polling loops in bash. Do not pipe curl output through python/jq. All of that is wrong.
+1. **Use ONLY your built-in MCP tools.** The MCP server "konkin" is already connected to you. You have MCP tools like `mcp__konkin__resources_read`, `mcp__konkin__tools_call`, `mcp__konkin__prompts_get` (or similar names depending on your runtime). Call these tools directly — they handle all HTTP/SSE transport.
+2. **NEVER run shell/bash commands to interact with Konkin.** This includes:
+   - `curl`, `wget`, `httpie`, or any HTTP client
+   - `claude mcp get-resource`, `claude mcp call-tool`, or any `claude mcp` CLI subcommand
+   - Bash polling loops with `sleep`
+   - Piping output through `python`, `jq`, `grep`
+   - **ANY Bash command** that contacts Konkin endpoints — ALL of that is wrong
 3. **NEVER simulate results.** Only report what MCP responses actually contain. If a tool call fails, say so.
 4. **NEVER skip readiness checks.** Always verify the server and coin are READY before submitting a send.
 5. **Do not claim success unless a terminal state confirms it.** Terminal states: COMPLETED, DENIED, FAILED, TIMED_OUT, CANCELLED, REJECTED, EXPIRED.
@@ -94,10 +99,13 @@ Use `testdummycoin` as the coin identifier for testing. It exercises the full ap
 
 ## Common Mistakes to Avoid
 
-| Wrong                                           | Right                                                                    |
-|-------------------------------------------------|--------------------------------------------------------------------------|
-| `curl http://127.0.0.1:9550/...`                | Read the MCP resource directly via `resources/read`                      |
-| Bash loop polling with `sleep`                  | Read `konkin://decisions/{requestId}` via MCP, wait, read again          |
-| Piping curl through python/jq to parse JSON     | MCP responses are already structured — just read them                    |
-| Skipping readiness check                        | Always check `konkin://runtime/config/requirements` first                |
-| Reporting "sent successfully" after `send_coin` | `send_coin` only queues the request. Wait for a terminal decision state. |
+| Wrong                                              | Right                                                                    |
+|----------------------------------------------------|--------------------------------------------------------------------------|
+| `curl http://127.0.0.1:9550/...`                   | Use your built-in MCP tool to read the resource                          |
+| `claude mcp get-resource konkin://...`              | Use your built-in MCP tool — do NOT shell out to `claude mcp` CLI        |
+| `claude mcp call-tool konkin send_coin ...`         | Call `send_coin` via your MCP tool, not via `claude mcp` CLI             |
+| Any Bash command that contacts Konkin               | You already have an MCP connection. Use it directly. No shell needed.    |
+| Bash loop polling with `sleep`                      | Read `konkin://decisions/{requestId}` via MCP, wait, read again          |
+| Piping curl through python/jq to parse JSON         | MCP responses are already structured — just read them                    |
+| Skipping readiness check                            | Always check `konkin://runtime/config/requirements` first                |
+| Reporting "sent successfully" after `send_coin`     | `send_coin` only queues the request. Wait for a terminal decision state. |
