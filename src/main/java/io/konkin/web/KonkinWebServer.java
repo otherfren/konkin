@@ -163,6 +163,8 @@ public class KonkinWebServer {
                     config.telegramEnabled() && config.landingEnabled()
             );
 
+            LandingPageMapper mapper = new LandingPageMapper(config);
+
             landingPageController = new LandingPageController(
                     landingPageService,
                     config.landingPasswordProtectionEnabled(),
@@ -172,7 +174,8 @@ public class KonkinWebServer {
                     telegramService,
                     telegramSecretService,
                     authQueueStore,
-                    config
+                    config,
+                    mapper
             );
         }
 

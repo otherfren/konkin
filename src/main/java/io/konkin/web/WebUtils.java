@@ -1,0 +1,63 @@
+package io.konkin.web;
+
+import io.konkin.db.entity.PageResult;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+public final class WebUtils {
+
+    private WebUtils() {
+    }
+
+    public static int parsePositiveInt(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) {
+            return fallback;
+        }
+        try {
+            int val = Integer.parseInt(raw.trim());
+            return Math.max(1, val);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    public static String defaultIfBlank(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    public static String firstNonBlank(String... values) {
+        if (values == null || values.length == 0) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null) {
+                String trimmed = value.trim();
+                if (!trimmed.isEmpty()) {
+                    return trimmed;
+                }
+            }
+        }
+        return "";
+    }
+
+    public static Map<String, Object> pageMetaFrom(PageResult<?> result) {
+        Map<String, Object> pageMeta = new LinkedHashMap<>();
+        pageMeta.put("page", result.page());
+        pageMeta.put("pageSize", result.pageSize());
+        pageMeta.put("totalRows", result.totalRows());
+        pageMeta.put("totalPages", result.totalPages());
+        pageMeta.put("sortBy", result.sortBy());
+        pageMeta.put("sortDir", result.sortDir());
+        pageMeta.put("hasPrev", result.page() > 1);
+        pageMeta.put("hasNext", result.totalPages() > 0 && result.page() < result.totalPages());
+        pageMeta.put("prevPage", Math.max(1, result.page() - 1));
+        pageMeta.put("nextPage", result.totalPages() <= 0 ? 1 : Math.min(result.totalPages(), result.page() + 1));
+        return Map.copyOf(pageMeta);
+    }
+    public static String maskIdentifier(String id) {
+        if (id == null || id.isBlank()) return "-";
+        String trimmed = id.trim();
+        if (trimmed.length() <= 4) return "****";
+        return trimmed.substring(0, 2) + "****" + trimmed.substring(trimmed.length() - 2);
+    }
+}
