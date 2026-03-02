@@ -41,7 +41,8 @@
     <#assign qPage = (queuePage.page!1)>
     <#assign qPageSize = (queuePage.pageSize!25)>
     <#assign qTotalRows = (queuePage.totalRows!0)>
-    <#assign qTotalPages = (queuePage.totalPages!0)>
+    <#assign qTotalPagesRaw = (queuePage.totalPages!0)>
+    <#assign qTotalPages = (qTotalPagesRaw < 1)?then(1, qTotalPagesRaw)>
     <#assign queueNotice = (queuePage.queueNotice!'')>
     <#assign queueNoticeError = (queuePage.queueNoticeError!false)>
     <#assign queueConfirmRequired = (queuePage.queueConfirmRequired!false)>
@@ -56,12 +57,25 @@
         </div>
     </#if>
 
+    <#assign queueConfirmCoin = (queuePage.queueConfirmCoin!'')>
+    <#assign queueConfirmAmountNative = (queuePage.queueConfirmAmountNative!'')>
+    <#assign queueConfirmToAddress = (queuePage.queueConfirmToAddress!'')>
+    <#assign queueConfirmToolName = (queuePage.queueConfirmToolName!'')>
+
     <#if queueConfirmRequired>
         <section class="queue-confirm-panel" aria-labelledby="queue-confirm-title">
             <h3 id="queue-confirm-title" class="queue-confirm-title">Confirmation required</h3>
             <p class="queue-confirm-copy">
                 Confirm <strong>${queueConfirmDecision?html}</strong> for request <span class="mono">${queueConfirmRequestIdShort?html}</span>.
             </p>
+            <#if queueConfirmToolName?has_content || queueConfirmCoin?has_content || queueConfirmAmountNative?has_content || queueConfirmToAddress?has_content>
+                <div class="queue-confirm-details">
+                    <#if queueConfirmToolName?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">${queueConfirmToolName?html}</span></p></#if>
+                    <#if queueConfirmCoin?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">${queueConfirmCoin?html}</span></p></#if>
+                    <#if queueConfirmAmountNative?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">${queueConfirmAmountNative?html}</span></p></#if>
+                    <#if queueConfirmToAddress?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">${queueConfirmToAddress?html}</span></p></#if>
+                </div>
+            </#if>
             <div class="queue-confirm-actions">
                 <form method="post" action="${queueConfirmActionPath}" class="queue-confirm-inline-form">
                     <input type="hidden" name="request_id" value="${queueConfirmRequestId?html}">
@@ -110,6 +124,7 @@
                     <th>Id</th>
                     <th>Coin</th>
                     <th>Tool</th>
+                    <th>Amount</th>
                     <th>Quorum Status</th>
                     <th>Requested</th>
                     <th>Expires</th>
@@ -121,7 +136,7 @@
             <tbody>
                 <#if queueRows?size == 0>
                     <tr>
-                        <td colspan="9" class="empty-row">No approval requests found.</td>
+                        <td colspan="10" class="empty-row">No approval requests found.</td>
                     </tr>
                 <#else>
                     <#list queueRows as row>
@@ -150,19 +165,24 @@
                                 </#if>
                             </td>
                             <td class="queue-tool-cell">${row.toolName!'-'}</td>
+                            <td class="mono queue-small-text queue-nowrap">${row.amountNative!'-'}</td>
                             <td class="queue-status-cell">
                                 <span class="status ${row.statusClass!'pending'}">${row.quorumLabel!'pending 0-of-0'}</span>
                             </td>
                             <td class="mono queue-nowrap queue-small-text">${row.requestedAt!'-'}</td>
                             <td class="mono queue-nowrap queue-small-text">${row.expiresIn!'-'}</td>
                             <td class="action-cell">
-                                <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve">
+                                <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve"
+                                      data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
+                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}">
                                     <input type="hidden" name="request_id" value="${(row.id!'')?html}">
                                     <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
                                 </form>
                             </td>
                             <td class="action-cell">
-                                <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny">
+                                <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny"
+                                      data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
+                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}">
                                     <input type="hidden" name="request_id" value="${(row.id!'')?html}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
                                 </form>
@@ -188,6 +208,7 @@
         <div class="queue-confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="queue-confirm-modal-title">
             <h3 id="queue-confirm-modal-title" class="queue-confirm-modal-title">Confirm queue decision</h3>
             <p id="queue-confirm-modal-message" class="queue-confirm-modal-copy">Proceed with this action?</p>
+            <div id="queue-confirm-modal-details" class="queue-confirm-details" hidden></div>
             <div class="queue-confirm-modal-actions">
                 <button type="button" id="queue-confirm-modal-cancel" class="queue-action-btn queue-action-cancel">cancel</button>
                 <button type="button" id="queue-confirm-modal-submit" class="queue-action-btn queue-action-approve">confirm</button>
@@ -304,6 +325,8 @@
         pendingDecisionForm = null;
     };
 
+    const confirmDetails = document.getElementById('queue-confirm-modal-details');
+
     const openConfirmModal = form => {
         if (!confirmModal || !confirmMessage || !confirmSubmit) {
             return;
@@ -319,6 +342,25 @@
         confirmSubmit.textContent = decision === 'deny' ? 'confirm deny' : 'confirm approve';
         confirmSubmit.classList.remove('queue-action-approve', 'queue-action-deny');
         confirmSubmit.classList.add(decision === 'deny' ? 'queue-action-deny' : 'queue-action-approve');
+
+        if (confirmDetails) {
+            const tool = form.getAttribute('data-tool') || '';
+            const coin = form.getAttribute('data-coin') || '';
+            const amount = form.getAttribute('data-amount') || '';
+            const toAddr = form.getAttribute('data-to-address') || '';
+            let html = '';
+            if (tool) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">' + tool.replace(/</g, '&lt;') + '</span></p>';
+            if (coin) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">' + coin.replace(/</g, '&lt;') + '</span></p>';
+            if (amount) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">' + amount.replace(/</g, '&lt;') + '</span></p>';
+            if (toAddr) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">' + toAddr.replace(/</g, '&lt;') + '</span></p>';
+            if (html) {
+                confirmDetails.innerHTML = html;
+                confirmDetails.hidden = false;
+            } else {
+                confirmDetails.innerHTML = '';
+                confirmDetails.hidden = true;
+            }
+        }
 
         confirmModal.hidden = false;
         window.requestAnimationFrame(() => confirmModal.classList.add('is-open'));

@@ -528,6 +528,10 @@ public class LandingPageController {
             pageMeta.put("queueConfirmRequestId", queueConfirmData.requestId());
             pageMeta.put("queueConfirmRequestIdShort", abbreviateId(queueConfirmData.requestId()));
             pageMeta.put("queueConfirmActionPath", "deny".equals(decision) ? "/queue/deny" : "/queue/approve");
+            pageMeta.put("queueConfirmCoin", queueConfirmData.coin() != null ? queueConfirmData.coin() : "");
+            pageMeta.put("queueConfirmAmountNative", queueConfirmData.amountNative() != null ? queueConfirmData.amountNative() : "");
+            pageMeta.put("queueConfirmToAddress", queueConfirmData.toAddress() != null ? queueConfirmData.toAddress() : "");
+            pageMeta.put("queueConfirmToolName", queueConfirmData.toolName() != null ? queueConfirmData.toolName() : "");
         }
 
         return new TablePageData(source.rows(), Map.copyOf(pageMeta));
@@ -571,11 +575,24 @@ public class LandingPageController {
         String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
         if (!"yes".equalsIgnoreCase(confirm)) {
             String actionLabel = "deny".equals(normalizedDecision) ? "deny" : "approve";
+            String coin = "";
+            String amountNative = "";
+            String toAddress = "";
+            String toolName = "";
+            if (requestRepo != null) {
+                ApprovalRequestRow row = requestRepo.findApprovalRequestById(requestId);
+                if (row != null) {
+                    coin = row.coin() != null ? row.coin() : "";
+                    amountNative = row.amountNative() != null ? row.amountNative() : "";
+                    toAddress = row.toAddress() != null ? row.toAddress() : "";
+                    toolName = row.toolName() != null ? row.toolName() : "";
+                }
+            }
             renderLandingForPage(
                     ctx, "queue", "", false, "",
                     "Please confirm to " + actionLabel + " request " + abbreviateId(requestId) + ".",
                     false,
-                    new QueueConfirmData(actionLabel, requestId)
+                    new QueueConfirmData(actionLabel, requestId, coin, amountNative, toAddress, toolName)
             );
             return;
         }
@@ -718,6 +735,7 @@ public class LandingPageController {
 
     // ── Inner records ──────────────────────────────────────────────────────
 
-    private record QueueConfirmData(String decision, String requestId) {
+    private record QueueConfirmData(String decision, String requestId,
+                                        String coin, String amountNative, String toAddress, String toolName) {
     }
 }

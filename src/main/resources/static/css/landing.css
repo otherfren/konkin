@@ -128,9 +128,10 @@ body {
 }
 
 .content {
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 48px auto;
     padding: 0 24px;
+    width: 100%;
 }
 
 .queue-title {
@@ -171,6 +172,7 @@ body {
     width: 100%;
     border-collapse: collapse;
     font-size: 0.9rem;
+    table-layout: auto;
 }
 
 .queue-table th {
@@ -307,7 +309,7 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 92px;
+    min-width: 72px;
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.74rem;
     letter-spacing: 0.08em;
@@ -318,6 +320,7 @@ body {
     background: #0f1115;
     color: var(--muted);
     text-decoration: none;
+    cursor: pointer;
 }
 
 .queue-action-btn:disabled {
@@ -677,6 +680,32 @@ p {
     margin: 10px 0 0;
     color: #dbe2f1;
     font-size: 0.92rem;
+}
+
+.queue-confirm-details {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(12, 15, 20, 0.7);
+}
+
+.queue-confirm-detail {
+    margin: 4px 0;
+    font-size: 0.88rem;
+    color: #dbe2f1;
+}
+
+.queue-confirm-detail-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.queue-confirm-address {
+    word-break: break-all;
 }
 
 .queue-confirm-modal-actions {
@@ -1387,7 +1416,7 @@ p {
 }
 
 .site-footer-inner {
-    max-width: 1100px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 0 24px;
     display: flex;
@@ -1607,8 +1636,8 @@ p {
     }
 
     .queue-action-btn {
-        min-width: 72px;
-        padding: 5px 8px;
+        min-width: 60px;
+        padding: 5px 6px;
     }
 
     .details-box {

@@ -72,6 +72,8 @@ public class LandingPageMapper {
             mapped.put("coin", safe(row.coin()));
             mapped.put("coinIconName", coinIconName(row.coin()));
             mapped.put("toolName", safe(row.toolName()));
+            mapped.put("amountNative", safe(row.amountNative()));
+            mapped.put("toAddress", safe(row.toAddress()));
             mapped.put("requestedAt", formatInstantMinute(row.requestedAt()));
             mapped.put("expiresIn", formatRemaining(row.expiresAt(), now));
             mapped.put("state", state);
