@@ -25,6 +25,7 @@ import io.konkin.db.DebugDataSeeder;
 import io.konkin.db.KvStore;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.controller.LandingPageController;
+import io.konkin.web.controller.TelegramWebController;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.LandingResourceWatcher;
@@ -94,6 +95,7 @@ public class KonkinWebServer {
 
         TelegramService telegramService = null;
         TelegramSecretService telegramSecretService = null;
+        TelegramWebController telegramWebController = null;
 
         if (config.telegramEnabled()) {
             Path secretFile = Path.of(config.telegramSecretFile());
@@ -165,18 +167,28 @@ public class KonkinWebServer {
 
             LandingPageMapper mapper = new LandingPageMapper(config);
 
+            telegramWebController = new TelegramWebController(
+                    config.telegramChatIds(),
+                    telegramService,
+                    telegramSecretService,
+                    landingPageService,
+                    config.landingPasswordProtectionEnabled(),
+                    null // Will be set after landingPageController creation
+            );
+
             landingPageController = new LandingPageController(
                     landingPageService,
                     config.landingPasswordProtectionEnabled(),
                     landingPasswordFileManager,
                     config.telegramEnabled(),
-                    config.telegramChatIds(),
-                    telegramService,
-                    telegramSecretService,
+                    telegramWebController,
                     authQueueStore,
                     config,
                     mapper
             );
+
+            telegramWebController.setLandingPageController(landingPageController);
+            telegramWebController.setActiveSessions(landingPageController.activeSessions());
         }
 
         Path staticDirectoryFinal = landingStaticDirectory;
@@ -295,10 +307,10 @@ public class KonkinWebServer {
 
             if (config.telegramEnabled()) {
                 app.get("/telegram", webUiPageControllerFinal::handleTelegramPage);
-                app.post("/telegram/approve", webUiPageControllerFinal::handleTelegramApprove);
-                app.post("/telegram/unapprove", webUiPageControllerFinal::handleTelegramUnapprove);
-                app.post("/telegram/reset", webUiPageControllerFinal::handleTelegramReset);
-                app.post("/telegram/send", webUiPageControllerFinal::handleTelegramSubmit);
+                app.post("/telegram/approve", telegramWebController::handleApprove);
+                app.post("/telegram/unapprove", telegramWebController::handleUnapprove);
+                app.post("/telegram/reset", telegramWebController::handleReset);
+                app.post("/telegram/send", telegramWebController::handleSend);
             }
 
             landingResourceWatcher = new LandingResourceWatcher(

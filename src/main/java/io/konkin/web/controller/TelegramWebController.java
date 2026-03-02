@@ -1,51 +1,71 @@
 package io.konkin.web.controller;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
-import io.konkin.db.entity.ApprovalChannelRow;
+import io.konkin.web.WebUtils;
+import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.TelegramSecretService;
 import io.konkin.web.service.TelegramService;
-import io.konkin.web.UiFormattingUtils;
-import io.konkin.web.WebUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static io.konkin.web.UiFormattingUtils.*;
+import static io.konkin.web.WebUtils.*;
 
 public class TelegramWebController {
 
     private static final Logger log = LoggerFactory.getLogger(TelegramWebController.class);
-    private static final String TELEGRAM_CHANNEL_ID_PREFIX = "telegram:";
 
-    private final boolean telegramEnabled;
+    private final List<String> configuredTelegramChatIds;
     private final TelegramService telegramService;
     private final TelegramSecretService telegramSecretService;
-    private final AuthQueueStore authQueueStore;
+    private final LandingPageService landingPageService;
+    private final boolean passwordProtectionEnabled;
+    private Map<String, Instant> activeSessions;
+    private LandingPageController landingPageController;
 
     public TelegramWebController(
-            boolean telegramEnabled,
+            List<String> configuredTelegramChatIds,
             TelegramService telegramService,
             TelegramSecretService telegramSecretService,
-            AuthQueueStore authQueueStore
+            LandingPageService landingPageService,
+            boolean passwordProtectionEnabled,
+            Map<String, Instant> activeSessions
     ) {
-        this.telegramEnabled = telegramEnabled;
+        this.configuredTelegramChatIds = configuredTelegramChatIds == null ? List.of() : List.copyOf(configuredTelegramChatIds);
         this.telegramService = telegramService;
         this.telegramSecretService = telegramSecretService;
-        this.authQueueStore = authQueueStore;
+        this.landingPageService = landingPageService;
+        this.passwordProtectionEnabled = passwordProtectionEnabled;
+        this.activeSessions = activeSessions;
     }
 
-    public boolean isTelegramEnabled() {
-        return telegramEnabled;
+    public void setLandingPageController(LandingPageController landingPageController) {
+        this.landingPageController = landingPageController;
     }
 
-    public void handleTelegramApprove(Context ctx, Runnable onAuthError, LandingPageAction onResult) {
-        if (!telegramEnabled) {
-            ctx.status(404);
+    public void setActiveSessions(Map<String, Instant> activeSessions) {
+        this.activeSessions = activeSessions;
+    }
+
+    // ── Action handlers ────────────────────────────────────────────────────
+
+    public void handleApprove(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            showLogin(ctx, false);
             return;
         }
 
-        String sourcePage = WebUtils.defaultIfBlank(ctx.formParam("source_page"), "").trim();
+        String sourcePage = defaultIfBlank(ctx.formParam("source_page"), "").trim();
         boolean sourceAuthChannels = "auth_channels".equalsIgnoreCase(sourcePage);
 
         String chatIdInput = ctx.formParam("chat_id");
@@ -55,20 +75,20 @@ public class TelegramWebController {
                 ctx.redirect("/auth_channels");
                 return;
             }
-            onResult.render("telegram", "Chat ID cannot be empty.", true, "");
+            renderTelegramPage(ctx, "Chat ID cannot be empty.", true, "", null);
             return;
         }
 
-        String chatType = WebUtils.defaultIfBlank(ctx.formParam("chat_type"), "").trim();
-        String chatTitle = WebUtils.defaultIfBlank(ctx.formParam("chat_title"), "").trim();
-        String chatUsername = WebUtils.defaultIfBlank(ctx.formParam("chat_username"), "").trim();
+        String chatType = defaultIfBlank(ctx.formParam("chat_type"), "").trim();
+        String chatTitle = defaultIfBlank(ctx.formParam("chat_title"), "").trim();
+        String chatUsername = defaultIfBlank(ctx.formParam("chat_username"), "").trim();
 
         if (telegramSecretService.approveChat(chatId, chatType, chatTitle, chatUsername)) {
             if (sourceAuthChannels) {
                 ctx.redirect("/auth_channels");
-            } else {
-                onResult.render("telegram", "Approved Telegram chat " + UiFormattingUtils.abbreviateId(chatId) + ".", false, "");
+                return;
             }
+            renderTelegramPage(ctx, "Approved Telegram chat " + abbreviateId(chatId) + ".", false, "", null);
             return;
         }
 
@@ -77,85 +97,230 @@ public class TelegramWebController {
             ctx.redirect("/auth_channels");
             return;
         }
-        onResult.render("telegram", "Failed to approve Telegram chat.", true, "");
+        renderTelegramPage(ctx, "Failed to approve Telegram chat.", true, "", null);
     }
 
-    public void handleTelegramUnapprove(Context ctx, Runnable onAuthError, LandingPageAction onResult, TelegramConfirmAction onConfirm) {
-        if (!telegramEnabled) {
-            ctx.status(404);
+    public void handleUnapprove(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            showLogin(ctx, false);
             return;
         }
 
-        String chatId = WebUtils.defaultIfBlank(ctx.formParam("chat_id"), "").trim();
+        String chatId = defaultIfBlank(ctx.formParam("chat_id"), "").trim();
         if (chatId.isEmpty()) {
-            onResult.render("telegram", "Missing Telegram chat ID.", true, "");
+            renderTelegramPage(ctx, "Missing Telegram chat ID.", true, "", null);
             return;
         }
 
-        String confirm = WebUtils.defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
         if (!"yes".equalsIgnoreCase(confirm)) {
-            onConfirm.showConfirm("unapprove", chatId);
+            renderTelegramPage(ctx, "Please confirm to unapprove chat " + abbreviateId(chatId) + ".", false, "", new TelegramConfirmData("unapprove", chatId));
             return;
         }
 
         if (telegramSecretService.unapproveChatId(chatId)) {
-            onResult.render("telegram", "Unapproved Telegram chat " + UiFormattingUtils.abbreviateId(chatId) + ".", false, "");
+            renderTelegramPage(ctx, "Unapproved Telegram chat " + abbreviateId(chatId) + ".", false, "", null);
             return;
         }
 
         log.warn("Failed Telegram chat unapproval from {} for chatId={}", ctx.ip(), chatId);
-        onResult.render("telegram", "Failed to unapprove Telegram chat.", true, "");
+        renderTelegramPage(ctx, "Failed to unapprove Telegram chat.", true, "", null);
     }
 
-    public void handleTelegramReset(Context ctx, Runnable onAuthError, LandingPageAction onResult, TelegramConfirmAction onConfirm) {
-        if (!telegramEnabled) {
-            ctx.status(404);
+    public void handleReset(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            showLogin(ctx, false);
             return;
         }
 
-        String confirm = WebUtils.defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
         if (!"yes".equalsIgnoreCase(confirm)) {
-            onConfirm.showConfirm("reset", "");
+            renderTelegramPage(ctx, "Please confirm reset of all approved Telegram chats.", false, "", new TelegramConfirmData("reset", ""));
             return;
         }
 
         if (telegramSecretService.resetApprovedChatIds()) {
-            onResult.render("telegram", "Reset all approved Telegram chats.", false, "");
+            renderTelegramPage(ctx, "Reset persisted approved Telegram chats.", false, "", null);
             return;
         }
 
-        log.warn("Failed Telegram chat reset from {}", ctx.ip());
-        onResult.render("telegram", "Failed to reset Telegram chats.", true, "");
+        log.warn("Failed Telegram approved-chat reset from {}", ctx.ip());
+        renderTelegramPage(ctx, "Failed to reset approved Telegram chats.", true, "", null);
     }
 
-    public void handleTelegramSubmit(Context ctx, Runnable onAuthError, LandingPageAction onResult) {
-        if (!telegramEnabled) {
-            ctx.status(404);
+    public void handleSend(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            showLogin(ctx, false);
             return;
         }
 
-        String draft = WebUtils.defaultIfBlank(ctx.formParam("draft"), "").trim();
-        if (draft.isEmpty()) {
-            onResult.render("telegram", "Message cannot be empty.", true, "");
+        String messageInput = ctx.formParam("telegram_message");
+        String messageText = messageInput == null ? "" : messageInput.trim();
+
+        if (messageText.isEmpty()) {
+            renderTelegramPage(ctx, "Message cannot be empty.", true, messageInput == null ? "" : messageInput, null);
             return;
         }
 
-        TelegramService.SendResult result = telegramService.sendMessage(draft);
+        if (messageText.length() > 4096) {
+            renderTelegramPage(ctx, "Message is too long (max 4096 characters).", true, messageInput, null);
+            return;
+        }
+
+        List<String> targetChatIds = approvedChatIds();
+        TelegramService.SendResult result = telegramService.sendMessage(messageText, targetChatIds);
         if (result.success()) {
-            onResult.render("telegram", "Telegram message sent.", false, "");
+            renderTelegramPage(ctx, "Telegram message sent.", false, "", null);
+            return;
+        }
+
+        String detail = result.detail() == null || result.detail().isBlank() ? "unknown error" : result.detail();
+        log.warn("Telegram send failed from {}: {}", ctx.ip(), detail);
+        renderTelegramPage(ctx, "Telegram send failed: " + detail, true, messageInput, null);
+    }
+
+    private void renderTelegramPage(Context ctx, String notice, boolean error, String draft, TelegramConfirmData confirmData) {
+        if (landingPageController != null) {
+            landingPageController.renderLandingForPage(
+                    ctx, "telegram", notice, error, draft,
+                    "", false, null, confirmData
+            );
         } else {
-            log.warn("Failed to send Telegram message from {}: {}", ctx.ip(), result.detail());
-            onResult.render("telegram", "Failed to send Telegram message: " + result.detail(), true, draft);
+            // Fallback for tests if controller is not yet linked
+            ctx.status(200);
+            ctx.result(notice);
         }
     }
 
-    @FunctionalInterface
-    public interface LandingPageAction {
-        void render(String page, String notice, boolean error, String draft);
+    private void showLogin(Context ctx, boolean invalidPassword) {
+        ctx.status(invalidPassword ? 401 : 200);
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderLogin(invalidPassword));
     }
 
-    @FunctionalInterface
-    public interface TelegramConfirmAction {
-        void showConfirm(String action, String chatId);
+    public record TelegramConfirmData(String mode, String chatId) {}
+
+    // ── Data loading ───────────────────────────────────────────────────────
+
+    public TelegramPageData loadTelegramPageData() {
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
+            log.warn("Failed to persist discovered Telegram chat metadata");
+        }
+
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        Map<String, TelegramSecretService.ChatMeta> metadataByChatId = secret.chatMetaById();
+
+        List<String> approvedChatIds = TelegramSecretService.mergeChatIds(configuredTelegramChatIds, secret.chatIds());
+        Set<String> approvedSet = new HashSet<>(approvedChatIds);
+
+        Map<String, TelegramService.ChatRequest> discoveredByChatId = new LinkedHashMap<>();
+        List<Map<String, String>> requestRows = new ArrayList<>();
+        for (TelegramService.ChatRequest request : discoveredRequests) {
+            if (request == null || request.chatId() == null || request.chatId().isBlank()) {
+                continue;
+            }
+
+            String chatId = request.chatId().trim();
+            discoveredByChatId.put(chatId, request);
+
+            if (approvedSet.contains(chatId)) {
+                continue;
+            }
+
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatType", firstNonBlank(request.chatType(), "unknown"));
+            row.put("chatTitle", firstNonBlank(request.chatTitle(), "(no title)"));
+            row.put("chatUsername", firstNonBlank(request.chatUsername(), ""));
+            requestRows.add(Map.copyOf(row));
+        }
+
+        List<Map<String, String>> approvedRows = new ArrayList<>();
+        for (String chatId : approvedChatIds) {
+            TelegramSecretService.ChatMeta persisted = metadataByChatId.get(chatId);
+            TelegramService.ChatRequest discovered = discoveredByChatId.get(chatId);
+
+            String chatType = firstNonBlank(
+                    persisted == null ? null : persisted.chatType(),
+                    discovered == null ? null : discovered.chatType(),
+                    "unknown"
+            );
+            String chatTitle = firstNonBlank(
+                    persisted == null ? null : persisted.chatTitle(),
+                    discovered == null ? null : discovered.chatTitle(),
+                    "(no title)"
+            );
+            String chatUsername = firstNonBlank(
+                    persisted == null ? null : persisted.chatUsername(),
+                    discovered == null ? null : discovered.chatUsername(),
+                    ""
+            );
+            String displayName = firstNonBlank(
+                    persisted == null ? null : persisted.displayName(),
+                    discovered == null
+                            ? null
+                            : firstNonBlank(
+                            discovered.chatTitle(),
+                            discovered.chatUsername() == null || discovered.chatUsername().isBlank()
+                                    ? ""
+                                    : "@" + discovered.chatUsername().trim()
+                    ),
+                    chatUsername.isEmpty() ? "" : "@" + chatUsername,
+                    chatId
+            );
+
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatType", chatType);
+            row.put("chatTitle", chatTitle);
+            row.put("chatUsername", chatUsername);
+            row.put("chatDisplayName", displayName);
+            approvedRows.add(Map.copyOf(row));
+        }
+
+        return new TelegramPageData(List.copyOf(requestRows), List.copyOf(approvedRows));
+    }
+
+    public List<String> approvedChatIds() {
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        return TelegramSecretService.mergeChatIds(configuredTelegramChatIds, secret.chatIds());
+    }
+
+    public DiscoveredChats discoverAndPersistChats() {
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
+            log.warn("Failed to persist discovered Telegram chat metadata for auth_channels page");
+        }
+
+        TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+        return new DiscoveredChats(discoveredRequests, secret, configuredTelegramChatIds);
+    }
+
+    // ── Result types ───────────────────────────────────────────────────────
+
+    public sealed interface TelegramActionResult {
+
+        record Redirect(String path) implements TelegramActionResult {
+        }
+
+        record Render(String notice, boolean error, String draft) implements TelegramActionResult {
+        }
+
+        record ConfirmRequired(String notice, String mode, String chatId) implements TelegramActionResult {
+        }
+    }
+
+    public record TelegramPageData(
+            List<Map<String, String>> chatRequests,
+            List<Map<String, String>> approvedChats
+    ) {
+    }
+
+    public record DiscoveredChats(
+            List<TelegramService.ChatRequest> discoveredRequests,
+            TelegramSecretService.TelegramSecret secret,
+            List<String> configuredTelegramChatIds
+    ) {
     }
 }

@@ -6,7 +6,29 @@ import java.util.Map;
 
 public final class WebUtils {
 
+    public static final String SESSION_COOKIE_NAME = "konkin_landing_session";
+
     private WebUtils() {
+    }
+
+    public static boolean hasValidSession(io.javalin.http.Context ctx, java.util.Map<String, java.time.Instant> activeSessions) {
+        String token = ctx.cookie(SESSION_COOKIE_NAME);
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+
+        java.time.Instant expiry = activeSessions.get(token);
+        if (expiry == null) {
+            return false;
+        }
+
+        if (expiry.isBefore(java.time.Instant.now())) {
+            activeSessions.remove(token);
+            ctx.removeCookie(SESSION_COOKIE_NAME);
+            return false;
+        }
+
+        return true;
     }
 
     public static int parsePositiveInt(String raw, int fallback) {
