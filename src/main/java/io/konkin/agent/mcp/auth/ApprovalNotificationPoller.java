@@ -1,7 +1,7 @@
 package io.konkin.agent.mcp.auth;
 
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema.ResourcesUpdatedNotification;
@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 public class ApprovalNotificationPoller {
 
     private final String agentName;
-    private final AuthQueueStore authQueueStore;
+    private final ApprovalRequestRepository requestRepo;
     private final KonkinConfig runtimeConfig;
     private final McpSyncServer mcpSyncServer;
     private Set<String> lastKnownPendingIds = Set.of();
@@ -25,12 +25,12 @@ public class ApprovalNotificationPoller {
 
     public ApprovalNotificationPoller(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
             KonkinConfig runtimeConfig,
             McpSyncServer mcpSyncServer
     ) {
         this.agentName = Objects.requireNonNull(agentName);
-        this.authQueueStore = Objects.requireNonNull(authQueueStore);
+        this.requestRepo = Objects.requireNonNull(requestRepo);
         this.runtimeConfig = Objects.requireNonNull(runtimeConfig);
         this.mcpSyncServer = Objects.requireNonNull(mcpSyncServer);
     }
@@ -55,7 +55,7 @@ public class ApprovalNotificationPoller {
     private void poll() {
         try {
             List<ApprovalRequestRow> assigned = PendingApprovalsResource.loadAssignedPendingRequests(
-                    agentName, authQueueStore, runtimeConfig
+                    agentName, requestRepo, runtimeConfig
             );
 
             Set<String> currentIds = new LinkedHashSet<>();

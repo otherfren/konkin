@@ -6,7 +6,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.StateTransitionRow;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -35,7 +36,8 @@ public final class SendCoinTool {
 
     public static SyncToolSpecification create(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
+            HistoryRepository historyRepo,
             KonkinConfig runtimeConfig
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
@@ -123,8 +125,8 @@ public final class SendCoinTool {
                     null
             );
 
-            authQueueStore.insertApprovalRequest(row);
-            authQueueStore.insertStateTransition(new StateTransitionRow(
+            requestRepo.insertApprovalRequest(row);
+            historyRepo.insertStateTransition(new StateTransitionRow(
                     0L,
                     requestId,
                     null,

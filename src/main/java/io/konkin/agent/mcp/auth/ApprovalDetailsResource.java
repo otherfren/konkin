@@ -4,7 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.VoteRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.VoteDetail;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
@@ -33,7 +34,8 @@ public final class ApprovalDetailsResource {
 
     public static SyncResourceTemplateSpecification template(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
             KonkinConfig runtimeConfig
     ) {
         return new SyncResourceTemplateSpecification(
@@ -47,7 +49,7 @@ public final class ApprovalDetailsResource {
                 ),
                 (exchange, request) -> {
                     String requestId = extractRequestId(request.uri());
-                    ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+                    ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
                     if (requestRow == null) {
                         return new ReadResourceResult(List.of(
                                 new TextResourceContents(request.uri(), "application/json",
@@ -62,7 +64,7 @@ public final class ApprovalDetailsResource {
                         ));
                     }
 
-                    List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+                    List<VoteDetail> votes = voteRepo.listVotesForRequest(requestId);
                     List<Map<String, Object>> votePayload = new ArrayList<>();
                     for (VoteDetail vote : votes) {
                         Map<String, Object> voteEntry = new LinkedHashMap<>();

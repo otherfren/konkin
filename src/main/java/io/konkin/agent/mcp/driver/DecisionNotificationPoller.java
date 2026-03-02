@@ -1,7 +1,8 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.agent.mcp.entity.McpDataContracts.DecisionStatusResponse;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.RequestDependencyLoader;
 import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.spec.McpSchema.ResourcesUpdatedNotification;
 
@@ -15,14 +16,20 @@ import java.util.concurrent.TimeUnit;
 
 public class DecisionNotificationPoller {
 
-    private final AuthQueueStore authQueueStore;
+    private final ApprovalRequestRepository requestRepo;
+    private final RequestDependencyLoader depLoader;
     private final McpSyncServer mcpSyncServer;
     private final Set<String> subscribedRequestIds = ConcurrentHashMap.newKeySet();
     private final Map<String, String> lastKnownStates = new ConcurrentHashMap<>();
     private ScheduledExecutorService scheduler;
 
-    public DecisionNotificationPoller(AuthQueueStore authQueueStore, McpSyncServer mcpSyncServer) {
-        this.authQueueStore = Objects.requireNonNull(authQueueStore);
+    public DecisionNotificationPoller(
+            ApprovalRequestRepository requestRepo,
+            RequestDependencyLoader depLoader,
+            McpSyncServer mcpSyncServer
+    ) {
+        this.requestRepo = Objects.requireNonNull(requestRepo);
+        this.depLoader = Objects.requireNonNull(depLoader);
         this.mcpSyncServer = Objects.requireNonNull(mcpSyncServer);
     }
 
@@ -57,7 +64,7 @@ public class DecisionNotificationPoller {
     private void pollSubscriptions() {
         for (String requestId : subscribedRequestIds) {
             try {
-                DecisionStatusResponse status = DecisionStatusResource.loadDecisionStatus(authQueueStore, requestId);
+                DecisionStatusResponse status = DecisionStatusResource.loadDecisionStatus(requestRepo, depLoader, requestId);
                 if (status == null) {
                     continue;
                 }

@@ -104,10 +104,10 @@ That file contains everything the agent needs: what MCP primitives to call, in w
 
 ## Troubleshooting
 
-| Problem                                 | Fix                                                                                    |
-|-----------------------------------------|----------------------------------------------------------------------------------------|
-| `401 Unauthorized` | Token invalid. Re-run the `/oauth/token` curl and update your settings. Tokens survive restarts but a 3rd issuance evicts the oldest. |
-| `NOT_READY` from readiness check        | Coins not enabled or secret files missing. Check `config.toml` and `./secrets/`.       |
-| MCP server not showing in Claude        | Verify `~/.claude/settings.json` is valid JSON. Restart Claude Code.                   |
-| `429 rate_limited`                      | Too many failed auth attempts. Wait 60s, retry with correct credentials.               |
-| Agent using curl/bash to talk to Konkin | Wrong. See `documents/SKILL-driver-agent.md` — the agent must use MCP primitives only. |
+| Problem                                 | Fix                                                                                                                                   |
+|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `401 Unauthorized`                      | Token invalid. Re-run the `/oauth/token` curl and update your settings. Tokens survive restarts but a 3rd issuance evicts the oldest. |
+| `NOT_READY` from readiness check        | Coins not enabled or secret files missing. Check `config.toml` and `./secrets/`.                                                      |
+| MCP server not showing in Claude        | Verify `~/.claude/settings.json` is valid JSON. Restart Claude Code.                                                                  |
+| `429 rate_limited`                      | Too many failed auth attempts. Wait 60s, retry with correct credentials.                                                              |
+| Agent using curl/bash to talk to Konkin | Wrong. See `documents/SKILL-driver-agent.md` — the agent must use MCP primitives only.                                                |

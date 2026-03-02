@@ -1,23 +1,23 @@
 package io.konkin.api;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ExecutionAttemptDetail;
 
 public class ExecutionAttemptController {
-    private final AuthQueueStore authQueueStore;
+    private final HistoryRepository historyRepo;
 
-    public ExecutionAttemptController(AuthQueueStore authQueueStore) {
-        this.authQueueStore = authQueueStore;
+    public ExecutionAttemptController(HistoryRepository historyRepo) {
+        this.historyRepo = historyRepo;
     }
 
     public void getAll(Context ctx) {
-        ctx.json(authQueueStore.listAllExecutionAttempts());
+        ctx.json(historyRepo.listAllExecutionAttempts());
     }
 
     public void getOne(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        ExecutionAttemptDetail row = authQueueStore.findExecutionAttemptById(id);
+        ExecutionAttemptDetail row = historyRepo.findExecutionAttemptById(id);
         if (row != null) {
             ctx.json(row);
         } else {
@@ -27,13 +27,13 @@ public class ExecutionAttemptController {
 
     public void create(Context ctx) {
         ExecutionAttemptDetail row = ctx.bodyAsClass(ExecutionAttemptDetail.class);
-        authQueueStore.insertExecutionAttempt(row);
+        historyRepo.insertExecutionAttempt(row);
         ctx.status(201).json(row);
     }
 
     public void delete(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        if (authQueueStore.deleteExecutionAttempt(id)) {
+        if (historyRepo.deleteExecutionAttempt(id)) {
             ctx.status(204);
         } else {
             ctx.status(404);

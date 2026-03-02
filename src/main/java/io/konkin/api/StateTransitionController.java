@@ -1,23 +1,23 @@
 package io.konkin.api;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.StateTransitionRow;
 
 public class StateTransitionController {
-    private final AuthQueueStore authQueueStore;
+    private final HistoryRepository historyRepo;
 
-    public StateTransitionController(AuthQueueStore authQueueStore) {
-        this.authQueueStore = authQueueStore;
+    public StateTransitionController(HistoryRepository historyRepo) {
+        this.historyRepo = historyRepo;
     }
 
     public void getAll(Context ctx) {
-        ctx.json(authQueueStore.listAllStateTransitions());
+        ctx.json(historyRepo.listAllStateTransitions());
     }
 
     public void getOne(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        StateTransitionRow row = authQueueStore.findStateTransitionById(id);
+        StateTransitionRow row = historyRepo.findStateTransitionById(id);
         if (row != null) {
             ctx.json(row);
         } else {
@@ -27,13 +27,13 @@ public class StateTransitionController {
 
     public void create(Context ctx) {
         StateTransitionRow row = ctx.bodyAsClass(StateTransitionRow.class);
-        authQueueStore.insertStateTransition(row);
+        historyRepo.insertStateTransition(row);
         ctx.status(201).json(row);
     }
 
     public void delete(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        if (authQueueStore.deleteStateTransition(id)) {
+        if (historyRepo.deleteStateTransition(id)) {
             ctx.status(204);
         } else {
             ctx.status(404);

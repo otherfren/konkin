@@ -1,23 +1,23 @@
 package io.konkin.api;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ChannelRepository;
 import io.konkin.db.entity.ApprovalRequestChannelRow;
 
 public class RequestChannelController {
-    private final AuthQueueStore authQueueStore;
+    private final ChannelRepository channelRepo;
 
-    public RequestChannelController(AuthQueueStore authQueueStore) {
-        this.authQueueStore = authQueueStore;
+    public RequestChannelController(ChannelRepository channelRepo) {
+        this.channelRepo = channelRepo;
     }
 
     public void getAll(Context ctx) {
-        ctx.json(authQueueStore.listAllRequestChannels());
+        ctx.json(channelRepo.listAllRequestChannels());
     }
 
     public void getOne(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        ApprovalRequestChannelRow row = authQueueStore.findRequestChannelById(id);
+        ApprovalRequestChannelRow row = channelRepo.findRequestChannelById(id);
         if (row != null) {
             ctx.json(row);
         } else {
@@ -27,7 +27,7 @@ public class RequestChannelController {
 
     public void create(Context ctx) {
         ApprovalRequestChannelRow row = ctx.bodyAsClass(ApprovalRequestChannelRow.class);
-        authQueueStore.insertRequestChannel(row);
+        channelRepo.insertRequestChannel(row);
         ctx.status(201).json(row);
     }
 
@@ -38,13 +38,13 @@ public class RequestChannelController {
             ctx.status(400).result("ID in path does not match ID in body");
             return;
         }
-        authQueueStore.updateRequestChannel(row);
+        channelRepo.updateRequestChannel(row);
         ctx.status(200).json(row);
     }
 
     public void delete(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        if (authQueueStore.deleteRequestChannel(id)) {
+        if (channelRepo.deleteRequestChannel(id)) {
             ctx.status(204);
         } else {
             ctx.status(404);

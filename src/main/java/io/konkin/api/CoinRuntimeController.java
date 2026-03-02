@@ -1,23 +1,23 @@
 package io.konkin.api;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.entity.ApprovalCoinRuntimeRow;
 
 public class CoinRuntimeController {
-    private final AuthQueueStore authQueueStore;
+    private final ApprovalRequestRepository requestRepo;
 
-    public CoinRuntimeController(AuthQueueStore authQueueStore) {
-        this.authQueueStore = authQueueStore;
+    public CoinRuntimeController(ApprovalRequestRepository requestRepo) {
+        this.requestRepo = requestRepo;
     }
 
     public void getAll(Context ctx) {
-        ctx.json(authQueueStore.listAllCoinRuntimes());
+        ctx.json(requestRepo.listAllCoinRuntimes());
     }
 
     public void getOne(Context ctx) {
         String coin = ctx.pathParam("coin");
-        ApprovalCoinRuntimeRow row = authQueueStore.findCoinRuntimeByCoin(coin);
+        ApprovalCoinRuntimeRow row = requestRepo.findCoinRuntimeByCoin(coin);
         if (row != null) {
             ctx.json(row);
         } else {
@@ -27,7 +27,7 @@ public class CoinRuntimeController {
 
     public void create(Context ctx) {
         ApprovalCoinRuntimeRow row = ctx.bodyAsClass(ApprovalCoinRuntimeRow.class);
-        authQueueStore.insertCoinRuntime(row);
+        requestRepo.insertCoinRuntime(row);
         ctx.status(201).json(row);
     }
 
@@ -38,13 +38,13 @@ public class CoinRuntimeController {
             ctx.status(400).result("Coin in path does not match coin in body");
             return;
         }
-        authQueueStore.updateCoinRuntime(row);
+        requestRepo.updateCoinRuntime(row);
         ctx.status(200).json(row);
     }
 
     public void delete(Context ctx) {
         String coin = ctx.pathParam("coin");
-        if (authQueueStore.deleteCoinRuntime(coin)) {
+        if (requestRepo.deleteCoinRuntime(coin)) {
             ctx.status(204);
         } else {
             ctx.status(404);

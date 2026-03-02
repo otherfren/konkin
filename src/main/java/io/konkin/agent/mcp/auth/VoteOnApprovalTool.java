@@ -5,7 +5,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.ChannelRepository;
+import io.konkin.db.HistoryRepository;
+import io.konkin.db.VoteRepository;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.StateTransitionRow;
@@ -36,7 +39,10 @@ public final class VoteOnApprovalTool {
 
     public static SyncToolSpecification create(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
             KonkinConfig runtimeConfig
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
@@ -62,7 +68,7 @@ public final class VoteOnApprovalTool {
                 return errorResult("invalid_decision", "decision must be 'approve' or 'deny'");
             }
 
-            ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+            ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
             if (requestRow == null || !isVoteableState(requestRow.state())) {
                 return errorResult("request_not_found_or_resolved",
                         "Request not found or already resolved");
@@ -73,8 +79,8 @@ public final class VoteOnApprovalTool {
                         "This agent is not assigned to the coin '" + requestRow.coin() + "'");
             }
 
-            String channelId = ensureAuthChannelId(agentName, authQueueStore);
-            List<VoteDetail> existingVotes = authQueueStore.listVotesForRequest(requestId);
+            String channelId = ensureAuthChannelId(agentName, channelRepo);
+            List<VoteDetail> existingVotes = voteRepo.listVotesForRequest(requestId);
             boolean alreadyVoted = existingVotes.stream()
                     .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
             if (alreadyVoted) {
@@ -82,11 +88,11 @@ public final class VoteOnApprovalTool {
             }
 
             Instant now = Instant.now();
-            authQueueStore.insertVote(new VoteDetail(
+            voteRepo.insertVote(new VoteDetail(
                     0L, requestId, channelId, decision, reason, agentName, now
             ));
 
-            List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+            List<VoteDetail> votes = voteRepo.listVotesForRequest(requestId);
             int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
             int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
 
@@ -137,10 +143,10 @@ public final class VoteOnApprovalTool {
                     now,
                     resolvedAt
             );
-            authQueueStore.updateApprovalRequest(updated);
+            requestRepo.updateApprovalRequest(updated);
 
             if (!Objects.equals(previousState, nextState)) {
-                authQueueStore.insertStateTransition(new StateTransitionRow(
+                historyRepo.insertStateTransition(new StateTransitionRow(
                         0L, requestId, previousState, nextState,
                         "agent", agentName, reasonCode, now
                 ));
@@ -178,18 +184,18 @@ public final class VoteOnApprovalTool {
         return false;
     }
 
-    static String ensureAuthChannelId(String agentName, AuthQueueStore authQueueStore) {
-        ApprovalChannelRow existing = authQueueStore.findChannelById(agentName);
+    static String ensureAuthChannelId(String agentName, ChannelRepository channelRepo) {
+        ApprovalChannelRow existing = channelRepo.findChannelById(agentName);
         if (existing != null) return existing.id();
 
         try {
-            authQueueStore.insertChannel(new ApprovalChannelRow(
+            channelRepo.insertChannel(new ApprovalChannelRow(
                     agentName, "mcp_agent", agentName, true, "agent-endpoint", Instant.now()
             ));
         } catch (RuntimeException ignored) {
         }
 
-        ApprovalChannelRow reloaded = authQueueStore.findChannelById(agentName);
+        ApprovalChannelRow reloaded = channelRepo.findChannelById(agentName);
         if (reloaded == null) {
             throw new IllegalStateException("Failed to resolve approval channel for auth agent: " + agentName);
         }

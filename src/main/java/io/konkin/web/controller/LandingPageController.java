@@ -4,7 +4,11 @@ import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.ChannelRepository;
+import io.konkin.db.HistoryRepository;
+import io.konkin.db.RequestDependencyLoader;
+import io.konkin.db.VoteRepository;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.LogQueueFilterOptions;
@@ -53,7 +57,11 @@ public class LandingPageController {
     private final PasswordFileManager passwordFileManager;
     private final boolean telegramEnabled;
     private TelegramWebController telegramWebController;
-    private final AuthQueueStore authQueueStore;
+    private final ApprovalRequestRepository requestRepo;
+    private final VoteRepository voteRepo;
+    private final ChannelRepository channelRepo;
+    private final HistoryRepository historyRepo;
+    private final RequestDependencyLoader depLoader;
     private final KonkinConfig config;
     private final LandingPageMapper mapper;
 
@@ -65,7 +73,11 @@ public class LandingPageController {
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
             KonkinConfig config,
             LandingPageMapper mapper
     ) {
@@ -82,7 +94,11 @@ public class LandingPageController {
         this.passwordFileManager = passwordFileManager;
         this.telegramEnabled = telegramEnabled;
         this.telegramWebController = telegramWebController;
-        this.authQueueStore = authQueueStore;
+        this.requestRepo = requestRepo;
+        this.voteRepo = voteRepo;
+        this.channelRepo = channelRepo;
+        this.historyRepo = historyRepo;
+        this.depLoader = depLoader;
         this.config = config;
         this.mapper = mapper;
     }
@@ -102,7 +118,7 @@ public class LandingPageController {
     }
 
     public void handleDetailsPage(Context ctx) {
-        if (authQueueStore == null) {
+        if (requestRepo == null) {
             ctx.status(404);
             return;
         }
@@ -120,7 +136,7 @@ public class LandingPageController {
             return;
         }
 
-        ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
+        ApprovalRequestRow row = requestRepo.findApprovalRequestById(requestId);
         if (row == null) {
             ctx.status(404);
             ctx.contentType("text/plain; charset=UTF-8");
@@ -129,7 +145,7 @@ public class LandingPageController {
         }
 
         Map<String, RequestDependencies> dependenciesByRequestId =
-                authQueueStore.loadRequestDependencies(List.of(requestId));
+                depLoader.loadRequestDependencies(List.of(requestId));
 
         RequestDependencies dependencies = dependenciesByRequestId.getOrDefault(
                 requestId,
@@ -400,7 +416,7 @@ public class LandingPageController {
     }
 
     private TablePageData loadQueuePageData(Context ctx) {
-        if (authQueueStore == null) {
+        if (requestRepo == null) {
             return emptyPageData("expires_at", "asc");
         }
 
@@ -410,13 +426,13 @@ public class LandingPageController {
         int pageSize = parsePositiveInt(ctx.queryParam("queue_page_size"), 25);
 
         PageResult<ApprovalRequestRow> result =
-                authQueueStore.pagePendingApprovalRequests(sortBy, sortDir, page, pageSize);
+                requestRepo.pagePendingApprovalRequests(sortBy, sortDir, page, pageSize);
 
         return mapApprovalPageData(result);
     }
 
     private TablePageData loadLogQueuePageData(Context ctx) {
-        if (authQueueStore == null) {
+        if (requestRepo == null) {
             TablePageData empty = emptyPageData("updated_at", "desc");
             Map<String, Object> pageMeta = new LinkedHashMap<>(empty.pageMeta());
             pageMeta.put("filterQuery", "");
@@ -441,12 +457,12 @@ public class LandingPageController {
         String filterState = defaultIfBlank(ctx.queryParam("log_queue_state"), "").trim();
 
         PageResult<ApprovalRequestRow> result =
-                authQueueStore.pageNonPendingApprovalRequests(
+                requestRepo.pageNonPendingApprovalRequests(
                         sortBy, sortDir, page, pageSize,
                         filterCoin, filterTool, filterState, filterText
                 );
 
-        LogQueueFilterOptions options = authQueueStore.loadNonPendingFilterOptions();
+        LogQueueFilterOptions options = requestRepo.loadNonPendingFilterOptions();
 
         TablePageData mapped = mapApprovalPageData(result);
         Map<String, Object> pageMeta = new LinkedHashMap<>(mapped.pageMeta());
@@ -469,12 +485,12 @@ public class LandingPageController {
             }
         }
 
-        Map<String, RequestDependencies> dependenciesByRequestId = authQueueStore.loadRequestDependencies(requestIds);
+        Map<String, RequestDependencies> dependenciesByRequestId = depLoader.loadRequestDependencies(requestIds);
         return mapper.mapApprovalPageData(result, dependenciesByRequestId);
     }
 
     private TablePageData loadAuditPageData(Context ctx) {
-        if (authQueueStore == null) {
+        if (historyRepo == null) {
             return emptyPageData("created_at", "desc");
         }
 
@@ -484,7 +500,7 @@ public class LandingPageController {
         int pageSize = parsePositiveInt(ctx.queryParam("audit_page_size"), 25);
 
         PageResult<StateTransitionRow> result =
-                authQueueStore.pageStateTransitions(sortBy, sortDir, page, pageSize);
+                historyRepo.pageStateTransitions(sortBy, sortDir, page, pageSize);
 
         return mapper.mapAuditPageData(result);
     }
@@ -535,7 +551,7 @@ public class LandingPageController {
     // ── Internal: queue decision logic ─────────────────────────────────────
 
     private void handleQueueDecision(Context ctx, String decision) {
-        if (authQueueStore == null) {
+        if (requestRepo == null) {
             ctx.status(404);
             return;
         }
@@ -568,7 +584,7 @@ public class LandingPageController {
     }
 
     private void applyQueueDecision(Context ctx, String requestId, String decision) {
-        ApprovalRequestRow requestRow = authQueueStore.findApprovalRequestById(requestId);
+        ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
         if (requestRow == null || !isVoteableState(requestRow.state())) {
             renderLandingForPage(ctx, "queue", "", false, "", "Request not found or already resolved.", true, null);
             return;
@@ -583,7 +599,7 @@ public class LandingPageController {
             return;
         }
 
-        List<VoteDetail> existingVotes = authQueueStore.listVotesForRequest(requestId);
+        List<VoteDetail> existingVotes = voteRepo.listVotesForRequest(requestId);
         boolean alreadyVoted = existingVotes.stream()
                 .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
         if (alreadyVoted) {
@@ -594,11 +610,11 @@ public class LandingPageController {
         Instant now = Instant.now();
 
         try {
-            authQueueStore.insertVote(new VoteDetail(
+            voteRepo.insertVote(new VoteDetail(
                     0L, requestId, channelId, decision, null, WEB_UI_CHANNEL_ID, now
             ));
 
-            List<VoteDetail> votes = authQueueStore.listVotesForRequest(requestId);
+            List<VoteDetail> votes = voteRepo.listVotesForRequest(requestId);
             int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
             int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
 
@@ -649,10 +665,10 @@ public class LandingPageController {
                     now,
                     resolvedAt
             );
-            authQueueStore.updateApprovalRequest(updated);
+            requestRepo.updateApprovalRequest(updated);
 
             if (!Objects.equals(previousState, nextState)) {
-                authQueueStore.insertStateTransition(new StateTransitionRow(
+                historyRepo.insertStateTransition(new StateTransitionRow(
                         0L, requestId, previousState, nextState,
                         "web_ui", WEB_UI_CHANNEL_ID, reasonCode, now
                 ));
@@ -680,20 +696,20 @@ public class LandingPageController {
     }
 
     private String ensureWebUiChannelId() {
-        ApprovalChannelRow existing = authQueueStore.findChannelById(WEB_UI_CHANNEL_ID);
+        ApprovalChannelRow existing = channelRepo.findChannelById(WEB_UI_CHANNEL_ID);
         if (existing != null) {
             return existing.id();
         }
 
         try {
-            authQueueStore.insertChannel(new ApprovalChannelRow(
+            channelRepo.insertChannel(new ApprovalChannelRow(
                     WEB_UI_CHANNEL_ID, "web_ui", "Web UI", true, "landing-web-ui", Instant.now()
             ));
         } catch (RuntimeException ignored) {
             // race-safe: reload below
         }
 
-        ApprovalChannelRow reloaded = authQueueStore.findChannelById(WEB_UI_CHANNEL_ID);
+        ApprovalChannelRow reloaded = channelRepo.findChannelById(WEB_UI_CHANNEL_ID);
         if (reloaded == null) {
             throw new IllegalStateException("Failed to resolve approval channel for web-ui");
         }

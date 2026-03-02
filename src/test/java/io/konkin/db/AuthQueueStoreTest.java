@@ -29,7 +29,9 @@ class AuthQueueStoreTest {
 
     private static HikariDataSource dataSource;
     private static Jdbi jdbi;
-    private AuthQueueStore store;
+    private ApprovalRequestRepository requestRepo;
+    private HistoryRepository historyRepo;
+    private RequestDependencyLoader depLoader;
 
     @BeforeAll
     static void setUpDatabase() {
@@ -50,7 +52,9 @@ class AuthQueueStoreTest {
 
     @BeforeEach
     void setUp() {
-        store = new AuthQueueStore(dataSource);
+        requestRepo = new ApprovalRequestRepository(dataSource);
+        historyRepo = new HistoryRepository(dataSource);
+        depLoader = new RequestDependencyLoader(dataSource);
         jdbi.useHandle(h -> {
             h.execute("DELETE FROM approval_execution_attempts");
             h.execute("DELETE FROM approval_votes");
@@ -66,7 +70,7 @@ class AuthQueueStoreTest {
 
     @Test
     void countOpenRequests_returnsZero_whenEmpty() {
-        assertEquals(0, store.countOpenRequests());
+        assertEquals(0, requestRepo.countOpenRequests());
     }
 
     @Test
@@ -77,14 +81,14 @@ class AuthQueueStoreTest {
         insertRequest("r-executing", "EXECUTING");
         insertRequest("r-completed", "COMPLETED");
         insertRequest("r-failed", "FAILED");
-        assertEquals(4, store.countOpenRequests());
+        assertEquals(4, requestRepo.countOpenRequests());
     }
 
     // --- isLockdownActive ---
 
     @Test
     void isLockdownActive_returnsFalse_whenNoRuntimeRows() {
-        assertFalse(store.isLockdownActive());
+        assertFalse(requestRepo.isLockdownActive());
     }
 
     @Test
@@ -93,7 +97,7 @@ class AuthQueueStoreTest {
                 INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until)
                 VALUES ('bitcoin', NULL, NULL, :t)
                 """).bind("t", Instant.now().minusSeconds(60)).execute());
-        assertFalse(store.isLockdownActive());
+        assertFalse(requestRepo.isLockdownActive());
     }
 
     @Test
@@ -102,26 +106,26 @@ class AuthQueueStoreTest {
                 INSERT INTO approval_coin_runtime (coin, active_request_id, cooldown_until, lockdown_until)
                 VALUES ('bitcoin', NULL, NULL, :t)
                 """).bind("t", Instant.now().plusSeconds(300)).execute());
-        assertTrue(store.isLockdownActive());
+        assertTrue(requestRepo.isLockdownActive());
     }
 
     // --- findApprovalRequestById ---
 
     @Test
     void findApprovalRequestById_returnsNull_forMissingId() {
-        assertNull(store.findApprovalRequestById("no-such-id"));
+        assertNull(requestRepo.findApprovalRequestById("no-such-id"));
     }
 
     @Test
     void findApprovalRequestById_returnsNull_forBlankId() {
-        assertNull(store.findApprovalRequestById("  "));
-        assertNull(store.findApprovalRequestById(null));
+        assertNull(requestRepo.findApprovalRequestById("  "));
+        assertNull(requestRepo.findApprovalRequestById(null));
     }
 
     @Test
     void findApprovalRequestById_returnsRow_whenFound() {
         insertRequest("req-1", "PENDING");
-        ApprovalRequestRow row = store.findApprovalRequestById("req-1");
+        ApprovalRequestRow row = requestRepo.findApprovalRequestById("req-1");
         assertNotNull(row);
         assertEquals("req-1", row.id());
         assertEquals("PENDING", row.state());
@@ -137,7 +141,7 @@ class AuthQueueStoreTest {
         insertRequest("p3", "COMPLETED");
         insertRequest("p4", "FAILED");
 
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "asc", 1, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "asc", 1, 25);
         assertEquals(2, result.totalRows());
         List<String> ids = result.rows().stream().map(ApprovalRequestRow::id).toList();
         assertTrue(ids.containsAll(List.of("p1", "p2")));
@@ -147,7 +151,7 @@ class AuthQueueStoreTest {
     @Test
     void pagePendingApprovalRequests_returnsEmpty_whenNoPendingRows() {
         insertRequest("r1", "COMPLETED");
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "asc", 1, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "asc", 1, 25);
         assertEquals(0, result.totalRows());
         assertTrue(result.rows().isEmpty());
     }
@@ -161,7 +165,7 @@ class AuthQueueStoreTest {
         insertRequest("t3", "PENDING");
         insertRequest("t4", "QUEUED");
 
-        PageResult<ApprovalRequestRow> result = store.pageNonPendingApprovalRequests("id", "asc", 1, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pageNonPendingApprovalRequests("id", "asc", 1, 25);
         assertEquals(2, result.totalRows());
         List<String> ids = result.rows().stream().map(ApprovalRequestRow::id).toList();
         assertTrue(ids.containsAll(List.of("t1", "t2")));
@@ -172,7 +176,7 @@ class AuthQueueStoreTest {
         insertRequestWithCoin("c1", "COMPLETED", "bitcoin");
         insertRequestWithCoin("c2", "COMPLETED", "monero");
 
-        PageResult<ApprovalRequestRow> result = store.pageNonPendingApprovalRequests(
+        PageResult<ApprovalRequestRow> result = requestRepo.pageNonPendingApprovalRequests(
                 "id", "asc", 1, 25, "bitcoin", "", "", "");
         assertEquals(1, result.totalRows());
         assertEquals("bitcoin", result.rows().get(0).coin());
@@ -183,7 +187,7 @@ class AuthQueueStoreTest {
         insertRequestWithTool("t1", "COMPLETED", "wallet_send");
         insertRequestWithTool("t2", "COMPLETED", "wallet_sign");
 
-        PageResult<ApprovalRequestRow> result = store.pageNonPendingApprovalRequests(
+        PageResult<ApprovalRequestRow> result = requestRepo.pageNonPendingApprovalRequests(
                 "id", "asc", 1, 25, "", "wallet_send", "", "");
         assertEquals(1, result.totalRows());
         assertEquals("wallet_send", result.rows().get(0).toolName());
@@ -194,7 +198,7 @@ class AuthQueueStoreTest {
         insertRequest("d1", "COMPLETED");
         insertRequest("d2", "FAILED");
 
-        PageResult<ApprovalRequestRow> result = store.pageNonPendingApprovalRequests(
+        PageResult<ApprovalRequestRow> result = requestRepo.pageNonPendingApprovalRequests(
                 "id", "asc", 1, 25, "", "", "", "");
         assertEquals(2, result.totalRows());
     }
@@ -204,7 +208,7 @@ class AuthQueueStoreTest {
     @Test
     void loadNonPendingFilterOptions_returnsEmpty_whenNoTerminalRows() {
         insertRequest("q1", "QUEUED");
-        LogQueueFilterOptions opts = store.loadNonPendingFilterOptions();
+        LogQueueFilterOptions opts = requestRepo.loadNonPendingFilterOptions();
         assertTrue(opts.coins().isEmpty());
         assertTrue(opts.tools().isEmpty());
         assertTrue(opts.states().isEmpty());
@@ -216,7 +220,7 @@ class AuthQueueStoreTest {
         insertRequestWithCoinAndTool("f2", "FAILED", "bitcoin", "wallet_sign");
         insertRequestWithCoinAndTool("f3", "COMPLETED", "bitcoin", "wallet_send");
 
-        LogQueueFilterOptions opts = store.loadNonPendingFilterOptions();
+        LogQueueFilterOptions opts = requestRepo.loadNonPendingFilterOptions();
         assertEquals(List.of("bitcoin", "monero"), opts.coins());
         assertEquals(List.of("wallet_send", "wallet_sign"), opts.tools());
         assertTrue(opts.states().containsAll(List.of("COMPLETED", "FAILED")));
@@ -226,7 +230,7 @@ class AuthQueueStoreTest {
 
     @Test
     void pageStateTransitions_returnsEmpty_whenNoTransitions() {
-        PageResult<StateTransitionRow> result = store.pageStateTransitions("created_at", "desc", 1, 25);
+        PageResult<StateTransitionRow> result = historyRepo.pageStateTransitions("created_at", "desc", 1, 25);
         assertEquals(0, result.totalRows());
         assertTrue(result.rows().isEmpty());
     }
@@ -237,7 +241,7 @@ class AuthQueueStoreTest {
         insertTransition("tr1", null, "QUEUED");
         insertTransition("tr1", "QUEUED", "COMPLETED");
 
-        PageResult<StateTransitionRow> result = store.pageStateTransitions("created_at", "asc", 1, 25);
+        PageResult<StateTransitionRow> result = historyRepo.pageStateTransitions("created_at", "asc", 1, 25);
         assertEquals(2, result.totalRows());
     }
 
@@ -245,13 +249,13 @@ class AuthQueueStoreTest {
 
     @Test
     void loadRequestDependencies_returnsEmptyMap_forEmptyList() {
-        Map<String, RequestDependencies> result = store.loadRequestDependencies(List.of());
+        Map<String, RequestDependencies> result = depLoader.loadRequestDependencies(List.of());
         assertTrue(result.isEmpty());
     }
 
     @Test
     void loadRequestDependencies_returnsEmptyMap_forNullList() {
-        Map<String, RequestDependencies> result = store.loadRequestDependencies(null);
+        Map<String, RequestDependencies> result = depLoader.loadRequestDependencies(null);
         assertTrue(result.isEmpty());
     }
 
@@ -264,7 +268,7 @@ class AuthQueueStoreTest {
         insertRequestChannel("dep-1", "ch-1");
         insertVote("dep-1", "ch-1", "approve");
 
-        Map<String, RequestDependencies> result = store.loadRequestDependencies(List.of("dep-1", "dep-2"));
+        Map<String, RequestDependencies> result = depLoader.loadRequestDependencies(List.of("dep-1", "dep-2"));
         assertEquals(2, result.size());
 
         RequestDependencies dep1 = result.get("dep-1");
@@ -284,32 +288,32 @@ class AuthQueueStoreTest {
     @Test
     void pagePendingApprovalRequests_clampsBadPageToOne() {
         insertRequest("pg1", "PENDING");
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "asc", -5, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "asc", -5, 25);
         assertEquals(1, result.page());
     }
 
     @Test
     void pagePendingApprovalRequests_clampsBadPageSizeToDefault() {
         insertRequest("ps1", "PENDING");
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "asc", 1, -1);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "asc", 1, -1);
         assertEquals(25, result.pageSize());
     }
 
     @Test
     void pagePendingApprovalRequests_capsPageSizeAtMax() {
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "asc", 1, 9999);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "asc", 1, 9999);
         assertEquals(200, result.pageSize());
     }
 
     @Test
     void pagePendingApprovalRequests_unknownSortByFallsBackToDefault() {
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("nonexistent_col", "asc", 1, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("nonexistent_col", "asc", 1, 25);
         assertEquals("requested_at", result.sortBy());
     }
 
     @Test
     void pagePendingApprovalRequests_invalidSortDirDefaultsToDesc() {
-        PageResult<ApprovalRequestRow> result = store.pagePendingApprovalRequests("id", "invalid", 1, 25);
+        PageResult<ApprovalRequestRow> result = requestRepo.pagePendingApprovalRequests("id", "invalid", 1, 25);
         assertEquals("desc", result.sortDir());
     }
 

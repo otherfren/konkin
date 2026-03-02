@@ -21,9 +21,13 @@ import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.ChannelRepository;
 import io.konkin.db.DebugDataSeeder;
+import io.konkin.db.HistoryRepository;
 import io.konkin.db.KvStore;
+import io.konkin.db.RequestDependencyLoader;
+import io.konkin.db.VoteRepository;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.controller.TelegramWebController;
@@ -67,7 +71,11 @@ public class KonkinWebServer {
     private LandingResourceWatcher landingResourceWatcher;
     private boolean running;
     private final List<McpAgentServer> agentEndpoints = new ArrayList<>();
-    private AuthQueueStore authQueueStore;
+    private ApprovalRequestRepository requestRepo;
+    private VoteRepository voteRepo;
+    private ChannelRepository channelRepo;
+    private HistoryRepository historyRepo;
+    private RequestDependencyLoader depLoader;
 
     public void start() {
         running = false;
@@ -75,15 +83,22 @@ public class KonkinWebServer {
         HealthService healthService = new HealthService(version);
         HealthController healthController = new HealthController(healthService);
 
-        authQueueStore = dataSource != null ? new AuthQueueStore(dataSource) : null;
+        if (dataSource != null) {
+            requestRepo = new ApprovalRequestRepository(dataSource);
+            voteRepo = new VoteRepository(dataSource);
+            channelRepo = new ChannelRepository(dataSource);
+            historyRepo = new HistoryRepository(dataSource);
+            depLoader = new RequestDependencyLoader(dataSource);
+        }
+
         KvStoreController kvStoreController = dataSource != null ? new KvStoreController(new KvStore(dataSource)) : null;
-        ApprovalRequestController requestController = new ApprovalRequestController(authQueueStore);
-        ApprovalChannelController channelController = new ApprovalChannelController(authQueueStore);
-        ApprovalVoteController voteController = new ApprovalVoteController(authQueueStore);
-        StateTransitionController stateTransitionController = new StateTransitionController(authQueueStore);
-        RequestChannelController requestChannelController = new RequestChannelController(authQueueStore);
-        ExecutionAttemptController executionAttemptController = new ExecutionAttemptController(authQueueStore);
-        CoinRuntimeController coinRuntimeController = new CoinRuntimeController(authQueueStore);
+        ApprovalRequestController requestController = new ApprovalRequestController(requestRepo, depLoader);
+        ApprovalChannelController channelController = new ApprovalChannelController(channelRepo);
+        ApprovalVoteController voteController = new ApprovalVoteController(voteRepo);
+        StateTransitionController stateTransitionController = new StateTransitionController(historyRepo);
+        RequestChannelController requestChannelController = new RequestChannelController(channelRepo);
+        ExecutionAttemptController executionAttemptController = new ExecutionAttemptController(historyRepo);
+        CoinRuntimeController coinRuntimeController = new CoinRuntimeController(requestRepo);
 
         if (dataSource != null) {
             DebugDataSeeder debugDataSeeder = new DebugDataSeeder(dataSource);
@@ -183,7 +198,11 @@ public class KonkinWebServer {
                     landingPasswordFileManager,
                     config.telegramEnabled(),
                     telegramWebController,
-                    authQueueStore,
+                    requestRepo,
+                    voteRepo,
+                    channelRepo,
+                    historyRepo,
+                    depLoader,
                     config,
                     mapper
             );
@@ -410,7 +429,11 @@ public class KonkinWebServer {
                     primaryAgent,
                     tokenStore,
                     new PrimaryAgentConfigRequirementsService(config),
-                    authQueueStore,
+                    requestRepo,
+                    voteRepo,
+                    channelRepo,
+                    historyRepo,
+                    depLoader,
                     config
             );
             try {
@@ -435,7 +458,11 @@ public class KonkinWebServer {
                     secondaryAgent,
                     tokenStore,
                     null,
-                    authQueueStore,
+                    requestRepo,
+                    voteRepo,
+                    channelRepo,
+                    historyRepo,
+                    depLoader,
                     config
             );
             try {

@@ -1,7 +1,7 @@
 package io.konkin.api;
 
 import io.javalin.http.Context;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.VoteRepository;
 import io.konkin.db.entity.VoteDetail;
 
 /**
@@ -9,19 +9,19 @@ import io.konkin.db.entity.VoteDetail;
  */
 public class ApprovalVoteController {
 
-    private final AuthQueueStore authQueueStore;
+    private final VoteRepository voteRepo;
 
-    public ApprovalVoteController(AuthQueueStore authQueueStore) {
-        this.authQueueStore = authQueueStore;
+    public ApprovalVoteController(VoteRepository voteRepo) {
+        this.voteRepo = voteRepo;
     }
 
     public void getAll(Context ctx) {
-        ctx.json(authQueueStore.listAllVotes());
+        ctx.json(voteRepo.listAllVotes());
     }
 
     public void create(Context ctx) {
         VoteDetail row = ctx.bodyAsClass(VoteDetail.class);
-        authQueueStore.insertVote(row);
+        voteRepo.insertVote(row);
         ctx.status(201).json(row);
     }
 
@@ -32,13 +32,13 @@ public class ApprovalVoteController {
             ctx.status(400).result("ID in path does not match ID in body");
             return;
         }
-        authQueueStore.updateVote(row);
+        voteRepo.updateVote(row);
         ctx.status(200).json(row);
     }
 
     public void delete(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        if (authQueueStore.deleteVote(id)) {
+        if (voteRepo.deleteVote(id)) {
             ctx.status(204);
         } else {
             ctx.status(404);
@@ -47,7 +47,7 @@ public class ApprovalVoteController {
 
     public void getOne(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
-        VoteDetail row = authQueueStore.findVoteById(id);
+        VoteDetail row = voteRepo.findVoteById(id);
         if (row != null) {
             ctx.json(row);
         } else {
@@ -57,6 +57,6 @@ public class ApprovalVoteController {
 
     public void getForRequest(Context ctx) {
         String requestId = ctx.pathParam("requestId");
-        ctx.json(authQueueStore.listVotesForRequest(requestId));
+        ctx.json(voteRepo.listVotesForRequest(requestId));
     }
 }

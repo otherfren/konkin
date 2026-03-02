@@ -13,7 +13,11 @@ import io.konkin.agent.mcp.driver.SendCoinTool;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.ChannelRepository;
+import io.konkin.db.HistoryRepository;
+import io.konkin.db.RequestDependencyLoader;
+import io.konkin.db.VoteRepository;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -40,7 +44,11 @@ public class McpAgentServer {
     private final AgentConfig config;
     private final AgentTokenStore tokenStore;
     private final PrimaryAgentConfigRequirementsService primaryConfigRequirementsService;
-    private final AuthQueueStore authQueueStore;
+    private final ApprovalRequestRepository requestRepo;
+    private final VoteRepository voteRepo;
+    private final ChannelRepository channelRepo;
+    private final HistoryRepository historyRepo;
+    private final RequestDependencyLoader depLoader;
     private final KonkinConfig runtimeConfig;
 
     private Server jettyServer;
@@ -55,7 +63,11 @@ public class McpAgentServer {
             AgentConfig config,
             AgentTokenStore tokenStore,
             PrimaryAgentConfigRequirementsService primaryConfigRequirementsService,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
             KonkinConfig runtimeConfig
     ) {
         this.agentName = Objects.requireNonNull(agentName, "agentName");
@@ -63,7 +75,11 @@ public class McpAgentServer {
         this.config = Objects.requireNonNull(config, "config");
         this.tokenStore = Objects.requireNonNull(tokenStore, "tokenStore");
         this.primaryConfigRequirementsService = primaryConfigRequirementsService;
-        this.authQueueStore = authQueueStore;
+        this.requestRepo = requestRepo;
+        this.voteRepo = voteRepo;
+        this.channelRepo = channelRepo;
+        this.historyRepo = historyRepo;
+        this.depLoader = depLoader;
         this.runtimeConfig = runtimeConfig;
     }
 
@@ -121,24 +137,24 @@ public class McpAgentServer {
             mcpSyncServer.addResource(ConfigRequirementsResource.serverResource(primaryConfigRequirementsService));
             mcpSyncServer.addResourceTemplate(ConfigRequirementsResource.coinTemplate(primaryConfigRequirementsService));
         }
-        if (authQueueStore != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(SendCoinTool.create(agentName, authQueueStore, runtimeConfig));
+        if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
+            mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig));
         }
-        if (authQueueStore != null) {
-            mcpSyncServer.addResourceTemplate(DecisionStatusResource.template(authQueueStore));
-            decisionNotificationPoller = new DecisionNotificationPoller(authQueueStore, mcpSyncServer);
+        if (requestRepo != null && depLoader != null) {
+            mcpSyncServer.addResourceTemplate(DecisionStatusResource.template(requestRepo, depLoader));
+            decisionNotificationPoller = new DecisionNotificationPoller(requestRepo, depLoader, mcpSyncServer);
             decisionNotificationPoller.start();
         }
         mcpSyncServer.addPrompt(DriverReadinessPrompt.create());
     }
 
     private void registerAuthPrimitives() {
-        if (authQueueStore != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(VoteOnApprovalTool.create(agentName, authQueueStore, runtimeConfig));
-            mcpSyncServer.addResource(PendingApprovalsResource.resource(agentName, authQueueStore, runtimeConfig));
-            mcpSyncServer.addResourceTemplate(ApprovalDetailsResource.template(agentName, authQueueStore, runtimeConfig));
+        if (requestRepo != null && voteRepo != null && channelRepo != null && historyRepo != null && runtimeConfig != null) {
+            mcpSyncServer.addTool(VoteOnApprovalTool.create(agentName, requestRepo, voteRepo, channelRepo, historyRepo, runtimeConfig));
+            mcpSyncServer.addResource(PendingApprovalsResource.resource(agentName, requestRepo, runtimeConfig));
+            mcpSyncServer.addResourceTemplate(ApprovalDetailsResource.template(agentName, requestRepo, voteRepo, runtimeConfig));
 
-            approvalNotificationPoller = new ApprovalNotificationPoller(agentName, authQueueStore, runtimeConfig, mcpSyncServer);
+            approvalNotificationPoller = new ApprovalNotificationPoller(agentName, requestRepo, runtimeConfig, mcpSyncServer);
             approvalNotificationPoller.start();
         }
         mcpSyncServer.addPrompt(AuthApprovalPrompt.create());

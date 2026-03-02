@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.PageResult;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
@@ -28,7 +28,7 @@ public final class PendingApprovalsResource {
 
     public static SyncResourceSpecification resource(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
             KonkinConfig runtimeConfig
     ) {
         return new SyncResourceSpecification(
@@ -41,7 +41,7 @@ public final class PendingApprovalsResource {
                         null, null, null
                 ),
                 (exchange, request) -> {
-                    List<ApprovalRequestRow> assigned = loadAssignedPendingRequests(agentName, authQueueStore, runtimeConfig);
+                    List<ApprovalRequestRow> assigned = loadAssignedPendingRequests(agentName, requestRepo, runtimeConfig);
 
                     List<Map<String, Object>> entries = new ArrayList<>();
                     for (ApprovalRequestRow row : assigned) {
@@ -66,10 +66,10 @@ public final class PendingApprovalsResource {
 
     static List<ApprovalRequestRow> loadAssignedPendingRequests(
             String agentName,
-            AuthQueueStore authQueueStore,
+            ApprovalRequestRepository requestRepo,
             KonkinConfig runtimeConfig
     ) {
-        PageResult<ApprovalRequestRow> page = authQueueStore.pagePendingApprovalRequests("requested_at", "asc", 1, 200);
+        PageResult<ApprovalRequestRow> page = requestRepo.pagePendingApprovalRequests("requested_at", "asc", 1, 200);
         List<ApprovalRequestRow> assigned = new ArrayList<>();
         for (ApprovalRequestRow row : page.rows()) {
             if (VoteOnApprovalTool.isAgentAssignedToCoin(agentName, row.coin(), runtimeConfig)) {

@@ -4,7 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.DecisionStatusResponse;
-import io.konkin.db.AuthQueueStore;
+import io.konkin.db.ApprovalRequestRepository;
+import io.konkin.db.RequestDependencyLoader;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
 import io.konkin.db.entity.RequestDependencies;
@@ -30,7 +31,10 @@ public final class DecisionStatusResource {
     private DecisionStatusResource() {
     }
 
-    public static SyncResourceTemplateSpecification template(AuthQueueStore authQueueStore) {
+    public static SyncResourceTemplateSpecification template(
+            ApprovalRequestRepository requestRepo,
+            RequestDependencyLoader depLoader
+    ) {
         return new SyncResourceTemplateSpecification(
                 new McpSchema.ResourceTemplate(
                         "konkin://decisions/{requestId}",
@@ -42,7 +46,7 @@ public final class DecisionStatusResource {
                 ),
                 (exchange, request) -> {
                     String requestId = extractRequestId(request.uri());
-                    DecisionStatusResponse status = loadDecisionStatus(authQueueStore, requestId);
+                    DecisionStatusResponse status = loadDecisionStatus(requestRepo, depLoader, requestId);
                     if (status == null) {
                         return new ReadResourceResult(List.of(
                                 new TextResourceContents(request.uri(), "application/json",
@@ -56,8 +60,12 @@ public final class DecisionStatusResource {
         );
     }
 
-    public static DecisionStatusResponse loadDecisionStatus(AuthQueueStore authQueueStore, String requestId) {
-        ApprovalRequestRow row = authQueueStore.findApprovalRequestById(requestId);
+    public static DecisionStatusResponse loadDecisionStatus(
+            ApprovalRequestRepository requestRepo,
+            RequestDependencyLoader depLoader,
+            String requestId
+    ) {
+        ApprovalRequestRow row = requestRepo.findApprovalRequestById(requestId);
         if (row == null) {
             return null;
         }
@@ -66,7 +74,7 @@ public final class DecisionStatusResource {
         String latestReasonText = row.stateReasonText();
         String txid = null;
 
-        RequestDependencies dependencies = authQueueStore.loadRequestDependencies(List.of(requestId)).get(requestId);
+        RequestDependencies dependencies = depLoader.loadRequestDependencies(List.of(requestId)).get(requestId);
         if (dependencies != null) {
             for (StateTransitionDetail transition : dependencies.transitions()) {
                 if (transition.reasonCode() != null && !transition.reasonCode().isBlank()) {
