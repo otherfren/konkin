@@ -33,6 +33,7 @@ import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.controller.TelegramWebController;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
+import io.konkin.web.service.ApprovalExpiryService;
 import io.konkin.web.service.LandingResourceWatcher;
 import io.konkin.web.service.TelegramSecretService;
 import io.konkin.web.service.TelegramService;
@@ -69,6 +70,7 @@ public class KonkinWebServer {
 
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
+    private ApprovalExpiryService approvalExpiryService;
     private boolean running;
     private final List<McpAgentServer> agentEndpoints = new ArrayList<>();
     private ApprovalRequestRepository requestRepo;
@@ -358,6 +360,11 @@ public class KonkinWebServer {
 
         running = true;
 
+        if (requestRepo != null && historyRepo != null) {
+            approvalExpiryService = new ApprovalExpiryService(requestRepo, historyRepo);
+            approvalExpiryService.start();
+        }
+
         if (landingResourceWatcher != null) {
             landingResourceWatcher.start();
         }
@@ -538,6 +545,11 @@ public class KonkinWebServer {
 
     public void stop() {
         stopAgentEndpoints();
+
+        if (approvalExpiryService != null) {
+            approvalExpiryService.stop();
+            approvalExpiryService = null;
+        }
 
         if (landingResourceWatcher != null) {
             landingResourceWatcher.stop();

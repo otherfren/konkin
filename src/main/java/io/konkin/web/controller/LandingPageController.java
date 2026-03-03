@@ -607,6 +607,11 @@ public class LandingPageController {
             return;
         }
 
+        if (requestRow.expiresAt() != null && requestRow.expiresAt().isBefore(Instant.now())) {
+            renderLandingForPage(ctx, "queue", "", false, "", "Request has expired and can no longer be voted on.", true, null);
+            return;
+        }
+
         String channelId;
         try {
             channelId = ensureWebUiChannelId();

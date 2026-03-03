@@ -74,6 +74,11 @@ public final class VoteOnApprovalTool {
                         "Request not found or already resolved");
             }
 
+            if (requestRow.expiresAt() != null && requestRow.expiresAt().isBefore(Instant.now())) {
+                return errorResult("request_expired",
+                        "Request has expired and can no longer be voted on");
+            }
+
             if (!isAgentAssignedToCoin(agentName, requestRow.coin(), runtimeConfig)) {
                 return errorResult("agent_not_assigned_to_coin",
                         "This agent is not assigned to the coin '" + requestRow.coin() + "'");
