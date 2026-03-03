@@ -219,12 +219,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("Wallets"));
-            assertTrue(authDefinitions.body().contains("BITCOIN"));
-            assertTrue(authDefinitions.body().contains("LITECOIN"));
-            assertTrue(authDefinitions.body().contains("MONERO"));
-            assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
-            assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
-            assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
+            // litecoin/monero not configured (enabled=false) in this test config, so they should not appear
+            assertFalse(authDefinitions.body().contains("LITECOIN"));
+            assertFalse(authDefinitions.body().contains("MONERO"));
+            assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
+            assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
 
             HttpResponse<String> authChannelsPage = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannelsPage.statusCode());
@@ -1075,11 +1074,12 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("7d 2h"));
             assertTrue(authDefinitions.body().contains("sum in window >"));
             assertTrue(authDefinitions.body().contains("Time window"));
-            assertTrue(authDefinitions.body().contains("LITECOIN"));
-            assertTrue(authDefinitions.body().contains("MONERO"));
+            // litecoin/monero not configured (enabled=false) in this test config, so they should not appear
+            assertFalse(authDefinitions.body().contains("LITECOIN"));
+            assertFalse(authDefinitions.body().contains("MONERO"));
             assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
-            assertTrue(authDefinitions.body().contains("/assets/img/litecoin.svg"));
-            assertTrue(authDefinitions.body().contains("/assets/img/monero.svg"));
+            assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
+            assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
             assertTrue(authDefinitions.body().contains("Verification agents"));
             assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:9564"));
             assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:9565"));

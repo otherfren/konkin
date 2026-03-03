@@ -7,7 +7,9 @@ import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.WalletSnapshot;
+import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.WalletSupervisor;
+import io.konkin.db.KvStore;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
@@ -34,12 +36,20 @@ import static io.konkin.web.UiFormattingUtils.*;
 
 public class LandingPageMapper {
 
+    private static final String KV_DEPOSIT_ADDRESS_PREFIX = "deposit-address:";
+
     private final KonkinConfig config;
     private final WalletSupervisor walletSupervisor;
+    private final KvStore kvStore;
 
     public LandingPageMapper(KonkinConfig config, WalletSupervisor walletSupervisor) {
+        this(config, walletSupervisor, null);
+    }
+
+    public LandingPageMapper(KonkinConfig config, WalletSupervisor walletSupervisor, KvStore kvStore) {
         this.config = config;
         this.walletSupervisor = walletSupervisor;
+        this.kvStore = kvStore;
     }
 
     // ── Approval page data (queue + log-queue shared row mapping) ───────────
@@ -564,9 +574,15 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
-        coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
-        coins.add(buildCoinAuthDefinition("monero", config.monero()));
+        if (config.bitcoin().enabled()) {
+            coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
+        }
+        if (config.litecoin().enabled()) {
+            coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
+        }
+        if (config.monero().enabled()) {
+            coins.add(buildCoinAuthDefinition("monero", config.monero()));
+        }
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
     }
@@ -663,10 +679,12 @@ public class LandingPageMapper {
             coin.put("connectionStatus", snap.status().name().toLowerCase());
             coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
             coin.put("maskedBalance", snap.totalBalance() == null ? "unknown" : snap.totalBalance().toPlainString());
+            coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
         } else {
             coin.put("connectionStatus", coinConfig.enabled() ? "not connected" : "disabled");
             coin.put("lastLifeSign", "n/a");
             coin.put("maskedBalance", "n/a");
+            coin.put("disconnected", coinConfig.enabled());
         }
         coin.put("channels", Map.copyOf(channels));
         coin.put("channelWarnings", List.copyOf(warnings));
@@ -675,7 +693,28 @@ public class LandingPageMapper {
         coin.put("vetoChannelsLine", vetoChannels.isEmpty() ? "none" : String.join(", ", vetoChannels));
         coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));
         coin.put("autoDenyRules", mapApprovalRules(auth.autoDeny()));
+
+        // Deposit address from KvStore
+        String lastDepositAddress = readLastDepositAddress(coinId);
+        coin.put("lastDepositAddress", lastDepositAddress == null ? "" : lastDepositAddress);
+
         return Map.copyOf(coin);
+    }
+
+    // ── Deposit address persistence ─────────────────────────────────────────
+
+    public String readLastDepositAddress(String coinId) {
+        if (kvStore == null) {
+            return null;
+        }
+        return kvStore.get(KV_DEPOSIT_ADDRESS_PREFIX + coinId).orElse(null);
+    }
+
+    public void persistDepositAddress(String coinId, String address) {
+        if (kvStore == null) {
+            return;
+        }
+        kvStore.put(KV_DEPOSIT_ADDRESS_PREFIX + coinId, address);
     }
 
     // ── Approval rules ─────────────────────────────────────────────────────

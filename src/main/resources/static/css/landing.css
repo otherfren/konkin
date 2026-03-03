@@ -1100,6 +1100,12 @@ p {
     background: rgba(255, 96, 96, 0.12);
 }
 
+.auth-chip-warn {
+    color: #ffd19c;
+    border-color: rgba(255, 165, 0, 0.40);
+    background: rgba(255, 165, 0, 0.14);
+}
+
 .auth-card {
     padding: 16px;
     border: 1px solid rgba(92, 107, 255, 0.26);
@@ -1590,6 +1596,97 @@ p {
     text-transform: uppercase;
     color: var(--muted);
     font-weight: 400;
+}
+
+/* ── deposit-address panel ── */
+.deposit-address-panel {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.deposit-address-panel h4 {
+    margin: 0 0 10px;
+}
+
+.deposit-address-display {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.deposit-address-textarea {
+    flex: 1;
+    resize: none;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.82rem;
+    letter-spacing: 0.04em;
+    color: var(--text);
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    line-height: 1.4;
+    word-break: break-all;
+}
+
+.deposit-address-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.deposit-copy-btn {
+    flex-shrink: 0;
+    padding: 8px 14px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.deposit-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: var(--accent);
+}
+
+.deposit-copy-btn .deposit-copy-success {
+    color: var(--accent);
+}
+
+.deposit-address-empty {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--muted);
+}
+
+.deposit-generate-form {
+    margin-top: 12px;
+}
+
+.deposit-generate-btn {
+    padding: 8px 18px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bg);
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.deposit-generate-btn:hover {
+    opacity: 0.85;
 }
 
 @media (max-width: 860px) {

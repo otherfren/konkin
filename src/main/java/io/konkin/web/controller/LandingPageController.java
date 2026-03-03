@@ -4,6 +4,8 @@ import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.DepositAddress;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
 import io.konkin.db.HistoryRepository;
@@ -64,6 +66,7 @@ public class LandingPageController {
     private final RequestDependencyLoader depLoader;
     private final KonkinConfig config;
     private final LandingPageMapper mapper;
+    private final WalletSupervisor walletSupervisor;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
@@ -80,6 +83,26 @@ public class LandingPageController {
             RequestDependencyLoader depLoader,
             KonkinConfig config,
             LandingPageMapper mapper
+    ) {
+        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
+                telegramEnabled, telegramWebController, requestRepo, voteRepo,
+                channelRepo, historyRepo, depLoader, config, mapper, null);
+    }
+
+    public LandingPageController(
+            LandingPageService landingPageService,
+            boolean passwordProtectionEnabled,
+            PasswordFileManager passwordFileManager,
+            boolean telegramEnabled,
+            TelegramWebController telegramWebController,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
+            KonkinConfig config,
+            LandingPageMapper mapper,
+            WalletSupervisor walletSupervisor
     ) {
         if (passwordProtectionEnabled && passwordFileManager == null) {
             throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
@@ -101,6 +124,7 @@ public class LandingPageController {
         this.depLoader = depLoader;
         this.config = config;
         this.mapper = mapper;
+        this.walletSupervisor = walletSupervisor;
     }
 
     public void setTelegramWebController(TelegramWebController telegramWebController) {
@@ -187,6 +211,39 @@ public class LandingPageController {
                 passwordProtectionEnabled,
                 mapper.buildWalletsModel()
         ));
+    }
+
+    public void handleGenerateDepositAddress(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String coinId = defaultIfBlank(ctx.formParam("coin"), "").trim().toLowerCase(Locale.ROOT);
+        if (coinId.isEmpty()) {
+            ctx.status(400);
+            ctx.contentType("text/plain; charset=UTF-8");
+            ctx.result("Missing required form parameter: coin");
+            return;
+        }
+
+        if (walletSupervisor == null) {
+            log.warn("Generate deposit address requested but no wallet supervisor available");
+            ctx.redirect("/wallets");
+            return;
+        }
+
+        try {
+            DepositAddress depositAddress = walletSupervisor.execute(wallet -> wallet.depositAddress());
+            String address = depositAddress.address();
+
+            mapper.persistDepositAddress(coinId, address);
+            log.info("Generated new {} deposit address and persisted to KvStore", coinId);
+        } catch (Exception e) {
+            log.warn("Failed to generate deposit address for {}: {}", coinId, e.getMessage());
+        }
+
+        ctx.redirect("/wallets");
     }
 
     public void handleAuthChannelsPage(Context ctx) {

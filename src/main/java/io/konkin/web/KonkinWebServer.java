@@ -203,7 +203,8 @@ public class KonkinWebServer {
                     config.telegramEnabled() && config.landingEnabled()
             );
 
-            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisor);
+            KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
+            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisor, kvStore);
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
@@ -226,7 +227,8 @@ public class KonkinWebServer {
                     historyRepo,
                     depLoader,
                     config,
-                    mapper
+                    mapper,
+                    walletSupervisor
             );
 
             telegramWebController.setLandingPageController(landingPageController);
@@ -339,6 +341,7 @@ public class KonkinWebServer {
             app.get("/log", webUiPageControllerFinal::handleLog);
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
+            app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);

@@ -76,9 +76,13 @@
                         </#if>
                         <span>${(coin.coin!'-')?upper_case}</span>
                     </h3>
-                    <span class="auth-chip <#if (coin.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                        coin: ${(coin.enabled!false)?string('enabled', 'disabled')}
-                    </span>
+                    <#if (coin.disconnected!false)>
+                        <span class="auth-chip auth-chip-warn">disconnected</span>
+                    <#else>
+                        <span class="auth-chip auth-chip-on">
+                            coin: enabled
+                        </span>
+                    </#if>
                 </div>
 
                 <div class="auth-meta-grid">
@@ -106,13 +110,49 @@
                     </section>
                 </div>
 
-                <section class="auth-meta-item auth-compact-block" aria-label="Active auth channels">
-                    <h4 class="auth-meta-label">Active auth channels</h4>
+                <#if !(coin.disconnected!true)>
+                <section class="deposit-address-panel" aria-label="Deposit address">
+                    <h4 class="auth-meta-label">Deposit address</h4>
+                    <#assign lastAddr = (coin.lastDepositAddress!'')>
+                    <#if lastAddr?has_content>
+                        <div class="deposit-address-display">
+                            <textarea class="deposit-address-textarea" readonly rows="2" id="deposit-addr-${coin?index}">${lastAddr?html}</textarea>
+                            <button
+                                type="button"
+                                class="deposit-copy-btn"
+                                data-copy-target="deposit-addr-${coin?index}"
+                                aria-label="Copy deposit address to clipboard"
+                                title="Copy to clipboard"
+                            >
+                                <span class="deposit-copy-label">copy</span>
+                            </button>
+                        </div>
+                    <#else>
+                        <p class="deposit-address-empty mono">No deposit address generated yet.</p>
+                    </#if>
+                    <form method="post" action="/wallets/generate-address" class="deposit-generate-form">
+                        <input type="hidden" name="coin" value="${(coin.coin!'')?html}">
+                        <button type="submit" class="deposit-generate-btn">Generate new address</button>
+                    </form>
+                </section>
+                </#if>
+
+                <section class="auth-meta-item auth-compact-block" aria-label="Auth channels">
+                    <h4 class="auth-meta-label">Auth channels</h4>
                     <div class="auth-channel-grid auth-channel-grid-compact">
                         <span class="auth-channel-badge <#if (channels.webUi!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">web-ui <strong>${(channels.webUi!false)?string('on', 'off')}</strong></span>
                         <span class="auth-channel-badge <#if (channels.restApi!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">rest-api <strong>${(channels.restApi!false)?string('on', 'off')}</strong></span>
                         <span class="auth-channel-badge <#if (channels.telegram!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">telegram <strong>${(channels.telegram!false)?string('on', 'off')}</strong></span>
                     </div>
+                    <#if verificationAgents?size gt 0>
+                        <div class="auth-chip-row auth-chip-row-tight">
+                            <#list verificationAgents as agent>
+                                <span class="auth-chip <#if (agent.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
+                                    ${(agent.name!'unknown')?html} @ ${(agent.connectUrl!'unknown')?html}:${(agent.port!'unknown')?html}
+                                </span>
+                            </#list>
+                        </div>
+                    </#if>
                 </section>
 
                 <div class="auth-rules-grid">
@@ -173,21 +213,6 @@
                     </section>
                 </div>
 
-                <section class="auth-meta-item auth-compact-block" aria-label="Verification agents">
-                    <h4 class="auth-meta-label">Verification agents</h4>
-                    <#if verificationAgents?size == 0>
-                        <span class="mono auth-meta-value">none</span>
-                    <#else>
-                        <div class="auth-chip-row auth-chip-row-tight">
-                            <#list verificationAgents as agent>
-                                <span class="auth-chip <#if (agent.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                                    ${(agent.name!'unknown')?html} @ ${(agent.connectUrl!'unknown')?html}:${(agent.port!'unknown')?html}
-                                </span>
-                            </#list>
-                        </div>
-                    </#if>
-                </section>
-
                 <section class="auth-meta-item auth-compact-block" aria-label="Quorum and veto channels">
                     <h4 class="auth-meta-label">Quorum</h4>
                     <span class="mono auth-meta-value auth-inline-meta">${coin.quorumLine!'unknown'}</span>
@@ -242,6 +267,48 @@
                 toggle.classList.remove('is-revealed');
             }
         });
+    }
+
+    // Copy-to-clipboard for deposit addresses
+    const copyButtons = document.querySelectorAll('.deposit-copy-btn[data-copy-target]');
+    for (const btn of copyButtons) {
+        btn.addEventListener('click', () => {
+            const targetId = btn.dataset.copyTarget;
+            const textarea = document.getElementById(targetId);
+            if (!textarea) return;
+
+            const text = textarea.value;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showCopyFeedback(btn);
+                }).catch(() => {
+                    fallbackCopy(textarea, btn);
+                });
+            } else {
+                fallbackCopy(textarea, btn);
+            }
+        });
+    }
+
+    function fallbackCopy(textarea, btn) {
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        try {
+            document.execCommand('copy');
+            showCopyFeedback(btn);
+        } catch (_) {}
+    }
+
+    function showCopyFeedback(btn) {
+        const label = btn.querySelector('.deposit-copy-label');
+        if (!label) return;
+        const original = label.textContent;
+        label.textContent = 'copied!';
+        btn.classList.add('deposit-copy-success');
+        setTimeout(() => {
+            label.textContent = original;
+            btn.classList.remove('deposit-copy-success');
+        }, 1500);
     }
 })();
 </script>
