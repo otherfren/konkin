@@ -1046,6 +1046,25 @@ p {
     align-items: stretch;
 }
 
+.auth-agent-mcp-block {
+    margin-top: 16px;
+    padding: 16px;
+    border: 1px solid rgba(112, 138, 255, 0.25);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.auth-agent-mcp-block h4.auth-section-title {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.auth-agent-mcp-separator {
+    border: none;
+    border-top: 1px solid rgba(112, 138, 255, 0.15);
+    margin: 16px 0 0;
+}
+
 .auth-channels-copy {
     text-align: center;
 }
@@ -1762,6 +1781,68 @@ p {
     color: #f5a623;
     background: rgba(245, 166, 35, 0.10);
     border: 1px solid rgba(245, 166, 35, 0.4);
+}
+
+/* ── transaction direction badges ── */
+.tx-direction {
+    display: inline-block;
+    padding: 2px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 3px;
+}
+
+.tx-direction-incoming {
+    color: #9cfcc2;
+    background: rgba(74, 222, 128, 0.12);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+}
+
+.tx-direction-outgoing {
+    color: #c3d4ff;
+    background: rgba(112, 138, 255, 0.12);
+    border: 1px solid rgba(112, 138, 255, 0.35);
+}
+
+/* ── transaction table paging ── */
+.tx-paging {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+
+.tx-paging-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--fg);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.76rem;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.tx-paging-btn:hover:not(:disabled) {
+    background: rgba(112, 138, 255, 0.15);
+    border-color: rgba(112, 138, 255, 0.5);
+}
+
+.tx-paging-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.tx-paging-info {
+    font-size: 0.76rem;
+    color: var(--muted);
+    letter-spacing: 0.06em;
 }
 
 @media (max-width: 860px) {

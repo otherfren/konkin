@@ -119,6 +119,11 @@ public final class BitcoinWallet extends CoinWallet {
     }
 
     @Override
+    public List<Transaction> recentOutgoing() {
+        return listRecent(TransactionDirection.OUTGOING);
+    }
+
+    @Override
     public SignedMessage signMessage(String message) {
         try {
             // signmessage requires a legacy (p2pkh) address

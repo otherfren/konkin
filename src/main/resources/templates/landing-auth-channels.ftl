@@ -225,6 +225,68 @@
             </div>
         </#if>
     </section>
+
+    <#assign authAgentMcpRegistrations = (authChannels.authAgentMcpRegistrations![])>
+    <#if authAgentMcpRegistrations?size gt 0>
+    <section class="auth-card" aria-labelledby="auth-agent-mcp-registration-title">
+        <div class="auth-card-header">
+            <h3 id="auth-agent-mcp-registration-title" class="auth-coin-name">Auth Agent MCP Registration</h3>
+            <span class="auth-chip auth-chip-on">${authAgentMcpRegistrations?size} agent<#if authAgentMcpRegistrations?size gt 1>s</#if></span>
+        </div>
+        <p class="driver-panel-copy auth-channels-copy">Issue a bearer token per auth agent, then register the SSE endpoint in your MCP client. Load the auth skill instructions afterwards.</p>
+
+        <#list authAgentMcpRegistrations as reg>
+            <div class="auth-agent-mcp-block" aria-labelledby="auth-mcp-agent-${reg?index}">
+                <h4 id="auth-mcp-agent-${reg?index}" class="auth-section-title">${(reg.agentName!'-')?html}</h4>
+                <div class="auth-kv-grid">
+                    <div class="auth-kv-item">
+                        <span class="auth-kv-label">SSE endpoint</span>
+                        <span class="mono auth-kv-value">${reg.sseEndpoint!'-'}</span>
+                    </div>
+                    <div class="auth-kv-item">
+                        <span class="auth-kv-label">Skill instructions</span>
+                        <span class="mono auth-kv-value"><a target="_blank" href="https://konkin.io/${reg.skillPath!'-'}">${reg.skillPath!'-'}</a></span>
+                    </div>
+                </div>
+
+                <#if (reg.enabled!false)>
+                    <div class="driver-command-block">
+                        <span class="auth-kv-label">1) Get bearer token</span>
+                        <pre class="driver-command"><code>${(reg.tokenCommand!'-')?html}</code></pre>
+                    </div>
+                    <#assign regAgentCommands = reg.agentCommands![]>
+                    <#if regAgentCommands?has_content>
+                        <div class="driver-command-block">
+                            <div class="driver-agent-select-row">
+                                <span class="auth-kv-label">Agent</span>
+                                <select class="driver-agent-select auth-agent-mcp-select" data-reg-index="${reg?index}" aria-label="Select MCP client for ${(reg.agentName!'')?html}">
+                                    <#list regAgentCommands as agent>
+                                        <option value="${agent.id?html}">${agent.label?html}</option>
+                                    </#list>
+                                </select>
+                            </div>
+                        </div>
+                        <#list regAgentCommands as agent>
+                            <div class="auth-agent-mcp-commands" data-reg-index="${reg?index}" data-agent-id="${agent.id?html}"<#if !agent?is_first> style="display:none"</#if>>
+                                <div class="driver-command-block">
+                                    <span class="auth-kv-label">2) Register MCP server</span>
+                                    <pre class="driver-command"><code>${(agent.registerCommand!'-')?html}</code></pre>
+                                </div>
+                                <div class="driver-command-block">
+                                    <span class="auth-kv-label">3) Verify registration</span>
+                                    <pre class="driver-command"><code>${(agent.verifyCommand!'-')?html}</code></pre>
+                                </div>
+                            </div>
+                        </#list>
+                    </#if>
+                <#else>
+                    <p class="telegram-empty">Enable this auth agent to render ready-to-run token and MCP registration commands.</p>
+                </#if>
+            </div>
+            <#if reg?has_next><hr class="auth-agent-mcp-separator"></#if>
+        </#list>
+    </section>
+    </#if>
 </div></main>
 
 <script>
@@ -252,6 +314,21 @@
                 toggle.setAttribute('aria-label', 'Reveal Telegram identifier');
                 toggle.setAttribute('title', 'Reveal identifier');
                 toggle.classList.remove('is-revealed');
+            }
+        });
+    }
+})();
+</script>
+
+<script>
+(() => {
+    const selects = document.querySelectorAll('.auth-agent-mcp-select');
+    for (const sel of selects) {
+        sel.addEventListener('change', () => {
+            const regIndex = sel.dataset.regIndex;
+            const blocks = document.querySelectorAll('.auth-agent-mcp-commands[data-reg-index="' + regIndex + '"]');
+            for (const block of blocks) {
+                block.style.display = block.getAttribute('data-agent-id') === sel.value ? '' : 'none';
             }
         });
     }

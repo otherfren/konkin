@@ -265,6 +265,7 @@ public class LandingPageMapper {
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers(discoveredRequests, secret, configuredTelegramChatIds));
         root.put("authAgents", buildAuthAgentChannels());
+        root.put("authAgentMcpRegistrations", buildAuthAgentMcpRegistrations());
 
         return Map.copyOf(root);
     }
@@ -572,6 +573,50 @@ public class LandingPageMapper {
         return List.copyOf(rows);
     }
 
+    // ── Auth agent MCP registrations ────────────────────────────────────────
+
+    private List<Map<String, Object>> buildAuthAgentMcpRegistrations() {
+        Map<String, AgentConfig> authAgents = config.secondaryAgents();
+        if (authAgents == null || authAgents.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> registrations = new ArrayList<>();
+        for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
+            String agentName = safe(entry.getKey());
+            AgentConfig agentConfig = entry.getValue();
+
+            boolean enabled = agentConfig != null && agentConfig.enabled();
+            String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
+            int port = agentConfig == null ? 0 : agentConfig.port();
+            String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+
+            String tokenEndpoint = enabled ? endpointBase + "/oauth/token" : "-";
+            String sseEndpoint = enabled ? endpointBase + "/sse" : "-";
+
+            String tokenCommand = enabled && !"-".equals(tokenEndpoint)
+                    ? """
+                    curl -s -X POST "%s" \\
+                      -d "grant_type=client_credentials" \\
+                      -d "client_id=konkin-secondary" \\
+                      -d "client_secret=YOUR_SECRET"
+                    """.strip().formatted(tokenEndpoint)
+                    : "-";
+
+            Map<String, Object> reg = new LinkedHashMap<>();
+            reg.put("agentName", agentName);
+            reg.put("enabled", enabled);
+            reg.put("sseEndpoint", sseEndpoint);
+            reg.put("tokenEndpoint", tokenEndpoint);
+            reg.put("tokenCommand", tokenCommand);
+            reg.put("agentCommands", buildAgentCommands(enabled, sseEndpoint));
+            reg.put("skillPath", "documents/SKILL-auth-agent.md");
+            registrations.add(Map.copyOf(reg));
+        }
+
+        return List.copyOf(registrations);
+    }
+
     // ── Wallets model ──────────────────────────────────────────────────────
 
     public Map<String, Object> buildWalletsModel() {
@@ -687,9 +732,9 @@ public class LandingPageMapper {
             coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
 
             if (snap.status() != WalletStatus.OFFLINE) {
-                coin.put("incomingTransactions", loadIncomingTransactions());
+                coin.put("transactions", loadTransactions());
             } else {
-                coin.put("incomingTransactions", List.of());
+                coin.put("transactions", List.of());
             }
         } else {
             coin.put("connectionStatus", coinConfig.enabled() ? "not connected" : "disabled");
@@ -709,34 +754,52 @@ public class LandingPageMapper {
         String lastDepositAddress = readLastDepositAddress(coinId);
         coin.put("lastDepositAddress", lastDepositAddress == null ? "" : lastDepositAddress);
 
-        if (!coin.containsKey("incomingTransactions")) {
-            coin.put("incomingTransactions", List.of());
+        if (!coin.containsKey("transactions")) {
+            coin.put("transactions", List.of());
         }
 
         return Map.copyOf(coin);
     }
 
-    private List<Map<String, Object>> loadIncomingTransactions() {
+    private static final int MAX_TRANSACTIONS = 100;
+
+    private List<Map<String, Object>> loadTransactions() {
         if (walletSupervisor == null) {
             return List.of();
         }
         try {
-            List<Transaction> txs = walletSupervisor.execute(wallet -> wallet.recentIncoming());
+            List<Transaction> incoming = walletSupervisor.execute(wallet -> wallet.recentIncoming());
+            List<Transaction> outgoing = walletSupervisor.execute(wallet -> wallet.recentOutgoing());
+
+            List<Transaction> merged = new ArrayList<>();
+            if (incoming != null) merged.addAll(incoming);
+            if (outgoing != null) merged.addAll(outgoing);
+
+            // Sort by timestamp descending (most recent first)
+            merged.sort((a, b) -> b.timestamp().compareTo(a.timestamp()));
+
+            // Cap at maximum
+            if (merged.size() > MAX_TRANSACTIONS) {
+                merged = merged.subList(0, MAX_TRANSACTIONS);
+            }
+
             List<Map<String, Object>> result = new ArrayList<>();
-            for (Transaction tx : txs) {
+            for (Transaction tx : merged) {
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("txId", tx.txId());
                 row.put("txIdShort", abbreviateId(tx.txId()));
+                row.put("direction", tx.direction().name().toLowerCase());
                 row.put("address", safe(tx.address()));
                 row.put("amount", tx.amount().toPlainString());
                 row.put("confirmations", Integer.toString(tx.confirmations()));
                 row.put("confirmed", tx.confirmed());
                 row.put("timestamp", formatInstant(tx.timestamp()));
+                row.put("epochMillis", tx.timestamp().toEpochMilli());
                 result.add(Map.copyOf(row));
             }
             return List.copyOf(result);
         } catch (Exception e) {
-            log.warn("Failed to load incoming transactions: {}", e.getMessage(), e);
+            log.warn("Failed to load transactions: {}", e.getMessage(), e);
             return List.of();
         }
     }

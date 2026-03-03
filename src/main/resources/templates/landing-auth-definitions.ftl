@@ -141,16 +141,17 @@
                 </div>
 
                 <#if !(coin.disconnected!true)>
-                <#assign incomingTxs = (coin.incomingTransactions![])>
-                <section class="incoming-tx-panel" aria-label="Incoming transactions">
-                    <h4 class="auth-meta-label">Incoming transactions</h4>
-                    <#if incomingTxs?size == 0>
-                        <p class="deposit-address-empty mono">No pending incoming transactions.</p>
+                <#assign txList = (coin.transactions![])>
+                <section class="incoming-tx-panel" aria-label="Transactions">
+                    <h4 class="auth-meta-label">Transactions</h4>
+                    <#if txList?size == 0>
+                        <p class="deposit-address-empty mono">No recent transactions.</p>
                     <#else>
-                        <table class="queue-table incoming-tx-table">
+                        <table class="queue-table incoming-tx-table" id="tx-table-${coin?index}">
                             <thead>
                                 <tr>
                                     <th>TxID</th>
+                                    <th>Direction</th>
                                     <th>Amount</th>
                                     <th>Confirmations</th>
                                     <th>Status</th>
@@ -158,9 +159,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <#list incomingTxs as tx>
-                                    <tr class="<#if !(tx.confirmed!false)>incoming-tx-unconfirmed</#if>">
+                                <#list txList as tx>
+                                    <tr class="tx-row <#if !(tx.confirmed!false)>incoming-tx-unconfirmed</#if>" data-epoch="${(tx.epochMillis!0)?c}">
                                         <td class="mono" title="${(tx.txId!'-')?html}">${(tx.txIdShort!'-')?html}</td>
+                                        <td><span class="tx-direction tx-direction-${(tx.direction!'incoming')?html}">${(tx.direction!'incoming')?html}</span></td>
                                         <td class="mono">${(tx.amount!'-')?html}</td>
                                         <td class="mono">${(tx.confirmations!'0')?html}</td>
                                         <td><span class="incoming-tx-status <#if (tx.confirmed!false)>incoming-tx-confirmed-badge<#else>incoming-tx-unconfirmed-badge</#if>">${(tx.confirmed!false)?string('confirmed', 'unconfirmed')}</span></td>
@@ -169,6 +171,11 @@
                                 </#list>
                             </tbody>
                         </table>
+                        <div class="tx-paging" data-table="tx-table-${coin?index}" <#if (txList?size lte 10)>style="display:none"</#if>>
+                            <button type="button" class="tx-paging-btn tx-paging-prev" disabled>← prev</button>
+                            <span class="tx-paging-info mono">page 1 / ${((txList?size + 9) / 10)?int}</span>
+                            <button type="button" class="tx-paging-btn tx-paging-next" <#if (txList?size lte 10)>disabled</#if>>next →</button>
+                        </div>
                     </#if>
                 </section>
                 </#if>
@@ -338,6 +345,43 @@
             label.textContent = original;
             btn.classList.remove('deposit-copy-success');
         }, 1500);
+    }
+
+    // ── Transaction table paging (10 rows per page) ──
+    const pagingContainers = document.querySelectorAll('.tx-paging[data-table]');
+    for (const paging of pagingContainers) {
+        const tableId = paging.dataset.table;
+        const table = document.getElementById(tableId);
+        if (!table) continue;
+
+        const rows = Array.from(table.querySelectorAll('tbody .tx-row'));
+        const pageSize = 10;
+        const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+        let currentPage = 1;
+
+        const prevBtn = paging.querySelector('.tx-paging-prev');
+        const nextBtn = paging.querySelector('.tx-paging-next');
+        const info = paging.querySelector('.tx-paging-info');
+
+        function renderPage() {
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            for (let i = 0; i < rows.length; i++) {
+                rows[i].style.display = (i >= start && i < end) ? '' : 'none';
+            }
+            if (info) info.textContent = 'page ' + currentPage + ' / ' + totalPages;
+            if (prevBtn) prevBtn.disabled = currentPage <= 1;
+            if (nextBtn) nextBtn.disabled = currentPage >= totalPages;
+        }
+
+        if (prevBtn) prevBtn.addEventListener('click', () => {
+            if (currentPage > 1) { currentPage--; renderPage(); }
+        });
+        if (nextBtn) nextBtn.addEventListener('click', () => {
+            if (currentPage < totalPages) { currentPage++; renderPage(); }
+        });
+
+        renderPage();
     }
 })();
 </script>

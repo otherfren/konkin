@@ -46,6 +46,14 @@ public abstract class CoinWallet {
         return pendingIncoming();
     }
 
+    /**
+     * Returns recent outgoing transactions (both confirmed and unconfirmed).
+     * Default implementation delegates to {@link #pendingOutgoing()}.
+     */
+    public List<Transaction> recentOutgoing() {
+        return pendingOutgoing();
+    }
+
     public abstract SignedMessage signMessage(String message);
 
     public abstract boolean verifyMessage(String message, String address, String signature);
