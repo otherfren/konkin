@@ -8,11 +8,18 @@ import io.konkin.agent.mcp.auth.VoteOnApprovalTool;
 import io.konkin.agent.mcp.driver.ConfigRequirementsResource;
 import io.konkin.agent.mcp.driver.DecisionNotificationPoller;
 import io.konkin.agent.mcp.driver.DecisionStatusResource;
+import io.konkin.agent.mcp.driver.DepositAddressTool;
 import io.konkin.agent.mcp.driver.DriverReadinessPrompt;
+import io.konkin.agent.mcp.driver.PendingTransactionsTool;
 import io.konkin.agent.mcp.driver.SendCoinTool;
+import io.konkin.agent.mcp.driver.SignMessageTool;
+import io.konkin.agent.mcp.driver.VerifyMessageTool;
+import io.konkin.agent.mcp.driver.WalletBalanceTool;
+import io.konkin.agent.mcp.driver.WalletStatusTool;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
 import io.konkin.db.HistoryRepository;
@@ -50,6 +57,7 @@ public class McpAgentServer {
     private final HistoryRepository historyRepo;
     private final RequestDependencyLoader depLoader;
     private final KonkinConfig runtimeConfig;
+    private final WalletSupervisor walletSupervisor;
 
     private Server jettyServer;
     private McpSyncServer mcpSyncServer;
@@ -68,7 +76,8 @@ public class McpAgentServer {
             ChannelRepository channelRepo,
             HistoryRepository historyRepo,
             RequestDependencyLoader depLoader,
-            KonkinConfig runtimeConfig
+            KonkinConfig runtimeConfig,
+            WalletSupervisor walletSupervisor
     ) {
         this.agentName = Objects.requireNonNull(agentName, "agentName");
         this.agentType = Objects.requireNonNull(agentType, "agentType");
@@ -81,6 +90,7 @@ public class McpAgentServer {
         this.historyRepo = historyRepo;
         this.depLoader = depLoader;
         this.runtimeConfig = runtimeConfig;
+        this.walletSupervisor = walletSupervisor;
     }
 
     public void start() throws Exception {
@@ -139,6 +149,14 @@ public class McpAgentServer {
         }
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
             mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig));
+        }
+        if (walletSupervisor != null && runtimeConfig != null) {
+            mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisor, runtimeConfig));
+            mcpSyncServer.addTool(WalletBalanceTool.create(walletSupervisor, runtimeConfig));
+            mcpSyncServer.addTool(DepositAddressTool.create(walletSupervisor, runtimeConfig));
+            mcpSyncServer.addTool(PendingTransactionsTool.create(walletSupervisor, runtimeConfig));
+            mcpSyncServer.addTool(SignMessageTool.create(walletSupervisor, runtimeConfig));
+            mcpSyncServer.addTool(VerifyMessageTool.create(walletSupervisor, runtimeConfig));
         }
         if (requestRepo != null && depLoader != null) {
             mcpSyncServer.addResourceTemplate(DecisionStatusResource.template(requestRepo, depLoader));

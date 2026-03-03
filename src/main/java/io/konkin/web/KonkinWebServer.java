@@ -21,6 +21,10 @@ import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.TransactionExecutionService;
+import io.konkin.crypto.WalletConnectionConfig;
+import io.konkin.crypto.WalletSecretLoader;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
 import io.konkin.db.DebugDataSeeder;
@@ -71,6 +75,8 @@ public class KonkinWebServer {
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
     private ApprovalExpiryService approvalExpiryService;
+    private WalletSupervisor walletSupervisor;
+    private TransactionExecutionService executionService;
     private boolean running;
     private final List<McpAgentServer> agentEndpoints = new ArrayList<>();
     private ApprovalRequestRepository requestRepo;
@@ -106,6 +112,20 @@ public class KonkinWebServer {
             DebugDataSeeder debugDataSeeder = new DebugDataSeeder(dataSource);
             debugDataSeeder.seedIfEnabled(config.debugEnabled(), config.debugSeedFakeData());
         }
+
+        if (config.bitcoin().enabled()) {
+            try {
+                WalletConnectionConfig btcConfig = WalletSecretLoader.loadBitcoin(
+                        config.bitcoin().bitcoinDaemonConfigSecretFile(),
+                        config.bitcoin().bitcoinWalletConfigSecretFile()
+                );
+                walletSupervisor = new WalletSupervisor(btcConfig);
+                walletSupervisor.start();
+            } catch (Exception e) {
+                log.warn("Failed to start Bitcoin wallet supervisor: {}", e.getMessage());
+            }
+        }
+
         LandingPageController landingPageController = null;
         LandingPageService landingPageService = null;
         Path landingTemplateDirectory = null;
@@ -183,7 +203,7 @@ public class KonkinWebServer {
                     config.telegramEnabled() && config.landingEnabled()
             );
 
-            LandingPageMapper mapper = new LandingPageMapper(config);
+            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisor);
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
@@ -365,6 +385,11 @@ public class KonkinWebServer {
             approvalExpiryService.start();
         }
 
+        if (walletSupervisor != null && requestRepo != null && historyRepo != null) {
+            executionService = new TransactionExecutionService(walletSupervisor, requestRepo, historyRepo);
+            executionService.start();
+        }
+
         if (landingResourceWatcher != null) {
             landingResourceWatcher.start();
         }
@@ -441,7 +466,8 @@ public class KonkinWebServer {
                     channelRepo,
                     historyRepo,
                     depLoader,
-                    config
+                    config,
+                    walletSupervisor
             );
             try {
                 endpoint.start();
@@ -470,7 +496,8 @@ public class KonkinWebServer {
                     channelRepo,
                     historyRepo,
                     depLoader,
-                    config
+                    config,
+                    null
             );
             try {
                 endpoint.start();
@@ -549,6 +576,16 @@ public class KonkinWebServer {
         if (approvalExpiryService != null) {
             approvalExpiryService.stop();
             approvalExpiryService = null;
+        }
+
+        if (executionService != null) {
+            executionService.stop();
+            executionService = null;
+        }
+
+        if (walletSupervisor != null) {
+            walletSupervisor.close();
+            walletSupervisor = null;
         }
 
         if (landingResourceWatcher != null) {

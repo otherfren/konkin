@@ -6,6 +6,8 @@ import io.konkin.config.ApprovalRule;
 import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.WalletSnapshot;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
@@ -33,9 +35,11 @@ import static io.konkin.web.UiFormattingUtils.*;
 public class LandingPageMapper {
 
     private final KonkinConfig config;
+    private final WalletSupervisor walletSupervisor;
 
-    public LandingPageMapper(KonkinConfig config) {
+    public LandingPageMapper(KonkinConfig config, WalletSupervisor walletSupervisor) {
         this.config = config;
+        this.walletSupervisor = walletSupervisor;
     }
 
     // ── Approval page data (queue + log-queue shared row mapping) ───────────
@@ -560,9 +564,15 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
-        coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
-        coins.add(buildCoinAuthDefinition("monero", config.monero()));
+        if (config.bitcoin().enabled()) {
+            coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
+        }
+        if (config.litecoin().enabled()) {
+            coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
+        }
+        if (config.monero().enabled()) {
+            coins.add(buildCoinAuthDefinition("monero", config.monero()));
+        }
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
     }
@@ -651,11 +661,19 @@ public class LandingPageMapper {
         coin.put("coin", coinId);
         coin.put("coinIconName", coinIconName(coinId));
         coin.put("enabled", coinConfig.enabled());
-        coin.put("connectionStatus", coinConfig.enabled() ? "unknown" : "disabled");
-        coin.put("lastLifeSign", "unknown");
         coin.put("daemonSecretFile", safe(coinConfig.bitcoinDaemonConfigSecretFile()));
         coin.put("walletSecretFile", safe(coinConfig.bitcoinWalletConfigSecretFile()));
-        coin.put("maskedBalance", "unknown");
+
+        if (walletSupervisor != null && "bitcoin".equals(coinId)) {
+            WalletSnapshot snap = walletSupervisor.snapshot();
+            coin.put("connectionStatus", snap.status().name().toLowerCase());
+            coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
+            coin.put("maskedBalance", snap.totalBalance() == null ? "unknown" : snap.totalBalance().toPlainString());
+        } else {
+            coin.put("connectionStatus", coinConfig.enabled() ? "not connected" : "disabled");
+            coin.put("lastLifeSign", "n/a");
+            coin.put("maskedBalance", "n/a");
+        }
         coin.put("channels", Map.copyOf(channels));
         coin.put("channelWarnings", List.copyOf(warnings));
         coin.put("verificationAgents", List.copyOf(verificationAgents));
