@@ -18,7 +18,7 @@ public class WalletSupervisor {
 
     private static final Logger log = LoggerFactory.getLogger(WalletSupervisor.class);
     private static final long HEARTBEAT_INTERVAL_SECONDS = 30;
-    private static final long RPC_TIMEOUT_SECONDS = 60;
+    private static final long RPC_TIMEOUT_SECONDS = 15;
 
     private final WalletConnectionConfig config;
     private final CoinWalletFactory walletFactory;
@@ -42,10 +42,14 @@ public class WalletSupervisor {
         }
         running = true;
 
-        rpcExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "wallet-rpc-" + config.coin());
-            t.setDaemon(true);
-            return t;
+        rpcExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
+            private final java.util.concurrent.atomic.AtomicInteger counter = new java.util.concurrent.atomic.AtomicInteger(1);
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r, "wallet-rpc-" + config.coin() + "-" + counter.getAndIncrement());
+                t.setDaemon(true);
+                return t;
+            }
         });
 
         scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -128,9 +132,9 @@ public class WalletSupervisor {
         }
 
         try {
-            rpcExecutor.submit(this::doHeartbeat).get(RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            doHeartbeat();
         } catch (Exception e) {
-            log.debug("Heartbeat submission failed: {}", e.getMessage());
+            log.debug("Heartbeat failed: {}", e.getMessage());
         }
     }
 
