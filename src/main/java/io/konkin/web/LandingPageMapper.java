@@ -564,15 +564,9 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        if (config.bitcoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
-        }
-        if (config.litecoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
-        }
-        if (config.monero().enabled()) {
-            coins.add(buildCoinAuthDefinition("monero", config.monero()));
-        }
+        coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
+        coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
+        coins.add(buildCoinAuthDefinition("monero", config.monero()));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
     }
