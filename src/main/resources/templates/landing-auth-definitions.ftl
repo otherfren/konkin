@@ -85,55 +85,91 @@
                     </#if>
                 </div>
 
-                <div class="auth-meta-grid">
-                    <section class="auth-meta-item" aria-label="Connection status">
-                        <h4 class="auth-meta-label">Connection status</h4>
-                        <span class="mono auth-meta-value auth-inline-meta">${coin.connectionStatus!'unknown'} · last life-sign: ${coin.lastLifeSign!'unknown'}</span>
+                <section class="auth-meta-item auth-compact-block" aria-label="Connection and secrets">
+                    <h4 class="auth-meta-label">Connection</h4>
+                    <span class="mono auth-meta-value auth-inline-meta">${coin.connectionStatus!'unknown'} · last life-sign: ${coin.lastLifeSign!'unknown'}</span>
+                    <h4 class="auth-meta-label">Secrets</h4>
+                    <span class="mono auth-meta-value auth-inline-meta">daemon: ${coin.daemonSecretFile!'unknown'} · wallet: ${coin.walletSecretFile!'unknown'}</span>
+                    <h4 class="auth-meta-label">Balance</h4>
+                    <span class="auth-secret">
+                        <span class="mono auth-meta-value auth-secret-value" data-secret-value="${(coin.maskedBalance!'unknown')?html}" data-masked="true">***</span>
+                        <button
+                            type="button"
+                            class="auth-secret-toggle"
+                            aria-label="Reveal wallet balance"
+                            title="Reveal balance"
+                        >
+                            <span aria-hidden="true">👁</span>
+                        </button>
+                    </span>
+                </section>
+
+                <div class="deposit-quorum-row">
+                    <#if !(coin.disconnected!true)>
+                    <section class="deposit-address-panel" aria-label="Deposit address">
+                        <h4 class="auth-meta-label">Deposit address</h4>
+                        <#assign lastAddr = (coin.lastDepositAddress!'')>
+                        <#if lastAddr?has_content>
+                            <div class="deposit-address-display">
+                                <textarea class="deposit-address-textarea" readonly rows="2" id="deposit-addr-${coin?index}">${lastAddr?html}</textarea>
+                                <button
+                                    type="button"
+                                    class="deposit-copy-btn"
+                                    data-copy-target="deposit-addr-${coin?index}"
+                                    aria-label="Copy deposit address to clipboard"
+                                    title="Copy to clipboard"
+                                >
+                                    <span class="deposit-copy-label">copy</span>
+                                </button>
+                            </div>
+                        <#else>
+                            <p class="deposit-address-empty mono">No deposit address generated yet.</p>
+                        </#if>
+                        <form method="post" action="/wallets/generate-address" class="deposit-generate-form">
+                            <input type="hidden" name="coin" value="${(coin.coin!'')?html}">
+                            <button type="submit" class="deposit-generate-btn">Generate new address</button>
+                        </form>
                     </section>
-                    <section class="auth-meta-item" aria-label="Secret file locations">
-                        <h4 class="auth-meta-label">Secret file locations</h4>
-                        <span class="mono auth-meta-value auth-inline-meta">daemon: ${coin.daemonSecretFile!'unknown'} · wallet: ${coin.walletSecretFile!'unknown'}</span>
-                    </section>
-                    <section class="auth-meta-item" aria-label="Wallet balance">
-                        <h4 class="auth-meta-label">Balance</h4>
-                        <span class="auth-secret">
-                            <span class="mono auth-meta-value auth-secret-value" data-secret-value="${(coin.maskedBalance!'unknown')?html}" data-masked="true">***</span>
-                            <button
-                                type="button"
-                                class="auth-secret-toggle"
-                                aria-label="Reveal wallet balance"
-                                title="Reveal balance"
-                            >
-                                <span aria-hidden="true">👁</span>
-                            </button>
-                        </span>
+                    </#if>
+
+                    <section class="quorum-panel" aria-label="Quorum and veto channels">
+                        <h4 class="auth-meta-label">Quorum</h4>
+                        <span class="mono auth-meta-value auth-inline-meta">${coin.quorumLine!'unknown'}</span>
+                        <h4 class="auth-meta-label">Veto channels</h4>
+                        <span class="mono auth-meta-value auth-inline-meta">${coin.vetoChannelsLine!'none'}</span>
                     </section>
                 </div>
 
                 <#if !(coin.disconnected!true)>
-                <section class="deposit-address-panel" aria-label="Deposit address">
-                    <h4 class="auth-meta-label">Deposit address</h4>
-                    <#assign lastAddr = (coin.lastDepositAddress!'')>
-                    <#if lastAddr?has_content>
-                        <div class="deposit-address-display">
-                            <textarea class="deposit-address-textarea" readonly rows="2" id="deposit-addr-${coin?index}">${lastAddr?html}</textarea>
-                            <button
-                                type="button"
-                                class="deposit-copy-btn"
-                                data-copy-target="deposit-addr-${coin?index}"
-                                aria-label="Copy deposit address to clipboard"
-                                title="Copy to clipboard"
-                            >
-                                <span class="deposit-copy-label">copy</span>
-                            </button>
-                        </div>
+                <#assign incomingTxs = (coin.incomingTransactions![])>
+                <section class="incoming-tx-panel" aria-label="Incoming transactions">
+                    <h4 class="auth-meta-label">Incoming transactions</h4>
+                    <#if incomingTxs?size == 0>
+                        <p class="deposit-address-empty mono">No pending incoming transactions.</p>
                     <#else>
-                        <p class="deposit-address-empty mono">No deposit address generated yet.</p>
+                        <table class="queue-table incoming-tx-table">
+                            <thead>
+                                <tr>
+                                    <th>TxID</th>
+                                    <th>Amount</th>
+                                    <th>Confirmations</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <#list incomingTxs as tx>
+                                    <tr class="<#if !(tx.confirmed!false)>incoming-tx-unconfirmed</#if>">
+                                        <td class="mono" title="${(tx.txId!'-')?html}">${(tx.txIdShort!'-')?html}</td>
+                                        <td class="mono">${(tx.amount!'-')?html}</td>
+                                        <td class="mono">${(tx.confirmations!'0')?html}</td>
+                                        <td><span class="incoming-tx-status <#if (tx.confirmed!false)>incoming-tx-confirmed-badge<#else>incoming-tx-unconfirmed-badge</#if>">${(tx.confirmed!false)?string('confirmed', 'unconfirmed')}</span></td>
+                                        <td class="mono">${(tx.timestamp!'-')?html}</td>
+                                    </tr>
+                                </#list>
+                            </tbody>
+                        </table>
                     </#if>
-                    <form method="post" action="/wallets/generate-address" class="deposit-generate-form">
-                        <input type="hidden" name="coin" value="${(coin.coin!'')?html}">
-                        <button type="submit" class="deposit-generate-btn">Generate new address</button>
-                    </form>
                 </section>
                 </#if>
 
@@ -212,13 +248,6 @@
                         </#if>
                     </section>
                 </div>
-
-                <section class="auth-meta-item auth-compact-block" aria-label="Quorum and veto channels">
-                    <h4 class="auth-meta-label">Quorum</h4>
-                    <span class="mono auth-meta-value auth-inline-meta">${coin.quorumLine!'unknown'}</span>
-                    <h4 class="auth-meta-label">Veto channels</h4>
-                    <span class="mono auth-meta-value auth-inline-meta">${coin.vetoChannelsLine!'none'}</span>
-                </section>
 
                 <#if channelWarnings?size gt 0>
                     <ul class="auth-warning-list">

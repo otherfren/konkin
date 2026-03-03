@@ -1080,7 +1080,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("/assets/img/bitcoin.svg"));
             assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
-            assertTrue(authDefinitions.body().contains("Verification agents"));
+            assertTrue(authDefinitions.body().contains("Auth channels"));
             assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:9564"));
             assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:9565"));
             assertTrue(authDefinitions.body().contains(">***<"));

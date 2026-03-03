@@ -1598,9 +1598,40 @@ p {
     font-weight: 400;
 }
 
+/* ── deposit + quorum side-by-side row ── */
+.deposit-quorum-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.deposit-quorum-row > .deposit-address-panel {
+    flex: 1 1 0;
+    margin-top: 0;
+}
+
+.deposit-quorum-row > .quorum-panel {
+    flex: 0 0 260px;
+}
+
+.quorum-panel {
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.quorum-panel h4 {
+    margin: 0 0 6px;
+}
+
+.quorum-panel h4 + .auth-inline-meta {
+    margin-bottom: 12px;
+    display: block;
+}
+
 /* ── deposit-address panel ── */
 .deposit-address-panel {
-    margin-top: 18px;
     padding: 14px 16px;
     background: rgba(0, 0, 0, 0.18);
     border: 1px solid var(--border);
@@ -1689,7 +1720,59 @@ p {
     opacity: 0.85;
 }
 
+/* ── incoming transactions panel ── */
+.incoming-tx-panel {
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: rgba(0, 0, 0, 0.18);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.incoming-tx-panel h4 {
+    margin: 0 0 10px;
+}
+
+.incoming-tx-table {
+    width: 100%;
+    font-size: 0.78rem;
+}
+
+.incoming-tx-unconfirmed {
+    opacity: 0.7;
+}
+
+.incoming-tx-status {
+    display: inline-block;
+    padding: 2px 8px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border-radius: 3px;
+}
+
+.incoming-tx-confirmed-badge {
+    color: var(--accent);
+    background: rgba(var(--accent-rgb, 0, 255, 170), 0.12);
+    border: 1px solid var(--accent);
+}
+
+.incoming-tx-unconfirmed-badge {
+    color: #f5a623;
+    background: rgba(245, 166, 35, 0.10);
+    border: 1px solid rgba(245, 166, 35, 0.4);
+}
+
 @media (max-width: 860px) {
+    .deposit-quorum-row {
+        flex-direction: column;
+    }
+
+    .deposit-quorum-row > .quorum-panel {
+        flex: 1 1 auto;
+    }
+
     .menu-toggle-btn {
         display: inline-flex;
         margin-left: auto;

@@ -6,6 +6,7 @@ import io.konkin.config.ApprovalRule;
 import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Transaction;
 import io.konkin.crypto.WalletSnapshot;
 import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.WalletSupervisor;
@@ -21,6 +22,8 @@ import io.konkin.db.entity.StateTransitionRow;
 import io.konkin.db.entity.VoteDetail;
 import io.konkin.web.service.TelegramSecretService;
 import io.konkin.web.service.TelegramService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,6 +38,8 @@ import java.util.Set;
 import static io.konkin.web.UiFormattingUtils.*;
 
 public class LandingPageMapper {
+
+    private static final Logger log = LoggerFactory.getLogger(LandingPageMapper.class);
 
     private static final String KV_DEPOSIT_ADDRESS_PREFIX = "deposit-address:";
 
@@ -680,6 +685,12 @@ public class LandingPageMapper {
             coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
             coin.put("maskedBalance", snap.totalBalance() == null ? "unknown" : snap.totalBalance().toPlainString());
             coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
+
+            if (snap.status() != WalletStatus.OFFLINE) {
+                coin.put("incomingTransactions", loadIncomingTransactions());
+            } else {
+                coin.put("incomingTransactions", List.of());
+            }
         } else {
             coin.put("connectionStatus", coinConfig.enabled() ? "not connected" : "disabled");
             coin.put("lastLifeSign", "n/a");
@@ -698,7 +709,36 @@ public class LandingPageMapper {
         String lastDepositAddress = readLastDepositAddress(coinId);
         coin.put("lastDepositAddress", lastDepositAddress == null ? "" : lastDepositAddress);
 
+        if (!coin.containsKey("incomingTransactions")) {
+            coin.put("incomingTransactions", List.of());
+        }
+
         return Map.copyOf(coin);
+    }
+
+    private List<Map<String, Object>> loadIncomingTransactions() {
+        if (walletSupervisor == null) {
+            return List.of();
+        }
+        try {
+            List<Transaction> txs = walletSupervisor.execute(wallet -> wallet.recentIncoming());
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (Transaction tx : txs) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("txId", tx.txId());
+                row.put("txIdShort", abbreviateId(tx.txId()));
+                row.put("address", safe(tx.address()));
+                row.put("amount", tx.amount().toPlainString());
+                row.put("confirmations", Integer.toString(tx.confirmations()));
+                row.put("confirmed", tx.confirmed());
+                row.put("timestamp", formatInstant(tx.timestamp()));
+                result.add(Map.copyOf(row));
+            }
+            return List.copyOf(result);
+        } catch (Exception e) {
+            log.warn("Failed to load incoming transactions: {}", e.getMessage(), e);
+            return List.of();
+        }
     }
 
     // ── Deposit address persistence ─────────────────────────────────────────

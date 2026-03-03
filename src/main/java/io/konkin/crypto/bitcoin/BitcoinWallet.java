@@ -114,6 +114,11 @@ public final class BitcoinWallet extends CoinWallet {
     }
 
     @Override
+    public List<Transaction> recentIncoming() {
+        return listRecent(TransactionDirection.INCOMING);
+    }
+
+    @Override
     public SignedMessage signMessage(String message) {
         try {
             // signmessage requires a legacy (p2pkh) address
@@ -151,6 +156,23 @@ public final class BitcoinWallet extends CoinWallet {
             return List.copyOf(pending);
         } catch (JsonRpcStatusException e) {
             throw new WalletOperationException("Failed to list BTC pending transactions: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+        }
+    }
+
+    private List<Transaction> listRecent(TransactionDirection direction) {
+        try {
+            String category = direction == TransactionDirection.INCOMING ? "receive" : "send";
+            List<BitcoinTransactionInfo> all = client.listTransactions(null, 100);
+            List<Transaction> recent = new ArrayList<>();
+            for (BitcoinTransactionInfo tx : all) {
+                if (!category.equals(tx.getCategory())) continue;
+                recent.add(toTransaction(tx, direction));
+            }
+            return List.copyOf(recent);
+        } catch (JsonRpcStatusException e) {
+            throw new WalletOperationException("Failed to list BTC recent transactions: " + e.getMessage(), e);
         } catch (IOException e) {
             throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
         }
