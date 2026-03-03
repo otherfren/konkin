@@ -117,7 +117,7 @@
                     <th>Type</th>
                     <th>Chat ID</th>
                     <th>Username</th>
-                    <th>Action</th>
+                    <th>Title</th>
                 </tr>
                 </thead>
                 <tbody>
@@ -160,22 +160,7 @@
                                 <span class="mono">-</span>
                             </#if>
                         </td>
-                        <td class="action-cell">
-                            <#if (user.canApprove!false)>
-                                <form method="post" action="/telegram/approve" class="telegram-inline-form">
-                                    <input type="hidden" name="chat_id" value="${(user.chatId!'-')?html}">
-                                    <input type="hidden" name="chat_type" value="${(user.chatType!'')?html}">
-                                    <input type="hidden" name="chat_title" value="${(user.chatTitle!'')?html}">
-                                    <input type="hidden" name="chat_username" value="${(user.chatUsername!'')?html}">
-                                    <input type="hidden" name="source_page" value="auth_channels">
-                                    <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
-                                </form>
-                            <#elseif (user.approved!false)>
-                                <span class="auth-channel-action-note">managed in /telegram</span>
-                            <#else>
-                                <span class="mono">-</span>
-                            </#if>
-                        </td>
+                        <td>${(user.chatTitle!'-')?html}</td>
                     </tr>
                 </#list>
                 </tbody>
@@ -231,7 +216,7 @@
             <div class="auth-agent-hints">
                 <section class="auth-overview-panel" aria-labelledby="auth-agent-reference-title">
                     <h3 id="auth-agent-reference-title" class="auth-section-title">Reference format</h3>
-                    <p class="driver-panel-copy">Auth channel ids use <span class="mono">verification-agent:<agent-name></span> and map directly to each configured secondary agent.</p>
+                    <p class="driver-panel-copy">If your model is dumb: <a target="_blank" href="https://konkin.io/documents/SKILL-auth-agent.md">documents/SKILL-auth-agent.md</a></p>
                 </section>
                 <section class="auth-overview-panel" aria-labelledby="auth-agent-runtime-title">
                     <h3 id="auth-agent-runtime-title" class="auth-section-title">Runtime checks</h3>

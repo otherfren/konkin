@@ -389,9 +389,9 @@ public class TelegramSecretService {
             return existing;
         }
 
-        String chatType = incoming.chatType().isBlank() ? existing.chatType() : incoming.chatType();
-        String chatTitle = incoming.chatTitle().isBlank() ? existing.chatTitle() : incoming.chatTitle();
-        String chatUsername = incoming.chatUsername().isBlank() ? existing.chatUsername() : incoming.chatUsername();
+        String chatType = existing.chatType().isBlank() ? incoming.chatType() : existing.chatType();
+        String chatTitle = existing.chatTitle().isBlank() ? incoming.chatTitle() : existing.chatTitle();
+        String chatUsername = existing.chatUsername().isBlank() ? incoming.chatUsername() : existing.chatUsername();
         return new ChatMeta(chatType, chatTitle, chatUsername);
     }
 

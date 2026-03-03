@@ -31,6 +31,7 @@
         <jsonrpc4j.version>1.5.3</jsonrpc4j.version>
         <jackson-jsr310.version>2.21.1</jackson-jsr310.version>
         <mcp.version>1.0.0</mcp.version>
+        <cj-btc-jsonrpc.version>0.7.0-alpha3</cj-btc-jsonrpc.version>
     </properties>
 
     <dependencies>
@@ -112,14 +113,6 @@
             <version>${jdbi.version}</version>
         </dependency>
 
-        <!-- Source: https://github.com/jleskovar/btc-rpc-client via JitPack -->
-        <dependency>
-            <groupId>com.github.jleskovar</groupId>
-            <artifactId>btc-rpc-client</artifactId>
-            <version>${btc-rpc-client.version}</version>
-            <scope>compile</scope>
-        </dependency>
-
         <!-- Required for btc-rpc-client -->
         <dependency>
             <groupId>com.github.briandilley.jsonrpc4j</groupId>
@@ -145,7 +138,7 @@
         <dependency>
             <groupId>com.msgilligan</groupId>
             <artifactId>cj-btc-jsonrpc</artifactId>
-            <version>0.7.0-alpha3</version>
+            <version>${cj-btc-jsonrpc.version}</version>
             <scope>compile</scope>
         </dependency>
 

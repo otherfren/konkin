@@ -1289,9 +1289,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authChannels.body().contains("approved"));
             assertTrue(authChannels.body().contains("<th>Type</th>"));
             assertTrue(authChannels.body().contains("<th>Name</th>"));
-            assertTrue(authChannels.body().contains("<th>Action</th>"));
+            assertTrue(authChannels.body().contains("<th>Title</th>"));
             assertTrue(authChannels.body().contains("<th>Auth Channel ID</th>"));
-            assertTrue(authChannels.body().contains("managed in /telegram"));
             assertTrue(authChannels.body().contains("verification-agent:agent-a"));
             assertTrue(authChannels.body().contains("telegram.secret"));
             assertTrue(authChannels.body().contains("mcp-auth-channels"));

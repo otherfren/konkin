@@ -1475,6 +1475,10 @@ p {
     text-align: center;
 }
 
+.queue-log-section .queue-table td {
+    text-align: center;
+}
+
 .action-header {
     width: 1%;
 }
