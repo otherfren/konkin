@@ -39,6 +39,8 @@ import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.ApprovalExpiryService;
 import io.konkin.web.service.LandingResourceWatcher;
+import io.konkin.web.service.TelegramApprovalNotifier;
+import io.konkin.web.service.TelegramCallbackPoller;
 import io.konkin.web.service.TelegramSecretService;
 import io.konkin.web.service.TelegramService;
 import org.slf4j.Logger;
@@ -75,6 +77,7 @@ public class KonkinWebServer {
     private Javalin app;
     private LandingResourceWatcher landingResourceWatcher;
     private ApprovalExpiryService approvalExpiryService;
+    private TelegramCallbackPoller telegramCallbackPoller;
     private WalletSupervisor walletSupervisor;
     private TransactionExecutionService executionService;
     private boolean running;
@@ -84,6 +87,7 @@ public class KonkinWebServer {
     private ChannelRepository channelRepo;
     private HistoryRepository historyRepo;
     private RequestDependencyLoader depLoader;
+    private TelegramApprovalNotifier telegramNotifier;
 
     public void start() {
         running = false;
@@ -178,6 +182,8 @@ public class KonkinWebServer {
                     secret.botToken(),
                     approvedChatIds
             );
+
+            telegramNotifier = new TelegramApprovalNotifier(telegramService, config);
 
             if (approvedChatIds.isEmpty()) {
                 log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /telegram.",
@@ -393,6 +399,13 @@ public class KonkinWebServer {
             executionService.start();
         }
 
+        if (telegramNotifier != null && requestRepo != null && voteRepo != null && historyRepo != null) {
+            telegramCallbackPoller = new TelegramCallbackPoller(
+                    telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, config
+            );
+            telegramCallbackPoller.start();
+        }
+
         if (landingResourceWatcher != null) {
             landingResourceWatcher.start();
         }
@@ -470,7 +483,8 @@ public class KonkinWebServer {
                     historyRepo,
                     depLoader,
                     config,
-                    walletSupervisor
+                    walletSupervisor,
+                    telegramNotifier
             );
             try {
                 endpoint.start();
@@ -500,6 +514,7 @@ public class KonkinWebServer {
                     historyRepo,
                     depLoader,
                     config,
+                    null,
                     null
             );
             try {
@@ -579,6 +594,11 @@ public class KonkinWebServer {
         if (approvalExpiryService != null) {
             approvalExpiryService.stop();
             approvalExpiryService = null;
+        }
+
+        if (telegramCallbackPoller != null) {
+            telegramCallbackPoller.stop();
+            telegramCallbackPoller = null;
         }
 
         if (executionService != null) {

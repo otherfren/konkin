@@ -20,6 +20,7 @@ import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.WalletSupervisor;
+import io.konkin.web.service.TelegramApprovalNotifier;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
 import io.konkin.db.HistoryRepository;
@@ -58,6 +59,7 @@ public class McpAgentServer {
     private final RequestDependencyLoader depLoader;
     private final KonkinConfig runtimeConfig;
     private final WalletSupervisor walletSupervisor;
+    private final TelegramApprovalNotifier telegramNotifier;
 
     private Server jettyServer;
     private McpSyncServer mcpSyncServer;
@@ -77,7 +79,8 @@ public class McpAgentServer {
             HistoryRepository historyRepo,
             RequestDependencyLoader depLoader,
             KonkinConfig runtimeConfig,
-            WalletSupervisor walletSupervisor
+            WalletSupervisor walletSupervisor,
+            TelegramApprovalNotifier telegramNotifier
     ) {
         this.agentName = Objects.requireNonNull(agentName, "agentName");
         this.agentType = Objects.requireNonNull(agentType, "agentType");
@@ -91,6 +94,7 @@ public class McpAgentServer {
         this.depLoader = depLoader;
         this.runtimeConfig = runtimeConfig;
         this.walletSupervisor = walletSupervisor;
+        this.telegramNotifier = telegramNotifier;
     }
 
     public void start() throws Exception {
@@ -148,7 +152,7 @@ public class McpAgentServer {
             mcpSyncServer.addResourceTemplate(ConfigRequirementsResource.coinTemplate(primaryConfigRequirementsService));
         }
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig));
+            mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
         }
         if (walletSupervisor != null && runtimeConfig != null) {
             mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisor, runtimeConfig));

@@ -10,6 +10,7 @@ import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.StateTransitionRow;
+import io.konkin.web.service.TelegramApprovalNotifier;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -43,7 +44,8 @@ public final class SendCoinTool {
             String agentName,
             ApprovalRequestRepository requestRepo,
             HistoryRepository historyRepo,
-            KonkinConfig runtimeConfig
+            KonkinConfig runtimeConfig,
+            TelegramApprovalNotifier telegramNotifier
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, testdummycoin"));
@@ -63,7 +65,7 @@ public final class SendCoinTool {
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
             try {
-                return handleSendCoin(agentName, requestRepo, historyRepo, runtimeConfig, request.arguments());
+                return handleSendCoin(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, request.arguments());
             } catch (IllegalArgumentException e) {
                 log.warn("send_coin validation error: {}", e.getMessage());
                 return errorResult("validation_error", e.getMessage());
@@ -80,6 +82,7 @@ public final class SendCoinTool {
             ApprovalRequestRepository requestRepo,
             HistoryRepository historyRepo,
             KonkinConfig runtimeConfig,
+            TelegramApprovalNotifier telegramNotifier,
             Map<String, Object> args
     ) {
         String coin = normalizeCoin(argString(args, "coin"));
@@ -185,6 +188,14 @@ public final class SendCoinTool {
         } catch (Exception e) {
             log.warn("Request {} created but state transition log failed: {}", requestId, e.getMessage());
             // Request was created successfully, proceed despite history log failure
+        }
+
+        if (telegramNotifier != null) {
+            try {
+                telegramNotifier.notifyIfTelegramEnabled(row);
+            } catch (Exception e) {
+                log.warn("Request {} created but Telegram notification failed: {}", requestId, e.getMessage());
+            }
         }
 
         log.info("send_coin request created: id={}, coin={}, to={}, amount={}",
