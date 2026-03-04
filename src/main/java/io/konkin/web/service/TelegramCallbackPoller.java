@@ -102,7 +102,7 @@ public class TelegramCallbackPoller {
                 try {
                     handleCallbackQuery(callbackQuery);
                 } catch (Exception e) {
-                    log.warn("Failed to handle callback query: {}", e.getMessage());
+                    log.warn("Failed to handle callback query: {}", e.getMessage(), e);
                 }
             }
         } catch (Exception e) {
@@ -116,7 +116,10 @@ public class TelegramCallbackPoller {
         JsonNode from = callbackQuery.path("from");
         JsonNode message = callbackQuery.path("message");
 
+        log.info("Received callback query: id={}, data={}", callbackQueryId, callbackData);
+
         if (callbackQueryId.isEmpty() || callbackData.isEmpty()) {
+            log.warn("Ignoring callback query with empty id or data");
             return;
         }
 

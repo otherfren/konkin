@@ -92,12 +92,6 @@ public class TransactionExecutionService {
                 "system", "tx-execution-service", "executing_send", now
         ));
 
-        // Insert execution attempt
-        ExecutionAttemptDetail attempt = new ExecutionAttemptDetail(
-                0L, row.id(), 1, now, null, null, null, null, null, null
-        );
-        historyRepo.insertExecutionAttempt(attempt);
-
         // Build SendRequest
         BigDecimal amount = new BigDecimal(row.amountNative());
         Map<String, String> extras = new LinkedHashMap<>();
@@ -140,25 +134,25 @@ public class TransactionExecutionService {
             log.info("Transaction executed for request {} — txId={}", row.id(), result.txId());
 
         } catch (WalletInsufficientFundsException e) {
-            failRequest(row, now, e, "insufficient_funds",
+            failRequest(row, now, e, "non_retryable_error", "insufficient_funds",
                     "Insufficient funds: requested " + e.requested() + " but only " + e.available() + " available");
         } catch (WalletConnectionException e) {
-            failRequest(row, now, e, "wallet_offline", "Wallet offline: " + e.getMessage());
+            failRequest(row, now, e, "transient_error", "wallet_offline", "Wallet offline: " + e.getMessage());
         } catch (WalletException e) {
-            failRequest(row, now, e, "wallet_error", "Wallet error: " + e.getMessage());
+            failRequest(row, now, e, "non_retryable_error", "wallet_error", "Wallet error: " + e.getMessage());
         } catch (Exception e) {
-            failRequest(row, now, e, "execution_error", "Execution error: " + e.getMessage());
+            failRequest(row, now, e, "non_retryable_error", "execution_error", "Execution error: " + e.getMessage());
         }
     }
 
     private void failRequest(ApprovalRequestRow row, Instant startedAt, Exception e,
-                             String reasonCode, String reasonText) {
+                             String attemptResult, String reasonCode, String reasonText) {
         Instant finished = Instant.now();
 
         // Update attempt with failure
         ExecutionAttemptDetail failure = new ExecutionAttemptDetail(
                 0L, row.id(), 1, startedAt, finished,
-                "failure", e.getClass().getSimpleName(), e.getMessage(), null, null
+                attemptResult, e.getClass().getSimpleName(), e.getMessage(), null, null
         );
         historyRepo.insertExecutionAttempt(failure);
 

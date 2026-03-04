@@ -83,16 +83,15 @@ public final class BitcoinWallet extends CoinWallet {
     @Override
     public SendResult send(SendRequest request) {
         try {
-            org.bitcoinj.base.Address toAddr = parseAddress(request.toAddress());
-            org.bitcoinj.base.Coin amount = org.bitcoinj.base.Coin.ofBtc(request.amount());
-
             String comment = request.extras().getOrDefault(BitcoinExtras.MEMO, "");
-            org.bitcoinj.base.Sha256Hash txId = client.sendToAddress(toAddr, amount, comment, "");
+            String txIdStr = client.send("sendtoaddress", String.class,
+                    request.toAddress(), request.amount().toPlainString(), comment, "");
 
+            org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
             WalletTransactionInfo txInfo = client.getTransaction(txId);
             BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
 
-            return new SendResult(Coin.BTC, txId.toString(), request.amount(), fee, Map.of());
+            return new SendResult(Coin.BTC, txIdStr, request.amount(), fee, Map.of());
         } catch (JsonRpcStatusException e) {
             if (isInsufficientFunds(e)) {
                 throw new WalletInsufficientFundsException(request.amount(), safeBalance());

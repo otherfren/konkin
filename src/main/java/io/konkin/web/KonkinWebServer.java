@@ -400,6 +400,7 @@ public class KonkinWebServer {
         }
 
         if (telegramNotifier != null && requestRepo != null && voteRepo != null && historyRepo != null) {
+            ensureTelegramChannel();
             telegramCallbackPoller = new TelegramCallbackPoller(
                     telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, config
             );
@@ -541,6 +542,19 @@ public class KonkinWebServer {
             }
         }
         agentEndpoints.clear();
+    }
+
+    private void ensureTelegramChannel() {
+        if (channelRepo == null) return;
+        if (channelRepo.findChannelById("telegram") != null) return;
+        try {
+            channelRepo.insertChannel(new io.konkin.db.entity.ApprovalChannelRow(
+                    "telegram", "telegram", "Telegram", true, "telegram-bot", java.time.Instant.now()
+            ));
+            log.info("Registered 'telegram' approval channel");
+        } catch (RuntimeException ignored) {
+            // race-safe: another thread may have inserted it
+        }
     }
 
     private String readRestApiKey(Path secretFile) {
