@@ -101,6 +101,9 @@ public class TelegramApprovalNotifier {
         if (row.memo() != null && !row.memo().isBlank()) {
             sb.append("Memo: ").append(row.memo()).append('\n');
         }
+        if (row.reason() != null && !row.reason().isBlank()) {
+            sb.append("Reason: ").append(row.reason()).append('\n');
+        }
         sb.append("Request ID: ").append(row.id()).append('\n');
         sb.append("\nExpires: ").append(row.expiresAt()).append('\n');
         return sb.toString();

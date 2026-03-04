@@ -53,6 +53,7 @@ public final class McpDataContracts {
             String feePolicy,
             String feeCapNative,
             String memo,
+            String reason,
             Long waitForFinalStateMs
     ) {
     }

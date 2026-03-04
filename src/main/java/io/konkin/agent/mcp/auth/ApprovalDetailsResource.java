@@ -108,6 +108,7 @@ public final class ApprovalDetailsResource {
                     if (requestRow.toAddress() != null) payload.put("to", requestRow.toAddress());
                     if (requestRow.amountNative() != null) payload.put("amount", requestRow.amountNative());
                     if (requestRow.nonceComposite() != null) payload.put("nonce", requestRow.nonceComposite());
+                    if (requestRow.reason() != null && !requestRow.reason().isBlank()) payload.put("reason", requestRow.reason());
                     if (requestRow.stateReasonCode() != null) payload.put("reasonCode", requestRow.stateReasonCode());
                     if (requestRow.stateReasonText() != null) payload.put("reasonText", requestRow.stateReasonText());
 

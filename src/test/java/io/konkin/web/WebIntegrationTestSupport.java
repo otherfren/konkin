@@ -270,8 +270,8 @@ public abstract class WebIntegrationTestSupport {
                 h.createUpdate("""
                         INSERT INTO approval_requests (
                             id, coin, tool_name, nonce_uuid, payload_hash_sha256, nonce_composite,
-                            requested_at, expires_at, state, min_approvals_required
-                        ) VALUES (:id, :coin, :tool, :nonceUuid, :sha256, :nonce, :requestedAt, :expiresAt, :state, :minApprovals)
+                            requested_at, expires_at, state, min_approvals_required, reason
+                        ) VALUES (:id, :coin, :tool, :nonceUuid, :sha256, :nonce, :requestedAt, :expiresAt, :state, :minApprovals, :reason)
                         """)
                         .bind("id", requestId)
                         .bind("coin", "bitcoin")
@@ -283,6 +283,7 @@ public abstract class WebIntegrationTestSupport {
                         .bind("expiresAt", now.plusSeconds(600))
                         .bind("state", state)
                         .bind("minApprovals", 1)
+                        .bind("reason", "Integration test request " + requestId)
                         .execute()
         );
     }

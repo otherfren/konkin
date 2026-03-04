@@ -50,6 +50,7 @@ public final class AuthApprovalPrompt {
                     ## Step 2: Review Request Details
                     For each pending request, read `konkin://approvals/{requestId}` to see full details including:
                     - Coin, amount, and destination address
+                    - The reason the agent gave for requesting the action
                     - Current vote counts and existing votes
                     - Request nonce for verification
                     - Expiration time

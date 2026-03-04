@@ -424,6 +424,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 args.put("feePolicy", "dynamic");
                 args.put("feeCapNative", "0.00010000");
                 args.put("memo", "integration test");
+                args.put("reason", "Integration test: verify send_coin acceptance");
 
                 CallToolResult result = client.callTool(new CallToolRequest("send_coin", args));
                 assertFalse(result.isError());
@@ -468,6 +469,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 args.put("toAddress", "tdc1qtestdestination");
                 args.put("amountNative", "1.25000000");
                 args.put("memo", "test dummy integration");
+                args.put("reason", "Integration test: verify testdummycoin send");
 
                 CallToolResult result = client.callTool(new CallToolRequest("send_coin", args));
                 assertFalse(result.isError());
@@ -506,7 +508,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 client.initialize();
 
                 CallToolResult result = client.callTool(new CallToolRequest("send_coin",
-                        Map.of("coin", "dogecoin", "toAddress", "Dabc", "amountNative", "1.0")));
+                        Map.of("coin", "dogecoin", "toAddress", "Dabc", "amountNative", "1.0", "reason", "test unsupported coin")));
 
                 assertTrue(result.isError());
                 JsonNode json = parseToolResult(result);
@@ -527,7 +529,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 client.initialize();
 
                 CallToolResult result = client.callTool(new CallToolRequest("send_coin",
-                        Map.of("coin", "testdummycoin", "toAddress", "tdc1qdisabled", "amountNative", "0.1")));
+                        Map.of("coin", "testdummycoin", "toAddress", "tdc1qdisabled", "amountNative", "0.1", "reason", "test disabled coin")));
 
                 assertTrue(result.isError());
                 JsonNode json = parseToolResult(result);
@@ -547,7 +549,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 client.initialize();
 
                 CallToolResult result = client.callTool(new CallToolRequest("send_coin",
-                        Map.of("coin", "bitcoin", "toAddress", "bc1qnoruntime", "amountNative", "0.2")));
+                        Map.of("coin", "bitcoin", "toAddress", "bc1qnoruntime", "amountNative", "0.2", "reason", "test no runtime")));
 
                 assertTrue(result.isError());
                 JsonNode json = parseToolResult(result);
@@ -571,7 +573,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
                 // First, submit a send action
                 CallToolResult sendResult = client.callTool(new CallToolRequest("send_coin",
-                        Map.of("coin", "bitcoin", "toAddress", "bc1qstatusdestination", "amountNative", "0.05000000")));
+                        Map.of("coin", "bitcoin", "toAddress", "bc1qstatusdestination", "amountNative", "0.05000000", "reason", "test decision status")));
                 assertFalse(sendResult.isError());
                 String requestId = parseToolResult(sendResult).path("requestId").asText();
 
@@ -619,7 +621,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 client.initialize();
 
                 CallToolResult sendResult = client.callTool(new CallToolRequest("send_coin",
-                        Map.of("coin", "bitcoin", "toAddress", "bc1qeventdestination", "amountNative", "0.07500000")));
+                        Map.of("coin", "bitcoin", "toAddress", "bc1qeventdestination", "amountNative", "0.07500000", "reason", "test terminal state")));
                 String requestId = parseToolResult(sendResult).path("requestId").asText();
 
                 markRequestCompleted(server.dbManager().dataSource(), requestId);
@@ -1123,13 +1125,13 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         JdbiFactory.create(dataSource).useHandle(h -> h.createUpdate("""
                         INSERT INTO approval_requests (
                             id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                            to_address, amount_native, fee_policy, fee_cap_native, memo,
+                            to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                             requested_at, expires_at, state, state_reason_code, state_reason_text,
                             min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                             created_at, updated_at, resolved_at
                         ) VALUES (
                             :id, :coin, :toolName, :requestSessionId, :nonceUuid, :payloadHashSha256, :nonceComposite,
-                            :toAddress, :amountNative, :feePolicy, :feeCapNative, :memo,
+                            :toAddress, :amountNative, :feePolicy, :feeCapNative, :memo, :reason,
                             :requestedAt, :expiresAt, :state, :stateReasonCode, :stateReasonText,
                             :minApprovalsRequired, :approvalsGranted, :approvalsDenied, :policyActionAtCreation,
                             :createdAt, :updatedAt, :resolvedAt
@@ -1147,6 +1149,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 .bind("feePolicy", "dynamic")
                 .bind("feeCapNative", "0.00010000")
                 .bind("memo", "integration-test")
+                .bind("reason", "Agent test: send " + amountNative + " " + coin + " to " + toAddress)
                 .bind("requestedAt", now)
                 .bind("expiresAt", now.plusSeconds(600))
                 .bind("state", state)

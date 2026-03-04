@@ -151,6 +151,7 @@ public final class VoteOnApprovalTool {
                     requestRow.feePolicy(),
                     requestRow.feeCapNative(),
                     requestRow.memo(),
+                    requestRow.reason(),
                     requestRow.requestedAt(),
                     requestRow.expiresAt(),
                     nextState,

@@ -70,12 +70,13 @@ public final class SendCoinTool {
         properties.put("feePolicy", Map.of("type", "string", "description", "Fee policy: normal, priority, economy"));
         properties.put("feeCapNative", Map.of("type", "string", "description", "Maximum fee cap in native units"));
         properties.put("memo", Map.of("type", "string", "description", "Optional memo/note for this transaction"));
+        properties.put("reason", Map.of("type", "string", "description", "Mandatory reason WHY this send action is being requested"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
                 "send_coin",
                 null,
                 "Submit a cryptocurrency send action for approval. Creates an approval request that must be voted on by auth agents before execution.",
-                new McpSchema.JsonSchema("object", properties, List.of("coin", "toAddress", "amountNative"), null, null, null),
+                new McpSchema.JsonSchema("object", properties, List.of("coin", "toAddress", "amountNative", "reason"), null, null, null),
                 null, null, null
         );
 
@@ -107,6 +108,7 @@ public final class SendCoinTool {
         String feePolicy = optionalTrim(argString(args, "feePolicy"));
         String feeCapNative = optionalTrim(argString(args, "feeCapNative"));
         String memo = optionalTrim(argString(args, "memo"));
+        String reason = requireNonBlank(argString(args, "reason"), "reason is required: describe WHY this send action is being requested");
 
         // Validate amountNative is a valid positive number
         BigDecimal parsedAmount = validateAmount(amountNative);
@@ -168,6 +170,7 @@ public final class SendCoinTool {
                 feePolicy,
                 feeCapNative,
                 memo,
+                reason,
                 now,
                 now.plus(30, ChronoUnit.MINUTES),
                 "QUEUED",

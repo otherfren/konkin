@@ -90,6 +90,7 @@ public class ApprovalExpiryService {
                             row.feePolicy(),
                             row.feeCapNative(),
                             row.memo(),
+                            row.reason(),
                             row.requestedAt(),
                             row.expiresAt(),
                             "EXPIRED",

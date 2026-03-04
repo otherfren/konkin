@@ -74,6 +74,7 @@ public class ApprovalRequestRepository {
                     rs.getString("fee_policy"),
                     rs.getString("fee_cap_native"),
                     rs.getString("memo"),
+                    rs.getString("reason"),
                     toInstant(rs.getTimestamp("requested_at")),
                     toInstant(rs.getTimestamp("expires_at")),
                     rs.getString("state"),
@@ -109,13 +110,13 @@ public class ApprovalRequestRepository {
         jdbi.useHandle(h -> h.createUpdate("""
                         INSERT INTO approval_requests (
                             id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                            to_address, amount_native, fee_policy, fee_cap_native, memo,
+                            to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                             requested_at, expires_at, state, state_reason_code, state_reason_text,
                             min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                             created_at, updated_at, resolved_at
                         ) VALUES (
                             :id, :coin, :toolName, :requestSessionId, :nonceUuid, :payloadHashSha256, :nonceComposite,
-                            :toAddress, :amountNative, :feePolicy, :feeCapNative, :memo,
+                            :toAddress, :amountNative, :feePolicy, :feeCapNative, :memo, :reason,
                             :requestedAt, :expiresAt, :state, :stateReasonCode, :stateReasonText,
                             :minApprovalsRequired, :approvalsGranted, :approvalsDenied, :policyActionAtCreation,
                             :createdAt, :updatedAt, :resolvedAt
@@ -131,7 +132,7 @@ public class ApprovalRequestRepository {
                             coin = :coin, tool_name = :toolName, request_session_id = :requestSessionId,
                             nonce_uuid = :nonceUuid, payload_hash_sha256 = :payloadHashSha256, nonce_composite = :nonceComposite,
                             to_address = :toAddress, amount_native = :amountNative, fee_policy = :feePolicy, fee_cap_native = :feeCapNative,
-                            memo = :memo, requested_at = :requestedAt, expires_at = :expiresAt, state = :state,
+                            memo = :memo, reason = :reason, requested_at = :requestedAt, expires_at = :expiresAt, state = :state,
                             state_reason_code = :stateReasonCode, state_reason_text = :stateReasonText,
                             min_approvals_required = :minApprovalsRequired, approvals_granted = :approvalsGranted,
                             approvals_denied = :approvalsDenied, policy_action_at_creation = :policyActionAtCreation,
@@ -155,7 +156,7 @@ public class ApprovalRequestRepository {
 
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -261,7 +262,7 @@ public class ApprovalRequestRepository {
 
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -313,7 +314,7 @@ public class ApprovalRequestRepository {
     public List<ApprovalRequestRow> findExpiredPendingRequests() {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -333,7 +334,7 @@ public class ApprovalRequestRepository {
     public List<ApprovalRequestRow> findApprovedRequests() {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -352,7 +353,7 @@ public class ApprovalRequestRepository {
     public List<ApprovalRequestRow> findByState(String state) {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -372,7 +373,7 @@ public class ApprovalRequestRepository {
     public List<ApprovalRequestRow> findVotableRequests() {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at
@@ -465,7 +466,7 @@ public class ApprovalRequestRepository {
 
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                        requested_at, expires_at, state, state_reason_code, state_reason_text,
                        min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                        created_at, updated_at, resolved_at

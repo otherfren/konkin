@@ -605,6 +605,7 @@ public class LandingPageController {
             pageMeta.put("queueConfirmAmountNative", queueConfirmData.amountNative() != null ? queueConfirmData.amountNative() : "");
             pageMeta.put("queueConfirmToAddress", queueConfirmData.toAddress() != null ? queueConfirmData.toAddress() : "");
             pageMeta.put("queueConfirmToolName", queueConfirmData.toolName() != null ? queueConfirmData.toolName() : "");
+            pageMeta.put("queueConfirmReason", queueConfirmData.reason() != null ? queueConfirmData.reason() : "");
         }
 
         return new TablePageData(source.rows(), Map.copyOf(pageMeta));
@@ -652,6 +653,7 @@ public class LandingPageController {
             String amountNative = "";
             String toAddress = "";
             String toolName = "";
+            String reason = "";
             if (requestRepo != null) {
                 ApprovalRequestRow row = requestRepo.findApprovalRequestById(requestId);
                 if (row != null) {
@@ -659,13 +661,14 @@ public class LandingPageController {
                     amountNative = row.amountNative() != null ? row.amountNative() : "";
                     toAddress = row.toAddress() != null ? row.toAddress() : "";
                     toolName = row.toolName() != null ? row.toolName() : "";
+                    reason = row.reason() != null ? row.reason() : "";
                 }
             }
             renderLandingForPage(
                     ctx, "queue", "", false, "",
                     "Please confirm to " + actionLabel + " request " + abbreviateId(requestId) + ".",
                     false,
-                    new QueueConfirmData(actionLabel, requestId, coin, amountNative, toAddress, toolName)
+                    new QueueConfirmData(actionLabel, requestId, coin, amountNative, toAddress, toolName, reason)
             );
             return;
         }
@@ -747,6 +750,7 @@ public class LandingPageController {
                     requestRow.feePolicy(),
                     requestRow.feeCapNative(),
                     requestRow.memo(),
+                    requestRow.reason(),
                     requestRow.requestedAt(),
                     requestRow.expiresAt(),
                     nextState,
@@ -814,6 +818,6 @@ public class LandingPageController {
     // ── Inner records ──────────────────────────────────────────────────────
 
     private record QueueConfirmData(String decision, String requestId,
-                                        String coin, String amountNative, String toAddress, String toolName) {
+                                        String coin, String amountNative, String toAddress, String toolName, String reason) {
     }
 }

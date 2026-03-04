@@ -67,6 +67,7 @@ public final class PendingApprovalsResource {
                         entry.put("type", toApprovalType(row.toolName()));
                         if (row.toAddress() != null) entry.put("to", row.toAddress());
                         if (row.amountNative() != null) entry.put("amount", row.amountNative());
+                        if (row.reason() != null && !row.reason().isBlank()) entry.put("reason", row.reason());
                         entry.put("nonce", row.nonceComposite());
                         entry.put("requestedAt", row.requestedAt());
                         entry.put("expiresAt", row.expiresAt());

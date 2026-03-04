@@ -119,6 +119,7 @@ public class LandingPageMapper {
             mapped.put("approvalsDenied", row.approvalsDenied());
             mapped.put("quorumLabel", "pending " + approvalsGranted + "-of-" + minApprovalsRequired);
             mapped.put("lastActionAt", formatLogMinute(row.updatedAt()));
+            mapped.put("reason", safe(row.reason()));
             mapped.put("deciders", deciders.isEmpty() ? "-" : String.join(", ", deciders));
             mapped.put("detailsJson", toPrettyJson(buildDetailsObject(row, dependencies)));
             rows.add(Map.copyOf(mapped));
@@ -148,6 +149,7 @@ public class LandingPageMapper {
         request.put("feePolicy", safe(row.feePolicy()));
         request.put("feeCapNative", safe(row.feeCapNative()));
         request.put("memo", safe(row.memo()));
+        request.put("reason", safe(row.reason()));
         request.put("requestedAt", formatInstant(row.requestedAt()));
         request.put("expiresAt", formatInstant(row.expiresAt()));
         request.put("state", safe(row.state()));

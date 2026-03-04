@@ -107,7 +107,7 @@ public class TransactionExecutionService {
                 ApprovalRequestRow failed = new ApprovalRequestRow(
                         row.id(), row.coin(), row.toolName(), row.requestSessionId(),
                         row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
-                        row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(),
+                        row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
                         row.requestedAt(), row.expiresAt(),
                         "FAILED", "execution_timeout", "Execution timed out after " + EXECUTING_TIMEOUT,
                         row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
@@ -130,7 +130,7 @@ public class TransactionExecutionService {
         ApprovalRequestRow executing = new ApprovalRequestRow(
                 row.id(), row.coin(), row.toolName(), row.requestSessionId(),
                 row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
-                row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(),
+                row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
                 row.requestedAt(), row.expiresAt(),
                 "EXECUTING", "executing_send", "Transaction execution in progress",
                 row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
@@ -169,7 +169,7 @@ public class TransactionExecutionService {
             ApprovalRequestRow completed = new ApprovalRequestRow(
                     row.id(), row.coin(), row.toolName(), row.requestSessionId(),
                     row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
-                    row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(),
+                    row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
                     row.requestedAt(), row.expiresAt(),
                     "COMPLETED", "send_completed", "Transaction sent: " + result.txId(),
                     row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
@@ -210,7 +210,7 @@ public class TransactionExecutionService {
         ApprovalRequestRow failed = new ApprovalRequestRow(
                 row.id(), row.coin(), row.toolName(), row.requestSessionId(),
                 row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
-                row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(),
+                row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
                 row.requestedAt(), row.expiresAt(),
                 "FAILED", reasonCode, reasonText,
                 row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),

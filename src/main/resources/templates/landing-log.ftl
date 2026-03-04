@@ -260,6 +260,7 @@
         if (req.feePolicy) html += '<span class="details-summary-item"><span class="details-summary-label">fee: </span><span class="details-summary-value">' + esc(req.feePolicy) + (req.feeCapNative ? ' (cap ' + esc(req.feeCapNative) + ')' : '') + '</span></span>';
         html += '<span class="details-summary-item"><span class="details-summary-label">quorum: </span><span class="details-summary-value">' + esc(req.approvalsGranted) + '-of-' + esc(req.minApprovalsRequired) + '</span></span>';
         if (req.memo) html += '<span class="details-summary-item"><span class="details-summary-label">memo: </span><span class="details-summary-value">' + esc(req.memo) + '</span></span>';
+        if (req.reason) html += '<span class="details-summary-item"><span class="details-summary-label">reason: </span><span class="details-summary-value">' + esc(req.reason) + '</span></span>';
         html += '</div>';
 
         // build combined timeline events

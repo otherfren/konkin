@@ -61,6 +61,7 @@
     <#assign queueConfirmAmountNative = (queuePage.queueConfirmAmountNative!'')>
     <#assign queueConfirmToAddress = (queuePage.queueConfirmToAddress!'')>
     <#assign queueConfirmToolName = (queuePage.queueConfirmToolName!'')>
+    <#assign queueConfirmReason = (queuePage.queueConfirmReason!'')>
 
     <#if queueConfirmRequired>
         <section class="queue-confirm-panel" aria-labelledby="queue-confirm-title">
@@ -74,6 +75,7 @@
                     <#if queueConfirmCoin?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">${queueConfirmCoin?html}</span></p></#if>
                     <#if queueConfirmAmountNative?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">${queueConfirmAmountNative?html}</span></p></#if>
                     <#if queueConfirmToAddress?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">${queueConfirmToAddress?html}</span></p></#if>
+                    <#if queueConfirmReason?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">${queueConfirmReason?html}</span></p></#if>
                 </div>
             </#if>
             <div class="queue-confirm-actions">
@@ -174,7 +176,8 @@
                             <td class="action-cell">
                                 <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve"
                                       data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
-                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}">
+                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}"
+                                      data-reason="${(row.reason!'')?html}">
                                     <input type="hidden" name="request_id" value="${(row.id!'')?html}">
                                     <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
                                 </form>
@@ -182,7 +185,8 @@
                             <td class="action-cell">
                                 <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny"
                                       data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
-                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}">
+                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}"
+                                      data-reason="${(row.reason!'')?html}">
                                     <input type="hidden" name="request_id" value="${(row.id!'')?html}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
                                 </form>
@@ -277,6 +281,7 @@
         if (req.feePolicy) html += '<span class="details-summary-item"><span class="details-summary-label">fee: </span><span class="details-summary-value">' + esc(req.feePolicy) + (req.feeCapNative ? ' (cap ' + esc(req.feeCapNative) + ')' : '') + '</span></span>';
         html += '<span class="details-summary-item"><span class="details-summary-label">quorum: </span><span class="details-summary-value">' + esc(req.approvalsGranted) + '-of-' + esc(req.minApprovalsRequired) + '</span></span>';
         if (req.memo) html += '<span class="details-summary-item"><span class="details-summary-label">memo: </span><span class="details-summary-value">' + esc(req.memo) + '</span></span>';
+        if (req.reason) html += '<span class="details-summary-item"><span class="details-summary-label">reason: </span><span class="details-summary-value">' + esc(req.reason) + '</span></span>';
         html += '</div>';
 
         // build combined timeline events
@@ -491,11 +496,13 @@
             const coin = form.getAttribute('data-coin') || '';
             const amount = form.getAttribute('data-amount') || '';
             const toAddr = form.getAttribute('data-to-address') || '';
+            const reason = form.getAttribute('data-reason') || '';
             let html = '';
             if (tool) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">' + tool.replace(/</g, '&lt;') + '</span></p>';
             if (coin) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">' + coin.replace(/</g, '&lt;') + '</span></p>';
             if (amount) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">' + amount.replace(/</g, '&lt;') + '</span></p>';
             if (toAddr) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">' + toAddr.replace(/</g, '&lt;') + '</span></p>';
+            if (reason) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">' + reason.replace(/</g, '&lt;') + '</span></p>';
             if (html) {
                 confirmDetails.innerHTML = html;
                 confirmDetails.hidden = false;

@@ -31,6 +31,7 @@ public record ApprovalRequestRow(
         String feePolicy,
         String feeCapNative,
         String memo,
+        String reason,
         Instant requestedAt,
         Instant expiresAt,
         String state,

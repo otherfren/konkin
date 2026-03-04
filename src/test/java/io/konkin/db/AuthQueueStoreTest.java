@@ -323,8 +323,8 @@ class AuthQueueStoreTest {
         jdbi.useHandle(h -> h.createUpdate("""
                 INSERT INTO approval_requests (
                     id, coin, tool_name, nonce_uuid, payload_hash_sha256, nonce_composite,
-                    requested_at, expires_at, state, min_approvals_required
-                ) VALUES (:id, :coin, :tool, :nonceUuid, :sha256, :nonce, :requestedAt, :expiresAt, :state, 1)
+                    requested_at, expires_at, state, min_approvals_required, reason
+                ) VALUES (:id, :coin, :tool, :nonceUuid, :sha256, :nonce, :requestedAt, :expiresAt, :state, 1, :reason)
                 """)
                 .bind("id", id)
                 .bind("coin", coin)
@@ -335,6 +335,7 @@ class AuthQueueStoreTest {
                 .bind("requestedAt", now)
                 .bind("expiresAt", now.plusSeconds(600))
                 .bind("state", state)
+                .bind("reason", "Test reason for " + id)
                 .execute());
     }
 

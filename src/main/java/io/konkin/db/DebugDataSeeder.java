@@ -99,13 +99,13 @@ public class DebugDataSeeder {
         PreparedBatch requestBatch = handle.prepareBatch("""
                 INSERT INTO approval_requests (
                     id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
-                    to_address, amount_native, fee_policy, fee_cap_native, memo,
+                    to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
                     requested_at, expires_at, state, state_reason_code, state_reason_text,
                     min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
                     created_at, updated_at, resolved_at
                 ) VALUES (
                     :id, :coin, :tool, :sessionId, :nonceUuid, :sha256, :nonce,
-                    :toAddress, :amount, :feePolicy, :feeCap, :memo,
+                    :toAddress, :amount, :feePolicy, :feeCap, :memo, :reason,
                     :requestedAt, :expiresAt, :state, :reasonCode, :reasonText,
                     :minApprovals, :approvalsGranted, :approvalsDenied, :policyAction,
                     :createdAt, :updatedAt, :resolvedAt
@@ -172,6 +172,7 @@ public class DebugDataSeeder {
                     .bind("feePolicy", i % 3 == 0 ? "dynamic" : "fixed")
                     .bind("feeCap", String.format("%.8f", 0.001 + (i % 5) * 0.0002))
                     .bind("memo", "debug request #" + (i + 1))
+                    .bind("reason", "Debug seeder: synthetic send request #" + (i + 1) + " for " + coin)
                     .bind("requestedAt", ts(requestedAt))
                     .bind("expiresAt", ts(expiresAt))
                     .bind("state", state)
