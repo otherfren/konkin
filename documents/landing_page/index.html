@@ -155,6 +155,30 @@
       margin-bottom: 2.4rem;
     }
 
+    .hero-points {
+      list-style: none;
+      text-align: left;
+      max-width: 460px;
+      margin-bottom: 2.4rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .hero-points li {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: clamp(0.95rem, 2vw, 1.08rem);
+      color: var(--muted);
+    }
+
+    .hero-points li::before {
+      content: '▸';
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
     .hero-ctas {
       display: flex;
       gap: 1rem;
@@ -214,6 +238,10 @@
     .section-inner {
       max-width: 1080px;
       margin: 0 auto;
+    }
+
+    #auth-config .section-inner {
+      max-width: 1320px;
     }
 
     .section-label {
@@ -546,6 +574,16 @@
     .tab-code .hl2 { color: #fbbf24; }
     .tab-code .cm  { color: #555570; }
 
+    /* ── Natural Language banner ── */
+    .nl-section {
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .auth-text-pane { display: none; }
+    .auth-text-pane.active { display: block; }
+
     @media (max-width: 840px) {
       .two-col-inner { flex-direction: column; gap: 2.5rem; }
     }
@@ -560,8 +598,7 @@
     konkin.io
   </a>
   <div class="nav-links">
-    <a href="#simple-auth">Example: Fixed cap, 1-of-1</a>
-    <a href="#complex-auth">Example: Complex decision making</a>
+    <a href="#auth-config">Auth Configuration</a>
     <a href="#audit">Audit Log</a>
     <a href="#coins">Supported Coins</a>
     <a href="https://github.com/otherfren/konkin" class="btn-ghost" target="_blank" rel="noopener">
@@ -574,9 +611,11 @@
 <section class="hero">
   <span class="hero-eyebrow">Open Source · MPL-2.0 · Free Non-Commercial use</span>
   <h1><small>The self-custodial</small> <br/>crypto wallet wrapper<br> for <em>AI agents</em></h1>
-  <p class="hero-sub">
-    Custom 2-factor-auth with human-in-the-loop
-  </p>
+  <ul class="hero-points">
+    <li>Send crypto using natural language.</li>
+    <li>Keeps secret keys hidden from the AI agent.</li>
+    <li>Custom 2-factor-auth with human-in-the-loop.</li>
+  </ul>
   <div class="hero-ctas">
     <a href="https://github.com/otherfren/konkin" class="btn-primary" target="_blank" rel="noopener">
       <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8"/></svg>
@@ -607,28 +646,42 @@
   </div>
 </section>
 
-<!-- ── Demo Section 1 ── -->
-<section id="simple-auth">
+<!-- ── Auth Configuration ── -->
+<section id="auth-config">
   <div class="section-inner two-col-inner">
     <div class="two-col-text">
-      <div class="section-label">Simple Auth Configuration </div>
-      <h2 class="section-title">Fixed cap, 1-of-1</h2>
-      <ul class="talking-points">
-        <li>Auto-deny if the amount is higher than BTC 0.05</li>
-        <li>Ask via Telegram for approval</li>
-        <li>Assume disapproval if Telegram response takes longer than 3 minutes</li>
-        <li>User can also use the web ui or the rest api to approve</li>
-      </ul>
+      <div class="section-label">Auth Configuration</div>
+
+      <div class="auth-text-pane active" data-text-for="tab-simple">
+        <h2 class="section-title">Example: Fixed cap, 1-of-1</h2>
+        <ul class="talking-points">
+          <li>Auto-deny if the amount is higher than BTC 0.05</li>
+          <li>Ask via Telegram for approval</li>
+          <li>Assume disapproval if Telegram response takes longer than 3 minutes</li>
+          <li>User can also use the web ui or the rest api to approve</li>
+        </ul>
+      </div>
+
+      <div class="auth-text-pane" data-text-for="tab-complex">
+        <h2 class="section-title">Complex Example: 24h budget, 2-of-3, veto</h2>
+        <ul class="talking-points">
+          <li>Auto-deny if cumulative expenses are above 10 LTC within 24h</li>
+          <li>Auto-approve if amount is lower than 0.2 LTC</li>
+          <li>If we are in-between, 2-of-3 auth channels need to approve</li>
+          <li>Two Telegram users and one additional ai agents can approve/deny</li>
+          <li>The Telegram users have veto-right, meaning transaction is immediately denied if one of them disapproves</li>
+          <li>The additional ai agent has a separate mcp connection. His tools are limited to reading the transaction queue and giving his thumb-up or thumbs-down according to his validation criteria.</li>
+        </ul>
+        <br/>
+        <div>You can use multiple AI agents as auth channels and form a democratic council of advisors that watches your driver agent, thus removing the human in-the-loop (not recommended).</div>
+      </div>
     </div>
     <div class="two-col-panel">
       <div class="tab-bar">
-        <button class="tab-btn" data-target="s1-preview">Web-UI configuration</button>
-        <button class="tab-btn active" data-target="s1-code">config.toml</button>
+        <button class="tab-btn active" data-target="tab-simple">Simple: config.toml</button>
+        <button class="tab-btn" data-target="tab-complex">Complex: config.toml</button>
       </div>
-      <div id="s1-preview" class="tab-pane">
-        <div class="tab-pane-img"><img src="images/auto_deny.png"></div>
-      </div>
-      <div id="s1-code" class="tab-pane active">
+      <div id="tab-simple" class="tab-pane active">
         <pre class="tab-code"><span class="hl2">[telegram]</span>
 enabled          = <span class="hl">true</span>
 secret-file      = <span class="hl">"./secrets/telegram.secret"</span>
@@ -645,36 +698,7 @@ telegram = <span class="hl">true</span>
 type  = <span class="hl">"value-gt"</span>
 value = <span class="hl">0.05</span></pre>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── Demo Section 2 ── -->
-<section id="complex-auth" style="background: var(--bg2); border-top: 1px solid var(--border);">
-  <div class="section-inner two-col-inner">
-    <div class="two-col-text">
-      <div class="section-label">Complex Auth Configuration</div>
-      <h2 class="section-title">24h budget, 2-of-3, veto</h2>
-      <ul class="talking-points">
-        <li>Auto-deny if cumulative expenses are above 10 LTC within 24h</li>
-        <li>Auto-approve if amount is lower than 0.2 LTC</li>
-        <li>If we are in-between, 2-of-3 auth channels need to approve</li>
-        <li>Two Telegram users and one additional ai agents can approve/deny</li>
-        <li>The Telegram users have veto-right, meaning transaction is immediately denied if one of them disapproves</li>
-        <li>The additional ai agent has a separate mcp connection. His tools are limited to reading the transaction queue and giving his thumb-up or thumbs-down according to his validation criteria.</li>
-      </ul>
-      <br/>
-      <div>You can use multiple AI agents as auth channels and form a democratic council of advisors that watches your driver agent, thus removing the human in-the-loop (not recommended).</div>
-    </div>
-    <div class="two-col-panel">
-      <div class="tab-bar">
-        <button class="tab-btn active" data-target="s2-preview">Preview</button>
-        <button class="tab-btn" data-target="s2-code">Code</button>
-      </div>
-      <div id="s2-preview" class="tab-pane active">
-        <div class="tab-pane-img">[ example image ]</div>
-      </div>
-      <div id="s2-code" class="tab-pane">
+      <div id="tab-complex" class="tab-pane">
         <pre class="tab-code"><span class="cm"># example code</span>
 <span class="hl">from</span> konkin <span class="hl">import</span> <span class="hl2">Approval</span>
 
@@ -682,6 +706,17 @@ policy = <span class="hl2">Approval</span>(channels=[<span class="hl2">"telegram
 policy.require_above(btc=<span class="hl2">0.001</span>)</pre>
       </div>
     </div>
+  </div>
+</section>
+
+<!-- ── Natural Language ── -->
+<section class="nl-section">
+  <div class="section-inner" style="text-align: center;">
+    <div class="section-label">Natural Language Interface</div>
+    <h2 class="section-title">Interact with blockchains using natural language</h2>
+    <p class="section-desc" style="max-width: 100%; margin-left: auto; margin-right: auto;">
+      <img src="images/natural.png" alt="natural language example" style="max-width: 100%;">
+    </p>
   </div>
 </section>
 
@@ -739,10 +774,19 @@ policy.require_above(btc=<span class="hl2">0.001</span>)</pre>
     btn.addEventListener('click', () => {
       const bar = btn.closest('.tab-bar');
       const panel = btn.closest('.two-col-panel');
+      const section = btn.closest('.section-inner');
       bar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       panel.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.target).classList.add('active');
+
+      // Sync left-side text panes if present
+      const textPanes = section ? section.querySelectorAll('.auth-text-pane') : [];
+      if (textPanes.length) {
+        textPanes.forEach(tp => tp.classList.remove('active'));
+        const match = section.querySelector('[data-text-for="' + btn.dataset.target + '"]');
+        if (match) match.classList.add('active');
+      }
     });
   });
 </script>
