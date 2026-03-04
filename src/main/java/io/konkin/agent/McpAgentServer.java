@@ -19,6 +19,7 @@ package io.konkin.agent;
 import io.konkin.agent.mcp.auth.ApprovalDetailsResource;
 import io.konkin.agent.mcp.auth.AuthApprovalPrompt;
 import io.konkin.agent.mcp.auth.ApprovalNotificationPoller;
+import io.konkin.agent.mcp.auth.ListEligibleRequestsTool;
 import io.konkin.agent.mcp.auth.PendingApprovalsResource;
 import io.konkin.agent.mcp.auth.VoteOnApprovalTool;
 import io.konkin.agent.mcp.driver.ConfigRequirementsResource;
@@ -189,6 +190,7 @@ public class McpAgentServer {
     private void registerAuthPrimitives() {
         if (requestRepo != null && voteRepo != null && channelRepo != null && historyRepo != null && runtimeConfig != null) {
             mcpSyncServer.addTool(VoteOnApprovalTool.create(agentName, requestRepo, voteRepo, channelRepo, historyRepo, runtimeConfig));
+            mcpSyncServer.addTool(ListEligibleRequestsTool.create(agentName, requestRepo, voteRepo, channelRepo, runtimeConfig));
             mcpSyncServer.addResource(PendingApprovalsResource.resource(agentName, requestRepo, runtimeConfig));
             mcpSyncServer.addResourceTemplate(ApprovalDetailsResource.template(agentName, requestRepo, voteRepo, runtimeConfig));
 

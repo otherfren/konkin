@@ -340,6 +340,92 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         }
     }
 
+    // --- Auth Agent List Eligible Requests Tool Tests ---
+
+    @Test
+    void listEligibleRequestsReturnsAssignedUnvotedRequests() throws Exception {
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-eligible-1", "bitcoin", "QUEUED", 2, "bc1qeligible1", "0.10000000");
+
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
+
+            CallToolResult result = client.callTool(new CallToolRequest("list_eligible_requests", Map.of()));
+            assertFalse(result.isError());
+            JsonNode json = parseToolResult(result);
+            assertEquals("agent-alpha", json.path("agentName").asText());
+            assertTrue(json.path("eligibleCount").asInt() >= 1);
+            assertTrue(json.path("requests").isArray());
+
+            boolean found = false;
+            for (JsonNode req : json.path("requests")) {
+                if ("req-eligible-1".equals(req.path("requestId").asText())) {
+                    assertEquals("bitcoin", req.path("coin").asText());
+                    assertEquals("send", req.path("type").asText());
+                    assertEquals("bc1qeligible1", req.path("to").asText());
+                    assertEquals("0.10000000", req.path("amount").asText());
+                    assertTrue(req.has("reason"));
+                    assertTrue(req.has("requestedAt"));
+                    assertTrue(req.has("expiresAt"));
+                    found = true;
+                    break;
+                }
+            }
+            assertTrue(found, "Expected req-eligible-1 in eligible requests");
+        }
+    }
+
+    @Test
+    void listEligibleRequestsExcludesAlreadyVotedRequests() throws Exception {
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-eligible-voted", "bitcoin", "QUEUED", 2, "bc1qvoted", "0.11000000");
+
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
+
+            // Vote on the request first
+            CallToolResult voteResult = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-eligible-voted", "decision", "approve", "reason", "eligible test")));
+            assertFalse(voteResult.isError());
+
+            // Now list eligible requests — the voted request should not appear
+            CallToolResult listResult = client.callTool(new CallToolRequest("list_eligible_requests", Map.of()));
+            assertFalse(listResult.isError());
+            JsonNode json = parseToolResult(listResult);
+
+            for (JsonNode req : json.path("requests")) {
+                assertFalse("req-eligible-voted".equals(req.path("requestId").asText()),
+                        "Already-voted request should not appear in eligible list");
+            }
+        }
+    }
+
+    @Test
+    void listEligibleRequestsExcludesUnassignedCoinRequests() throws Exception {
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        // monero is NOT assigned to agent-alpha (only bitcoin is)
+        insertAgentApprovalRequest(dataSource, "req-eligible-unassigned", "monero", "QUEUED", 1, "44Affq5kSiGBoZ...", "1.00000000");
+
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
+
+            CallToolResult result = client.callTool(new CallToolRequest("list_eligible_requests", Map.of()));
+            assertFalse(result.isError());
+            JsonNode json = parseToolResult(result);
+
+            for (JsonNode req : json.path("requests")) {
+                assertFalse("req-eligible-unassigned".equals(req.path("requestId").asText()),
+                        "Unassigned coin request should not appear in eligible list");
+            }
+        }
+    }
+
     // --- Driver Agent Config Requirements Resource Tests ---
 
     @Test
