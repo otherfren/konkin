@@ -1,23 +1,19 @@
 package io.konkin.db;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
+import io.konkin.TestDatabaseManager;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.LogQueueFilterOptions;
 import io.konkin.db.entity.PageResult;
 import io.konkin.db.entity.RequestDependencies;
 import io.konkin.db.entity.StateTransitionRow;
-import org.flywaydb.core.Flyway;
 import org.jdbi.v3.core.Jdbi;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import javax.sql.DataSource;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,43 +23,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthQueueStoreTest {
 
-    private static HikariDataSource dataSource;
-    private static Jdbi jdbi;
+    private static final DataSource dataSource = TestDatabaseManager.dataSource();
+    private static final Jdbi jdbi = JdbiFactory.create(dataSource);
     private ApprovalRequestRepository requestRepo;
     private HistoryRepository historyRepo;
     private RequestDependencyLoader depLoader;
 
-    @BeforeAll
-    static void setUpDatabase() {
-        HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl("jdbc:h2:mem:authqueuetest_" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
-        cfg.setUsername("sa");
-        cfg.setPassword("");
-        cfg.setMaximumPoolSize(2);
-        dataSource = new HikariDataSource(cfg);
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
-        jdbi = JdbiFactory.create(dataSource);
-    }
-
-    @AfterAll
-    static void tearDown() {
-        if (dataSource != null) dataSource.close();
-    }
-
     @BeforeEach
     void setUp() {
+        TestDatabaseManager.truncateAll();
         requestRepo = new ApprovalRequestRepository(dataSource);
         historyRepo = new HistoryRepository(dataSource);
         depLoader = new RequestDependencyLoader(dataSource);
-        jdbi.useHandle(h -> {
-            h.execute("DELETE FROM approval_execution_attempts");
-            h.execute("DELETE FROM approval_votes");
-            h.execute("DELETE FROM approval_request_channels");
-            h.execute("DELETE FROM approval_state_transitions");
-            h.execute("DELETE FROM approval_coin_runtime");
-            h.execute("DELETE FROM approval_requests");
-            h.execute("DELETE FROM approval_channels");
-        });
     }
 
     // --- countOpenRequests ---

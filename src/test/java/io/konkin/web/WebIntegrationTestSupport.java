@@ -1,6 +1,7 @@
 package io.konkin.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.JdbiFactory;
@@ -128,7 +129,7 @@ public abstract class WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String dbUrl = "jdbc:h2:" + tomlPath(workDir.resolve("db-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         String configToml = """
                 config-version = 1
@@ -174,7 +175,7 @@ public abstract class WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 

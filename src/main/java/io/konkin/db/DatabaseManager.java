@@ -11,12 +11,18 @@ import javax.sql.DataSource;
 
 /**
  * Manages the H2 database connection pool (HikariCP) and Flyway migrations.
+ * <p>
+ * Use the {@link #DatabaseManager(KonkinConfig)} constructor for production, which creates
+ * its own HikariCP pool and runs Flyway. Use {@link #DatabaseManager(DataSource)} to wrap
+ * an externally-managed DataSource (e.g. a shared test pool) — no pool or migration work
+ * is performed, and {@link #shutdown()} becomes a no-op.
  */
 public class DatabaseManager {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseManager.class);
 
-    private final HikariDataSource dataSource;
+    private final DataSource dataSource;
+    private final HikariDataSource ownedPool;
 
     public DatabaseManager(KonkinConfig config) {
         log.info("Initializing database connection pool — url={}, poolSize={}", config.dbUrl(), config.dbPoolSize());
@@ -30,9 +36,19 @@ public class DatabaseManager {
         hikari.setPoolName("konkin-pool");
         hikari.setConnectionTestQuery("SELECT 1");
 
-        this.dataSource = new HikariDataSource(hikari);
+        this.ownedPool = new HikariDataSource(hikari);
+        this.dataSource = this.ownedPool;
 
         runMigrations();
+    }
+
+    /**
+     * Wraps an externally-managed DataSource. No pool is created and no Flyway
+     * migrations are executed. {@link #shutdown()} is a no-op for this instance.
+     */
+    public DatabaseManager(DataSource externalDataSource) {
+        this.dataSource = externalDataSource;
+        this.ownedPool = null;
     }
 
     private void runMigrations() {
@@ -50,9 +66,12 @@ public class DatabaseManager {
     }
 
     public void shutdown() {
+        if (ownedPool == null) {
+            return;
+        }
         log.info("Shutting down database connection pool");
-        if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
+        if (!ownedPool.isClosed()) {
+            ownedPool.close();
         }
     }
 }

@@ -2,6 +2,7 @@ package io.konkin.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.JdbiFactory;
@@ -681,7 +682,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Path agentSecretFile = workDir.resolve("secrets/" + agentName + ".secret");
         Path bitcoinDaemonSecretFile = workDir.resolve("secrets/bitcoin-daemon.conf");
         Path bitcoinWalletSecretFile = workDir.resolve("secrets/bitcoin-wallet.conf");
-        String dbUrl = "jdbc:h2:" + tomlPath(workDir.resolve("db-secondary-agent-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         Path daemonParent = bitcoinDaemonSecretFile.getParent();
         if (daemonParent != null) {
@@ -746,7 +747,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer webServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         webServer.start();
 
@@ -784,7 +785,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api.secret");
         Path bitcoinDaemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon.conf");
         Path bitcoinWalletSecretFile = tempDir.resolve("secrets/bitcoin-wallet.conf");
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-primary-agent-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         Path daemonParent = bitcoinDaemonSecretFile.getParent();
         if (daemonParent != null) {
@@ -851,7 +852,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer webServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         webServer.start();
 
@@ -890,7 +891,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api-send-%d.secret".formatted(System.nanoTime()));
         Path bitcoinDaemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-send-%d.conf".formatted(System.nanoTime()));
         Path bitcoinWalletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-send-%d.conf".formatted(System.nanoTime()));
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-primary-send-agent-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         Path daemonParent = bitcoinDaemonSecretFile.getParent();
         if (daemonParent != null) {
@@ -974,7 +975,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer webServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         webServer.start();
 

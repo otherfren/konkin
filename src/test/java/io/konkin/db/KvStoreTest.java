@@ -1,17 +1,12 @@
 package io.konkin.db;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import org.flywaydb.core.Flyway;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
+import io.konkin.TestDatabaseManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -19,29 +14,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KvStoreTest {
 
-    private static HikariDataSource dataSource;
+    private static final DataSource dataSource = TestDatabaseManager.dataSource();
     private KvStore store;
-
-    @BeforeAll
-    static void setUpDatabase() {
-        HikariConfig cfg = new HikariConfig();
-        cfg.setJdbcUrl("jdbc:h2:mem:kvstoretest_" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
-        cfg.setUsername("sa");
-        cfg.setPassword("");
-        cfg.setMaximumPoolSize(2);
-        dataSource = new HikariDataSource(cfg);
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
-    }
-
-    @AfterAll
-    static void tearDown() {
-        if (dataSource != null) dataSource.close();
-    }
 
     @BeforeEach
     void setUp() {
+        TestDatabaseManager.truncateAll();
         store = new KvStore(dataSource);
-        JdbiFactory.create(dataSource).useHandle(h -> h.execute("DELETE FROM kv_store"));
     }
 
     @Test
@@ -115,7 +94,4 @@ class KvStoreTest {
         assertEquals("value", anotherInstance.get("persistent").orElseThrow());
     }
 
-    static DataSource dataSource() {
-        return dataSource;
-    }
 }

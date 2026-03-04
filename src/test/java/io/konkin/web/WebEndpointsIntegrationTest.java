@@ -2,6 +2,7 @@ package io.konkin.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.net.httpserver.HttpServer;
+import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
 import org.junit.jupiter.api.AfterAll;
@@ -65,7 +66,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-instant-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         String configToml = """
                 config-version = 1
@@ -86,7 +87,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 """.formatted(port, dbUrl, tomlPath(restApiSecretFile), tomlPath(templateDir), tomlPath(staticDir));
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer konkinServer = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         konkinServer.start();
 
@@ -891,7 +892,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs-timeout-quorum.conf");
         Path telegramSecretFile = tempDir.resolve("secrets/telegram-auth-defs-timeout-quorum.secret");
 
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-auth-defs-timeout-quorum-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
 
         Path telegramSecretDir = telegramSecretFile.getParent();
         if (telegramSecretDir != null) {
@@ -981,7 +982,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 
@@ -1513,7 +1514,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 enabled = false
                 """.formatted(
                 port,
-                tomlPath(tempDir.resolve("db-rest-api-protected-" + System.nanoTime() + "/konkin")),
+                "mem:konkin-test;DB_CLOSE_DELAY=-1",
                 tomlPath(restApiSecretFile)
         );
 
@@ -1529,7 +1530,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         String correctApiKey = secretProps.getProperty("api-key", "").trim();
         assertTrue(!correctApiKey.isEmpty());
 
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 
@@ -1570,7 +1571,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 enabled = false
                 """.formatted(
                 port,
-                tomlPath(tempDir.resolve("db-rest-api-allowed-" + System.nanoTime() + "/konkin")),
+                "mem:konkin-test;DB_CLOSE_DELAY=-1",
                 tomlPath(restApiSecretFile)
         );
 
@@ -1586,7 +1587,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         String correctApiKey = secretProps.getProperty("api-key", "").trim();
         assertTrue(!correctApiKey.isEmpty());
 
-        DatabaseManager dbManager = new DatabaseManager(config);
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 
