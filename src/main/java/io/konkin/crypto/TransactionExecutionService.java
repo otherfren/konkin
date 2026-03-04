@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 public class TransactionExecutionService {
 
     private static final Logger log = LoggerFactory.getLogger(TransactionExecutionService.class);
+    private static final Duration EXECUTING_TIMEOUT = Duration.ofMinutes(10);
 
     private final WalletSupervisor walletSupervisor;
     private final ApprovalRequestRepository requestRepo;
@@ -56,6 +58,12 @@ public class TransactionExecutionService {
 
     private void poll() {
         try {
+            sweepStaleExecuting();
+        } catch (Exception e) {
+            log.warn("Stale EXECUTING sweep failed: {}", e.getMessage());
+        }
+
+        try {
             List<ApprovalRequestRow> approved = requestRepo.findApprovedRequests();
             if (approved.isEmpty()) {
                 return;
@@ -70,6 +78,32 @@ public class TransactionExecutionService {
             }
         } catch (Exception e) {
             log.warn("Execution poll failed: {}", e.getMessage());
+        }
+    }
+
+    private void sweepStaleExecuting() {
+        List<ApprovalRequestRow> executing = requestRepo.findByState("EXECUTING");
+        Instant cutoff = Instant.now().minus(EXECUTING_TIMEOUT);
+
+        for (ApprovalRequestRow row : executing) {
+            if (row.updatedAt() != null && row.updatedAt().isBefore(cutoff)) {
+                Instant now = Instant.now();
+                ApprovalRequestRow failed = new ApprovalRequestRow(
+                        row.id(), row.coin(), row.toolName(), row.requestSessionId(),
+                        row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
+                        row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(),
+                        row.requestedAt(), row.expiresAt(),
+                        "FAILED", "execution_timeout", "Execution timed out after " + EXECUTING_TIMEOUT,
+                        row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
+                        row.policyActionAtCreation(), row.createdAt(), now, now
+                );
+                requestRepo.updateApprovalRequest(failed);
+                historyRepo.insertStateTransition(new StateTransitionRow(
+                        0L, row.id(), "EXECUTING", "FAILED",
+                        "system", "tx-execution-service", "execution_timeout", now
+                ));
+                log.warn("Request {} timed out in EXECUTING state (since {})", row.id(), row.updatedAt());
+            }
         }
     }
 

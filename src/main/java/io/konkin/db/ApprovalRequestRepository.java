@@ -333,6 +333,26 @@ public class ApprovalRequestRepository {
         );
     }
 
+    public List<ApprovalRequestRow> findByState(String state) {
+        String sql = """
+                SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo,
+                       requested_at, expires_at, state, state_reason_code, state_reason_text,
+                       min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
+                       created_at, updated_at, resolved_at
+                FROM approval_requests
+                WHERE state = :state
+                ORDER BY requested_at ASC
+                """;
+
+        return jdbi.withHandle(h ->
+                h.createQuery(sql)
+                        .bind("state", state)
+                        .map(APPROVAL_REQUEST_MAPPER)
+                        .list()
+        );
+    }
+
     public List<ApprovalRequestRow> findVotableRequests() {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
