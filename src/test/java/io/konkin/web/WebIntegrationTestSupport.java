@@ -109,9 +109,18 @@ public abstract class WebIntegrationTestSupport {
             boolean landingPasswordProtected,
             String landingPassword
     ) throws Exception {
+        return startServer(tempDir, landingEnabled, landingPasswordProtected, landingPassword);
+    }
+
+    protected static RunningServer startServer(
+            Path workDir,
+            boolean landingEnabled,
+            boolean landingPasswordProtected,
+            String landingPassword
+    ) throws Exception {
         int port = freePort();
 
-        Path landingPasswordFile = tempDir.resolve("landing.password");
+        Path landingPasswordFile = workDir.resolve("landing.password");
         if (landingPasswordProtected) {
             writePasswordFile(landingPasswordFile, landingPassword);
         }
@@ -119,7 +128,7 @@ public abstract class WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-" + System.nanoTime() + "/konkin"));
+        String dbUrl = "jdbc:h2:" + tomlPath(workDir.resolve("db-" + System.nanoTime() + "/konkin"));
 
         String configToml = """
                 config-version = 1
@@ -161,7 +170,7 @@ public abstract class WebIntegrationTestSupport {
                 tomlPath(staticDir)
         );
 
-        Path configFile = tempDir.resolve("config-%d.toml".formatted(System.nanoTime()));
+        Path configFile = workDir.resolve("config-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
@@ -301,6 +310,19 @@ public abstract class WebIntegrationTestSupport {
                         .bind("decidedBy", "test-actor")
                         .execute()
         );
+    }
+
+    protected static void cleanDatabase(DataSource dataSource) {
+        JdbiFactory.create(dataSource).useHandle(h -> {
+            h.execute("DELETE FROM approval_execution_attempts");
+            h.execute("DELETE FROM approval_votes");
+            h.execute("DELETE FROM approval_request_channels");
+            h.execute("DELETE FROM approval_state_transitions");
+            h.execute("DELETE FROM approval_coin_runtime");
+            h.execute("DELETE FROM approval_requests");
+            h.execute("DELETE FROM approval_channels");
+            h.execute("DELETE FROM agent_tokens");
+        });
     }
 
     protected static void waitForHealth(int port) throws Exception {

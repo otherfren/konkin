@@ -17,7 +17,11 @@ import io.modelcontextprotocol.spec.McpSchema.ReadResourceRequest;
 import io.modelcontextprotocol.spec.McpSchema.ReadResourceResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import io.modelcontextprotocol.spec.McpSchema.TextResourceContents;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.sql.DataSource;
 import java.io.IOException;
@@ -48,33 +52,52 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
+    @TempDir
+    static Path sharedTempDir;
+    private static AgentRunningServer sharedSecondaryServer;
+
+    @BeforeAll
+    static void startSharedServer() throws Exception {
+        sharedSecondaryServer = startSecondaryAgentServer(sharedTempDir, "agent-alpha");
+    }
+
+    @AfterAll
+    static void stopSharedServer() {
+        if (sharedSecondaryServer != null) sharedSecondaryServer.close();
+    }
+
+    @BeforeEach
+    void cleanDb() {
+        if (sharedSecondaryServer != null && sharedSecondaryServer.dbManager() != null) {
+            cleanDatabase(sharedSecondaryServer.dbManager().dataSource());
+        }
+    }
+
     // --- OAuth Tests (HTTP-level, handled by auth filter) ---
 
     @Test
     void oauthTokenWithCorrectCredentialsReturnsAccessToken() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            HttpResponse<String> response = postForm(server.agentBaseUri(), "/oauth/token", oauthFormBody(server), Map.of());
+        AgentRunningServer server = sharedSecondaryServer;
+        HttpResponse<String> response = postForm(server.agentBaseUri(), "/oauth/token", oauthFormBody(server), Map.of());
 
-            assertEquals(200, response.statusCode());
-            JsonNode json = JSON.readTree(response.body());
-            assertFalse(json.path("access_token").asText().isBlank());
-            assertEquals("Bearer", json.path("token_type").asText());
-            assertEquals(0, json.path("expires_in").asInt());
-        }
+        assertEquals(200, response.statusCode());
+        JsonNode json = JSON.readTree(response.body());
+        assertFalse(json.path("access_token").asText().isBlank());
+        assertEquals("Bearer", json.path("token_type").asText());
+        assertEquals(0, json.path("expires_in").asInt());
     }
 
     @Test
     void oauthTokenWithWrongCredentialsReturnsUnauthorized() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            String body = "grant_type=client_credentials&client_id="
-                    + urlEncode(server.clientId())
-                    + "&client_secret="
-                    + urlEncode("wrong-secret");
+        AgentRunningServer server = sharedSecondaryServer;
+        String body = "grant_type=client_credentials&client_id="
+                + urlEncode(server.clientId())
+                + "&client_secret="
+                + urlEncode("wrong-secret");
 
-            HttpResponse<String> response = postForm(server.agentBaseUri(), "/oauth/token", body, Map.of());
+        HttpResponse<String> response = postForm(server.agentBaseUri(), "/oauth/token", body, Map.of());
 
-            assertEquals(401, response.statusCode());
-        }
+        assertEquals(401, response.statusCode());
     }
 
     @Test
@@ -100,29 +123,26 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void unauthenticatedMcpRequestReturnsUnauthorized() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            // GET to /sse without bearer token should return 401
-            HttpResponse<String> response = get(server.agentBaseUri(), "/sse", Map.of());
-            assertEquals(401, response.statusCode());
-        }
+        // GET to /sse without bearer token should return 401
+        HttpResponse<String> response = get(sharedSecondaryServer.agentBaseUri(), "/sse", Map.of());
+        assertEquals(401, response.statusCode());
     }
 
     // --- MCP Health Resource Tests ---
 
     @Test
     void healthResourceReturnsAgentInfo() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        AgentRunningServer server = sharedSecondaryServer;
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://health"));
-                String text = ((TextResourceContents) result.contents().getFirst()).text();
-                JsonNode json = JSON_MAPPER.readTree(text);
-                assertEquals("healthy", json.path("status").asText());
-                assertEquals("agent-alpha", json.path("agent").asText());
-                assertEquals("auth", json.path("type").asText());
-            }
+            ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://health"));
+            String text = ((TextResourceContents) result.contents().getFirst()).text();
+            JsonNode json = JSON_MAPPER.readTree(text);
+            assertEquals("healthy", json.path("status").asText());
+            assertEquals("agent-alpha", json.path("agent").asText());
+            assertEquals("auth", json.path("type").asText());
         }
     }
 
@@ -130,89 +150,85 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void voteWithValidBearerTokenReturnsAcceptedAndPersistsVote() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-123", "bitcoin", "QUEUED", 1, "bc1qvoteaccept", "0.10000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-123", "bitcoin", "QUEUED", 1, "bc1qvoteaccept", "0.10000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
-                        Map.of("requestId", "req-123", "decision", "approve", "reason", "within policy")));
+            CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-123", "decision", "approve", "reason", "within policy")));
 
-                assertFalse(result.isError());
-                JsonNode json = parseToolResult(result);
-                assertEquals("accepted", json.path("status").asText());
-                assertEquals("req-123", json.path("requestId").asText());
-                assertEquals("approve", json.path("decision").asText());
+            assertFalse(result.isError());
+            JsonNode json = parseToolResult(result);
+            assertEquals("accepted", json.path("status").asText());
+            assertEquals("req-123", json.path("requestId").asText());
+            assertEquals("approve", json.path("decision").asText());
 
-                assertEquals(1, countVotesForRequest(dataSource, "req-123"));
-                assertEquals("APPROVED", loadRequestState(dataSource, "req-123"));
-            }
+            assertEquals(1, countVotesForRequest(dataSource, "req-123"));
+            assertEquals("APPROVED", loadRequestState(dataSource, "req-123"));
         }
     }
 
     @Test
     void voteForResolvedRequestReturnsError() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-resolved", "bitcoin", "COMPLETED", 1, "bc1qresolved", "0.01000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-resolved", "bitcoin", "COMPLETED", 1, "bc1qresolved", "0.01000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
-                        Map.of("requestId", "req-resolved", "decision", "approve")));
+            CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-resolved", "decision", "approve")));
 
-                assertTrue(result.isError());
-                JsonNode json = parseToolResult(result);
-                assertEquals("request_not_found_or_resolved", json.path("error").asText());
-            }
+            assertTrue(result.isError());
+            JsonNode json = parseToolResult(result);
+            assertEquals("request_not_found_or_resolved", json.path("error").asText());
         }
     }
 
     @Test
     void voteForUnassignedCoinReturnsError() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-unassigned", "monero", "PENDING", 1, "44Affq5kSiGBoZ...", "0.02000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-unassigned", "monero", "PENDING", 1, "44Affq5kSiGBoZ...", "0.02000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
-                        Map.of("requestId", "req-unassigned", "decision", "deny", "reason", "not assigned")));
+            CallToolResult result = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-unassigned", "decision", "deny", "reason", "not assigned")));
 
-                assertTrue(result.isError());
-                JsonNode json = parseToolResult(result);
-                assertEquals("agent_not_assigned_to_coin", json.path("error").asText());
-            }
+            assertTrue(result.isError());
+            JsonNode json = parseToolResult(result);
+            assertEquals("agent_not_assigned_to_coin", json.path("error").asText());
         }
     }
 
     @Test
     void voteAfterAlreadyVotingReturnsError() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-conflict", "bitcoin", "QUEUED", 2, "bc1qconflict", "0.03000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-conflict", "bitcoin", "QUEUED", 2, "bc1qconflict", "0.03000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                CallToolResult firstVote = client.callTool(new CallToolRequest("vote_on_approval",
-                        Map.of("requestId", "req-conflict", "decision", "approve", "reason", "first")));
-                assertFalse(firstVote.isError());
+            CallToolResult firstVote = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-conflict", "decision", "approve", "reason", "first")));
+            assertFalse(firstVote.isError());
 
-                CallToolResult secondVote = client.callTool(new CallToolRequest("vote_on_approval",
-                        Map.of("requestId", "req-conflict", "decision", "approve", "reason", "second")));
-                assertTrue(secondVote.isError());
-                JsonNode json = parseToolResult(secondVote);
-                assertEquals("already_voted", json.path("error").asText());
-            }
+            CallToolResult secondVote = client.callTool(new CallToolRequest("vote_on_approval",
+                    Map.of("requestId", "req-conflict", "decision", "approve", "reason", "second")));
+            assertTrue(secondVote.isError());
+            JsonNode json = parseToolResult(secondVote);
+            assertEquals("already_voted", json.path("error").asText());
         }
     }
 
@@ -220,27 +236,26 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void pendingApprovalsResourceReturnsPendingRequests() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-sse-open", "bitcoin", "PENDING", 1, "bc1qsseopen", "0.04000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-sse-open", "bitcoin", "PENDING", 1, "bc1qsseopen", "0.04000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/pending"));
-                String text = ((TextResourceContents) result.contents().getFirst()).text();
-                JsonNode json = JSON_MAPPER.readTree(text);
-                assertTrue(json.isArray());
-                assertTrue(json.size() >= 1);
+            ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/pending"));
+            String text = ((TextResourceContents) result.contents().getFirst()).text();
+            JsonNode json = JSON_MAPPER.readTree(text);
+            assertTrue(json.isArray());
+            assertTrue(json.size() >= 1);
 
-                JsonNode first = json.get(0);
-                assertEquals("req-sse-open", first.path("requestId").asText());
-                assertEquals("bitcoin", first.path("coin").asText());
-                assertEquals("send", first.path("type").asText());
-                assertEquals("bc1qsseopen", first.path("to").asText());
-                assertEquals("0.04000000", first.path("amount").asText());
-            }
+            JsonNode first = json.get(0);
+            assertEquals("req-sse-open", first.path("requestId").asText());
+            assertEquals("bitcoin", first.path("coin").asText());
+            assertEquals("send", first.path("type").asText());
+            assertEquals("bc1qsseopen", first.path("to").asText());
+            assertEquals("0.04000000", first.path("amount").asText());
         }
     }
 
@@ -248,66 +263,63 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void approvalDetailsWithAssignedCoinReturnsRequestDetailsAndVotes() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-details", "bitcoin", "PENDING", 2, "bc1qdetails", "0.06000000");
-            insertApprovalChannel(dataSource, "agent-alpha", "mcp_agent");
-            insertApprovalVote(dataSource, "req-details", "agent-alpha", "approve");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-details", "bitcoin", "PENDING", 2, "bc1qdetails", "0.06000000");
+        insertApprovalChannel(dataSource, "agent-alpha", "mcp_agent");
+        insertApprovalVote(dataSource, "req-details", "agent-alpha", "approve");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-details"));
-                String text = ((TextResourceContents) result.contents().getFirst()).text();
-                JsonNode json = JSON_MAPPER.readTree(text);
-                assertEquals("req-details", json.path("requestId").asText());
-                assertEquals("bitcoin", json.path("coin").asText());
-                assertEquals("send", json.path("type").asText());
-                assertEquals("PENDING", json.path("state").asText());
-                assertFalse(json.path("terminal").asBoolean());
-                assertEquals(2, json.path("minApprovalsRequired").asInt());
-                assertEquals("bc1qdetails", json.path("to").asText());
-                assertEquals("0.06000000", json.path("amount").asText());
-                assertTrue(json.path("nonce").asText().startsWith("bitcoin|nonce-uuid-req-details|"));
-                assertTrue(json.path("votes").isArray());
-                assertEquals(1, json.path("votes").size());
-                assertEquals("approve", json.path("votes").get(0).path("decision").asText());
-                assertEquals("agent-alpha", json.path("votes").get(0).path("channelId").asText());
-            }
+            ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-details"));
+            String text = ((TextResourceContents) result.contents().getFirst()).text();
+            JsonNode json = JSON_MAPPER.readTree(text);
+            assertEquals("req-details", json.path("requestId").asText());
+            assertEquals("bitcoin", json.path("coin").asText());
+            assertEquals("send", json.path("type").asText());
+            assertEquals("PENDING", json.path("state").asText());
+            assertFalse(json.path("terminal").asBoolean());
+            assertEquals(2, json.path("minApprovalsRequired").asInt());
+            assertEquals("bc1qdetails", json.path("to").asText());
+            assertEquals("0.06000000", json.path("amount").asText());
+            assertTrue(json.path("nonce").asText().startsWith("bitcoin|nonce-uuid-req-details|"));
+            assertTrue(json.path("votes").isArray());
+            assertEquals(1, json.path("votes").size());
+            assertEquals("approve", json.path("votes").get(0).path("decision").asText());
+            assertEquals("agent-alpha", json.path("votes").get(0).path("channelId").asText());
         }
     }
 
     @Test
     void approvalDetailsForUnknownRequestReturnsError() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        AgentRunningServer server = sharedSecondaryServer;
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-does-not-exist"));
-                String text = ((TextResourceContents) result.contents().getFirst()).text();
-                JsonNode json = JSON_MAPPER.readTree(text);
-                assertEquals("request_not_found", json.path("error").asText());
-            }
+            ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-does-not-exist"));
+            String text = ((TextResourceContents) result.contents().getFirst()).text();
+            JsonNode json = JSON_MAPPER.readTree(text);
+            assertEquals("request_not_found", json.path("error").asText());
         }
     }
 
     @Test
     void approvalDetailsForUnassignedCoinReturnsError() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            insertAgentApprovalRequest(dataSource, "req-details-unassigned", "monero", "PENDING", 1, "44Affq5kSiGBoZ...", "0.07000000");
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        insertAgentApprovalRequest(dataSource, "req-details-unassigned", "monero", "PENDING", 1, "44Affq5kSiGBoZ...", "0.07000000");
 
-            String token = issueAccessToken(server);
-            try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
-                client.initialize();
+        String token = issueAccessToken(server);
+        try (McpSyncClient client = createMcpClient(server.agentBaseUri(), token)) {
+            client.initialize();
 
-                ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-details-unassigned"));
-                String text = ((TextResourceContents) result.contents().getFirst()).text();
-                JsonNode json = JSON_MAPPER.readTree(text);
-                assertEquals("agent_not_assigned_to_coin", json.path("error").asText());
-            }
+            ReadResourceResult result = client.readResource(new ReadResourceRequest("konkin://approvals/req-details-unassigned"));
+            String text = ((TextResourceContents) result.contents().getFirst()).text();
+            JsonNode json = JSON_MAPPER.readTree(text);
+            assertEquals("agent_not_assigned_to_coin", json.path("error").asText());
         }
     }
 
@@ -611,34 +623,33 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void pendingApprovalsNotificationFiredOnChange() throws Exception {
-        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
-            DataSource dataSource = server.dbManager().dataSource();
-            String token = issueAccessToken(server);
+        AgentRunningServer server = sharedSecondaryServer;
+        DataSource dataSource = server.dbManager().dataSource();
+        String token = issueAccessToken(server);
 
-            AtomicReference<Boolean> notified = new AtomicReference<>(false);
-            CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Boolean> notified = new AtomicReference<>(false);
+        CountDownLatch latch = new CountDownLatch(1);
 
-            McpSyncClient client = McpClient.sync(
-                    HttpClientSseClientTransport.builder("http://127.0.0.1:" + server.agentPort())
-                            .customizeRequest(b -> b.header("Authorization", "Bearer " + token))
-                            .build()
-            ).resourcesUpdateConsumer(resources -> {
-                notified.set(true);
-                latch.countDown();
-            }).build();
+        McpSyncClient client = McpClient.sync(
+                HttpClientSseClientTransport.builder("http://127.0.0.1:" + server.agentPort())
+                        .customizeRequest(b -> b.header("Authorization", "Bearer " + token))
+                        .build()
+        ).resourcesUpdateConsumer(resources -> {
+            notified.set(true);
+            latch.countDown();
+        }).build();
 
-            try {
-                client.initialize();
+        try {
+            client.initialize();
 
-                // Insert a pending approval to trigger change — the poller will detect the change
-                // and send a notification to all connected clients
-                insertAgentApprovalRequest(dataSource, "req-notify", "bitcoin", "PENDING", 1, "bc1qnotify", "0.01");
+            // Insert a pending approval to trigger change — the poller will detect the change
+            // and send a notification to all connected clients
+            insertAgentApprovalRequest(dataSource, "req-notify", "bitcoin", "PENDING", 1, "bc1qnotify", "0.01");
 
-                assertTrue(latch.await(5, TimeUnit.SECONDS), "Expected resource update notification within 5 seconds");
-                assertTrue(notified.get());
-            } finally {
-                client.close();
-            }
+            assertTrue(latch.await(5, TimeUnit.SECONDS), "Expected resource update notification within 5 seconds");
+            assertTrue(notified.get());
+        } finally {
+            client.close();
         }
     }
 
@@ -657,16 +668,20 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
     }
 
     private AgentRunningServer startSecondaryAgentServer(String agentName) throws Exception {
+        return startSecondaryAgentServer(tempDir, agentName);
+    }
+
+    private static AgentRunningServer startSecondaryAgentServer(Path workDir, String agentName) throws Exception {
         int serverPort = freePort();
         int agentPort = freePort();
         while (agentPort == serverPort) {
             agentPort = freePort();
         }
 
-        Path agentSecretFile = tempDir.resolve("secrets/" + agentName + ".secret");
-        Path bitcoinDaemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon.conf");
-        Path bitcoinWalletSecretFile = tempDir.resolve("secrets/bitcoin-wallet.conf");
-        String dbUrl = "jdbc:h2:" + tomlPath(tempDir.resolve("db-secondary-agent-" + System.nanoTime() + "/konkin"));
+        Path agentSecretFile = workDir.resolve("secrets/" + agentName + ".secret");
+        Path bitcoinDaemonSecretFile = workDir.resolve("secrets/bitcoin-daemon.conf");
+        Path bitcoinWalletSecretFile = workDir.resolve("secrets/bitcoin-wallet.conf");
+        String dbUrl = "jdbc:h2:" + tomlPath(workDir.resolve("db-secondary-agent-" + System.nanoTime() + "/konkin"));
 
         Path daemonParent = bitcoinDaemonSecretFile.getParent();
         if (daemonParent != null) {
@@ -727,7 +742,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 agentName
         );
 
-        Path configFile = tempDir.resolve("config-agent-%d.toml".formatted(System.nanoTime()));
+        Path configFile = workDir.resolve("config-agent-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());

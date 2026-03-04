@@ -4,7 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.net.httpserver.HttpServer;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import javax.sql.DataSource;
 import java.net.InetSocketAddress;
@@ -30,6 +34,27 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
+
+    @TempDir
+    static Path sharedTempDir;
+    private static RunningServer sharedServer;
+
+    @BeforeAll
+    static void startSharedServer() throws Exception {
+        sharedServer = startServer(sharedTempDir, false, false, "unused");
+    }
+
+    @AfterAll
+    static void stopSharedServer() {
+        if (sharedServer != null) sharedServer.close();
+    }
+
+    @BeforeEach
+    void cleanDb() {
+        if (sharedServer != null && sharedServer.dbManager() != null) {
+            cleanDatabase(sharedServer.dbManager().dataSource());
+        }
+    }
 
     @Test
     void restApiExposesRequestsAndSerializesInstantCorrectly() throws Exception {
@@ -90,72 +115,64 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
     @Test
     void healthEndpointReturnsHealthyStatus() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused")) {
-            HttpResponse<String> response = get(server, "/api/v1/health", Map.of());
+        HttpResponse<String> response = get(sharedServer, "/api/v1/health", Map.of());
 
-            assertEquals(200, response.statusCode());
+        assertEquals(200, response.statusCode());
 
-            JsonNode json = JSON.readTree(response.body());
-            assertEquals("healthy", json.path("status").asText());
-            assertEquals("test-version", json.path("version").asText());
-            assertEquals("connected", json.path("database").asText());
-        }
+        JsonNode json = JSON.readTree(response.body());
+        assertEquals("healthy", json.path("status").asText());
+        assertEquals("test-version", json.path("version").asText());
+        assertEquals("connected", json.path("database").asText());
     }
 
     @Test
     void approvalRequestsRejectDuplicateNonceComposite() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused")) {
-            DataSource dataSource = server.dbManager().dataSource();
+        DataSource dataSource = sharedServer.dbManager().dataSource();
 
-            insertApprovalRequest(dataSource, "req-1", "nonce-duplicate", "PENDING");
+        insertApprovalRequest(dataSource, "req-1", "nonce-duplicate", "PENDING");
 
-            assertThrows(
-                    UnableToExecuteStatementException.class,
-                    () -> insertApprovalRequest(dataSource, "req-2", "nonce-duplicate", "PENDING")
-            );
-        }
+        assertThrows(
+                UnableToExecuteStatementException.class,
+                () -> insertApprovalRequest(dataSource, "req-2", "nonce-duplicate", "PENDING")
+        );
     }
 
     @Test
     void approvalVotesRejectDuplicateVotePerRequestAndChannel() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused")) {
-            DataSource dataSource = server.dbManager().dataSource();
+        DataSource dataSource = sharedServer.dbManager().dataSource();
 
-            insertApprovalRequest(dataSource, "req-votes", "nonce-votes", "PENDING");
-            insertApprovalChannel(dataSource, "telegram.main", "telegram");
-            insertApprovalVote(dataSource, "req-votes", "telegram.main", "approve");
+        insertApprovalRequest(dataSource, "req-votes", "nonce-votes", "PENDING");
+        insertApprovalChannel(dataSource, "telegram.main", "telegram");
+        insertApprovalVote(dataSource, "req-votes", "telegram.main", "approve");
 
-            assertThrows(
-                    UnableToExecuteStatementException.class,
-                    () -> insertApprovalVote(dataSource, "req-votes", "telegram.main", "deny")
-            );
-        }
+        assertThrows(
+                UnableToExecuteStatementException.class,
+                () -> insertApprovalVote(dataSource, "req-votes", "telegram.main", "deny")
+        );
     }
 
     @Test
     void landingDisabledDoesNotExposeRootLogOrStaticAssets() throws Exception {
-        try (RunningServer server = startServer(false, false, "unused")) {
-            HttpResponse<String> root = get(server, "/", Map.of());
-            assertEquals(404, root.statusCode());
+        HttpResponse<String> root = get(sharedServer, "/", Map.of());
+        assertEquals(404, root.statusCode());
 
-            HttpResponse<String> logPage = get(server, "/log", Map.of());
-            assertEquals(404, logPage.statusCode());
+        HttpResponse<String> logPage = get(sharedServer, "/log", Map.of());
+        assertEquals(404, logPage.statusCode());
 
-            HttpResponse<String> authDefinitions = get(server, "/wallets", Map.of());
-            assertEquals(404, authDefinitions.statusCode());
+        HttpResponse<String> authDefinitions = get(sharedServer, "/wallets", Map.of());
+        assertEquals(404, authDefinitions.statusCode());
 
-            HttpResponse<String> authChannels = get(server, "/auth_channels", Map.of());
-            assertEquals(404, authChannels.statusCode());
+        HttpResponse<String> authChannels = get(sharedServer, "/auth_channels", Map.of());
+        assertEquals(404, authChannels.statusCode());
 
-            HttpResponse<String> driverAgent = get(server, "/driver_agent", Map.of());
-            assertEquals(404, driverAgent.statusCode());
+        HttpResponse<String> driverAgent = get(sharedServer, "/driver_agent", Map.of());
+        assertEquals(404, driverAgent.statusCode());
 
-            HttpResponse<String> coinsPage = get(server, "/coins", Map.of());
-            assertEquals(404, coinsPage.statusCode());
+        HttpResponse<String> coinsPage = get(sharedServer, "/coins", Map.of());
+        assertEquals(404, coinsPage.statusCode());
 
-            HttpResponse<String> staticAsset = get(server, "/assets/favicon.svg", Map.of());
-            assertEquals(404, staticAsset.statusCode());
-        }
+        HttpResponse<String> staticAsset = get(sharedServer, "/assets/favicon.svg", Map.of());
+        assertEquals(404, staticAsset.statusCode());
     }
 
     @Test
