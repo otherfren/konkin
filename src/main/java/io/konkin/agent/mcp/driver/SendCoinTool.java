@@ -39,7 +39,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -172,7 +171,7 @@ public final class SendCoinTool {
                 memo,
                 reason,
                 now,
-                now.plus(30, ChronoUnit.MINUTES),
+                now.plus(runtimeConfig.telegramAutoDenyTimeout()),
                 "QUEUED",
                 "queued_for_approval",
                 "Request accepted and queued for approval",

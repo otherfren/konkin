@@ -134,7 +134,7 @@ rest-api = true
 telegram = true
 # MCP auth channel identifiers shown in Auth Definitions
 mcp-auth-channels = ["agent-arthur", "agent-merlin"]
-min-approvals-required = 1
+min-approvals-required = 2
 veto-channels = ["telegram", "agent-merlin"]
 
 #[[coins.bitcoin.auth.auto-accept]]

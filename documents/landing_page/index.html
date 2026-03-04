@@ -654,7 +654,7 @@
       <div class="section-label">Auth Configuration</div>
 
       <div class="auth-text-pane active" data-text-for="tab-simple">
-        <h2 class="section-title">Example: Fixed cap, 1-of-1</h2>
+        <h2 class="section-title">Example: Fixed cap, 1-of-N</h2>
         <ul class="talking-points">
           <li>Auto-deny if the amount is higher than BTC 0.05</li>
           <li>Ask via Telegram for approval</li>
@@ -664,11 +664,11 @@
       </div>
 
       <div class="auth-text-pane" data-text-for="tab-complex">
-        <h2 class="section-title">Complex Example: 24h budget, 2-of-3, veto</h2>
+        <h2 class="section-title">Complex Example: 24h budget, 2-of-N, veto</h2>
         <ul class="talking-points">
           <li>Auto-deny if cumulative expenses are above 10 XMR within 24h</li>
           <li>Auto-approve if amount is lower than 0.2 XMR</li>
-          <li>If we are in-between, 2-of-3 auth channels need to approve</li>
+          <li>If we are in-between, 2-of-N auth channels need to approve</li>
           <li>Two Telegram users and one additional ai agents can approve/deny</li>
           <li>The Telegram users have veto-right, meaning transaction is immediately denied if one of them disapproves</li>
           <li>The additional ai agent has a separate mcp connection. His tools are limited to reading the transaction queue and giving his thumb-up or thumbs-down according to his validation criteria.</li>
@@ -707,7 +707,6 @@ enabled = <span class="hl">true</span>
 web-ui              = <span class="hl">false</span>
 rest-api            = <span class="hl">true</span>
 telegram            = <span class="hl">true</span>
-mcp                 = <span class="hl">"xmr-main"</span>
 min-approvals-required = <span class="hl">2</span>
 veto-channels       = [<span class="hl">"telegram"</span>]
 mcp-auth-channels   = [<span class="hl">"agent-arthur"</span>, <span class="hl">"agent-merlin"</span>]
@@ -764,9 +763,9 @@ period = <span class="hl">"24h"</span></pre>
 
     <div class="coins-grid">
       <div class="coin-chip"><img src="images/bitcoin.svg" alt="Bitcoin"> Bitcoin <span class="phase phase-live">available</span></div>
-      <div class="coin-chip"><img src="images/litecoin.svg" alt="Litecoin"> Litecoin <span class="phase phase-live">available</span></div>
-      <div class="coin-chip"><img src="images/monero.svg" alt="Monero"> Monero <span class="phase phase-soon">partially available</span></div>
-      <div class="coin-chip"><img src="images/ethereum.svg" alt="Ethereum"> Ethereum <span class="phase phase-future">Work In Progress</span></div>
+      <div class="coin-chip"><img src="images/monero.svg" alt="Monero"> Monero <span class="phase phase-soon">Work In Progress</span></div>
+      <div class="coin-chip"><img src="images/litecoin.svg" alt="Litecoin"> Litecoin <span class="phase phase-future">later</span></div>
+      <div class="coin-chip"><img src="images/ethereum.svg" alt="Ethereum"> Ethereum <span class="phase phase-future">later</span></div>
     </div>
   </div>
 </section>
