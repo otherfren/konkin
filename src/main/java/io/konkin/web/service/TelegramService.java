@@ -147,11 +147,12 @@ public class TelegramService {
             }
 
             return List.copyOf(deduplicated.values());
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            log.warn("Telegram chat discovery failed", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("Telegram chat discovery interrupted");
+            return List.of();
+        } catch (IOException e) {
+            log.warn("Telegram chat discovery failed: {}", e.getMessage());
             return List.of();
         }
     }
@@ -331,11 +332,12 @@ public class TelegramService {
             }
 
             return root.path("result");
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            log.warn("Telegram getUpdates failed", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("Telegram getUpdates interrupted");
+            return null;
+        } catch (IOException e) {
+            log.warn("Telegram getUpdates failed: {}", e.getMessage());
             return null;
         }
     }
