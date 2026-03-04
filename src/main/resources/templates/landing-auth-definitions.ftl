@@ -84,7 +84,7 @@
                         </span>
                     </#if>
                 </div>
-
+                <br/>
                 <section class="auth-meta-item auth-compact-block" aria-label="Connection and secrets">
                     <h4 class="auth-meta-label">Connection</h4>
                     <span class="mono auth-meta-value auth-inline-meta">${coin.connectionStatus!'unknown'} · last life-sign: ${coin.lastLifeSign!'unknown'}</span>
