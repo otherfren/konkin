@@ -430,13 +430,13 @@ public class LandingPageMapper {
         mcpRegistration.put("enabled", enabled);
         mcpRegistration.put("sseEndpoint", sseEndpoint);
         mcpRegistration.put("tokenEndpoint", tokenEndpoint);
-        mcpRegistration.put("agentCommands", buildAgentCommands(enabled, sseEndpoint));
+        mcpRegistration.put("agentCommands", buildAgentCommands(enabled, sseEndpoint, "konkin"));
         mcpRegistration.put("tokenCommand", tokenCommand);
         mcpRegistration.put("skillPath", "documents/SKILL-driver-agent.md");
         return Map.copyOf(mcpRegistration);
     }
 
-    private List<Map<String, Object>> buildAgentCommands(boolean enabled, String sseEndpoint) {
+    private List<Map<String, Object>> buildAgentCommands(boolean enabled, String sseEndpoint, String mcpServerName) {
         if (!enabled || "-".equals(sseEndpoint)) {
             return List.of();
         }
@@ -450,8 +450,8 @@ public class LandingPageMapper {
                 claude mcp add --transport sse \\
                   -H "Authorization: Bearer YOUR_BEARER_TOKEN" \\
                   -s project \\
-                  konkin "%s"\
-                """.strip().formatted(sseEndpoint));
+                  %s "%s"\
+                """.strip().formatted(mcpServerName, sseEndpoint));
         claudeCode.put("verifyCommand", "claude mcp list");
         agents.add(Map.copyOf(claudeCode));
 
@@ -465,7 +465,7 @@ public class LandingPageMapper {
 
                 {
                   "mcpServers": {
-                    "konkin": {
+                    "%s": {
                       "url": "%s",
                       "headers": {
                         "Authorization": "Bearer YOUR_BEARER_TOKEN"
@@ -473,7 +473,7 @@ public class LandingPageMapper {
                     }
                   }
                 }\
-                """.strip().formatted(sseEndpoint));
+                """.strip().formatted(mcpServerName, sseEndpoint));
         claudeDesktop.put("verifyCommand", "Restart Claude Desktop, check MCP server icon");
         agents.add(Map.copyOf(claudeDesktop));
 
@@ -485,7 +485,7 @@ public class LandingPageMapper {
 
                 {
                   "mcpServers": {
-                    "konkin": {
+                    "%s": {
                       "url": "%s",
                       "headers": {
                         "Authorization": "Bearer YOUR_BEARER_TOKEN"
@@ -493,8 +493,8 @@ public class LandingPageMapper {
                     }
                   }
                 }\
-                """.strip().formatted(sseEndpoint));
-        cursor.put("verifyCommand", "Open Cursor Settings > MCP, check konkin status");
+                """.strip().formatted(mcpServerName, sseEndpoint));
+        cursor.put("verifyCommand", "Open Cursor Settings > MCP, check " + mcpServerName + " status");
         agents.add(Map.copyOf(cursor));
 
         Map<String, Object> windsurf = new LinkedHashMap<>();
@@ -505,7 +505,7 @@ public class LandingPageMapper {
 
                 {
                   "mcpServers": {
-                    "konkin": {
+                    "%s": {
                       "serverUrl": "%s",
                       "headers": {
                         "Authorization": "Bearer YOUR_BEARER_TOKEN"
@@ -513,7 +513,7 @@ public class LandingPageMapper {
                     }
                   }
                 }\
-                """.strip().formatted(sseEndpoint));
+                """.strip().formatted(mcpServerName, sseEndpoint));
         windsurf.put("verifyCommand", "Check Windsurf Cascade panel for MCP tools");
         agents.add(Map.copyOf(windsurf));
 
@@ -614,9 +614,9 @@ public class LandingPageMapper {
                     ? """
                     curl -s -X POST "%s" \\
                       -d "grant_type=client_credentials" \\
-                      -d "client_id=konkin-secondary" \\
+                      -d "client_id=%s" \\
                       -d "client_secret=YOUR_SECRET"
-                    """.strip().formatted(tokenEndpoint)
+                    """.strip().formatted(tokenEndpoint, agentName)
                     : "-";
 
             Map<String, Object> reg = new LinkedHashMap<>();
@@ -625,7 +625,7 @@ public class LandingPageMapper {
             reg.put("sseEndpoint", sseEndpoint);
             reg.put("tokenEndpoint", tokenEndpoint);
             reg.put("tokenCommand", tokenCommand);
-            reg.put("agentCommands", buildAgentCommands(enabled, sseEndpoint));
+            reg.put("agentCommands", buildAgentCommands(enabled, sseEndpoint, "konkin-" + agentName));
             reg.put("skillPath", "documents/SKILL-auth-agent.md");
             registrations.add(Map.copyOf(reg));
         }
