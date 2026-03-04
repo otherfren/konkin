@@ -1,8 +1,16 @@
-# Konkin
+# Konkin.io
 
-Konkin is a self-hosted server that brokers blockchain send operations through human-in-the-loop approval workflows.
+Konkin.io is an MCP crypto wallet wrapper for AI agents.
 
-An AI **driver agent** submits cryptocurrency send requests via MCP (Model Context Protocol).
+- You can send crypto using natural language.
+- It keeps secret keys completely hidden from your AI agents.
+- It includes 2FA via Telegram.
+
+
+**Konkin.io currently in early alpha and supports only Bitcoin right now.**
+
+I’ll be adding more coins soon.
+
 One or more **auth agents** — web UI, Telegram, REST API, or another AI — approve or deny them before anything gets executed on-chain.
 
 ---
