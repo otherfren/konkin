@@ -29,6 +29,7 @@ import io.konkin.db.RequestDependencyLoader;
 import io.konkin.db.VoteRepository;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
+import io.konkin.db.entity.ExecutionAttemptDetail;
 import io.konkin.db.entity.LogQueueFilterOptions;
 import io.konkin.db.entity.PageResult;
 import io.konkin.db.entity.RequestDependencies;
@@ -46,6 +47,8 @@ import org.slf4j.LoggerFactory;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -813,6 +816,140 @@ public class LandingPageController {
             throw new IllegalStateException("Failed to resolve approval channel for web-ui");
         }
         return reloaded.id();
+    }
+
+    // ── History export ──────────────────────────────────────────────────────
+
+    private static final DateTimeFormatter CT_DATE_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneOffset.UTC);
+
+    public void handleHistoryExport(Context ctx) {
+        if (requestRepo == null) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        // Load COMPLETED requests (successful transactions)
+        List<ApprovalRequestRow> completed = requestRepo.findByState("COMPLETED");
+
+        // Load execution attempt details for these requests
+        List<String> requestIds = new ArrayList<>();
+        for (ApprovalRequestRow row : completed) {
+            if (row.id() != null && !row.id().isBlank()) {
+                requestIds.add(row.id());
+            }
+        }
+
+        Map<String, List<ExecutionAttemptDetail>> executionsByRequest =
+                requestIds.isEmpty() ? Map.of() : depLoader.loadRequestDependencies(requestIds)
+                        .entrySet().stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                Map.Entry::getKey,
+                                e -> e.getValue().executionAttempts()
+                        ));
+
+        StringBuilder csv = new StringBuilder();
+        // CoinTracking CSV header
+        csv.append("\"Type\",\"Buy\",\"Cur.\",\"Sell\",\"Cur.\",\"Fee\",\"Cur.\",\"Exchange\",\"Group\",\"Comment\",\"Date\",\"Txid\"\n");
+
+        for (ApprovalRequestRow row : completed) {
+            List<ExecutionAttemptDetail> attempts = executionsByRequest.getOrDefault(row.id(), List.of());
+
+            // Find the successful execution attempt
+            ExecutionAttemptDetail successAttempt = null;
+            for (ExecutionAttemptDetail attempt : attempts) {
+                if ("success".equalsIgnoreCase(attempt.result()) && attempt.txid() != null) {
+                    successAttempt = attempt;
+                    break;
+                }
+            }
+
+            String txid = successAttempt != null ? successAttempt.txid() : "";
+            String fee = successAttempt != null && successAttempt.daemonFeeNative() != null
+                    ? successAttempt.daemonFeeNative() : "";
+            String ticker = coinTicker(row.coin());
+
+            // Date: use the execution finish time if available, otherwise resolvedAt
+            Instant dateInstant = successAttempt != null && successAttempt.finishedAt() != null
+                    ? successAttempt.finishedAt()
+                    : row.resolvedAt() != null ? row.resolvedAt() : row.requestedAt();
+            String date = dateInstant != null ? CT_DATE_FORMAT.format(dateInstant) : "";
+
+            // Build comment from reason + memo
+            String comment = buildExportComment(row);
+
+            // Type=Withdrawal: we are sending coin out
+            csv.append(csvLine(
+                    "Withdrawal",       // Type
+                    "",                  // Buy (empty for withdrawal)
+                    "",                  // Buy Currency (empty)
+                    row.amountNative(),  // Sell
+                    ticker,              // Sell Currency
+                    fee,                 // Fee
+                    ticker,              // Fee Currency (same as coin)
+                    "konkin",            // Exchange
+                    "",                  // Group
+                    comment,             // Comment
+                    date,                // Date
+                    txid                 // Txid
+            ));
+        }
+
+        ctx.contentType("text/csv; charset=UTF-8");
+        ctx.header("Content-Disposition",
+                "attachment; filename=\"cointracking_export_" + Instant.now().toEpochMilli() + ".csv\"");
+        ctx.result(csv.toString());
+    }
+
+    private static String buildExportComment(ApprovalRequestRow row) {
+        StringBuilder sb = new StringBuilder();
+        if (row.toAddress() != null && !row.toAddress().isBlank()) {
+            sb.append("to:").append(row.toAddress());
+        }
+        if (row.reason() != null && !row.reason().isBlank()) {
+            if (sb.length() > 0) sb.append(" | ");
+            sb.append(row.reason());
+        }
+        if (row.memo() != null && !row.memo().isBlank()) {
+            if (sb.length() > 0) sb.append(" | ");
+            sb.append("memo:").append(row.memo());
+        }
+        return sb.toString();
+    }
+
+    private static String csvLine(String... fields) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) sb.append(',');
+            sb.append('"').append(csvEscape(fields[i])).append('"');
+        }
+        sb.append('\n');
+        return sb.toString();
+    }
+
+    private static String csvEscape(String value) {
+        if (value == null) return "";
+        return value.replace("\"", "\"\"");
+    }
+
+    private static String coinTicker(String coin) {
+        if (coin == null) return "";
+        return switch (coin.toLowerCase(Locale.ROOT)) {
+            case "bitcoin" -> "BTC";
+            case "litecoin" -> "LTC";
+            case "monero" -> "XMR";
+            case "ethereum" -> "ETH";
+            case "solana" -> "SOL";
+            case "tron" -> "TRX";
+            case "pirate" -> "ARRR";
+            case "zano" -> "ZANO";
+            default -> coin.toUpperCase(Locale.ROOT);
+        };
     }
 
     // ── Inner records ──────────────────────────────────────────────────────

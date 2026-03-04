@@ -1455,6 +1455,165 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(observedUpdate, "Template auto-reload did not apply the updated landing.ftl content");
         }
     }
+
+    @Test
+    void historyExportReturnsEmptyCsvWhenNoCompletedRequests() throws Exception {
+        RunningServer server = sharedLandingServer;
+
+        // Insert a PENDING request — should not appear in export
+        DataSource ds = server.dbManager().dataSource();
+        insertApprovalRequest(ds, "req-pending-1", "nonce-pending-1", "PENDING");
+
+        HttpResponse<String> response = get(server, "/history/export", Map.of());
+        assertEquals(200, response.statusCode());
+
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        assertTrue(contentType.contains("text/csv"), "Expected text/csv but was: " + contentType);
+
+        String disposition = response.headers().firstValue("Content-Disposition").orElse("");
+        assertTrue(disposition.contains("attachment"), "Expected attachment disposition");
+        assertTrue(disposition.contains(".csv"), "Expected .csv filename");
+
+        String body = response.body();
+        // Header row must be present
+        assertTrue(body.startsWith("\"Type\""), "CSV should start with header row");
+        assertTrue(body.contains("\"Cur.\""), "CSV header should contain currency columns");
+
+        // Only header line, no data lines
+        String[] lines = body.strip().split("\n");
+        assertEquals(1, lines.length, "Should only have the header line when no COMPLETED requests exist");
+    }
+
+    @Test
+    void historyExportReturnsCoinTrackingCsvForCompletedRequests() throws Exception {
+        RunningServer server = sharedLandingServer;
+        DataSource ds = server.dbManager().dataSource();
+
+        // Insert two COMPLETED requests
+        insertApprovalRequest(ds, "req-export-1", "nonce-export-1", "COMPLETED");
+        insertApprovalRequest(ds, "req-export-2", "nonce-export-2", "COMPLETED");
+
+        // Set specific coin/amounts for export rows
+        JdbiFactory.create(ds).useHandle(h -> {
+            h.createUpdate("""
+                UPDATE approval_requests
+                SET coin = :coin, tool_name = :tool, amount_native = :amount,
+                    to_address = :toAddr, resolved_at = :resolvedAt
+                WHERE id = :id
+            """)
+                    .bind("coin", "bitcoin")
+                    .bind("tool", "bitcoin_send")
+                    .bind("amount", "0.05")
+                    .bind("toAddr", "bc1qexporttest1")
+                    .bind("resolvedAt", Instant.parse("2026-01-15T10:30:00Z"))
+                    .bind("id", "req-export-1")
+                    .execute();
+
+            h.createUpdate("""
+                UPDATE approval_requests
+                SET coin = :coin, tool_name = :tool, amount_native = :amount,
+                    to_address = :toAddr, resolved_at = :resolvedAt
+                WHERE id = :id
+            """)
+                    .bind("coin", "monero")
+                    .bind("tool", "monero_send")
+                    .bind("amount", "1.5")
+                    .bind("toAddr", "4exportTestAddr")
+                    .bind("resolvedAt", Instant.parse("2026-01-16T14:00:00Z"))
+                    .bind("id", "req-export-2")
+                    .execute();
+
+            // Insert execution attempts with txids and fees
+            h.createUpdate("""
+                INSERT INTO approval_execution_attempts (
+                    request_id, attempt_no, started_at, finished_at, result, txid, daemon_fee_native
+                ) VALUES (
+                    :requestId, :attemptNo, :startedAt, :finishedAt, :result, :txid, :fee
+                )
+            """)
+                    .bind("requestId", "req-export-1")
+                    .bind("attemptNo", 1)
+                    .bind("startedAt", Instant.parse("2026-01-15T10:29:50Z"))
+                    .bind("finishedAt", Instant.parse("2026-01-15T10:30:00Z"))
+                    .bind("result", "success")
+                    .bind("txid", "btc-txid-abc123")
+                    .bind("fee", "0.00001234")
+                    .execute();
+
+            h.createUpdate("""
+                INSERT INTO approval_execution_attempts (
+                    request_id, attempt_no, started_at, finished_at, result, txid, daemon_fee_native
+                ) VALUES (
+                    :requestId, :attemptNo, :startedAt, :finishedAt, :result, :txid, :fee
+                )
+            """)
+                    .bind("requestId", "req-export-2")
+                    .bind("attemptNo", 1)
+                    .bind("startedAt", Instant.parse("2026-01-16T13:59:50Z"))
+                    .bind("finishedAt", Instant.parse("2026-01-16T14:00:00Z"))
+                    .bind("result", "success")
+                    .bind("txid", "xmr-txid-def456")
+                    .bind("fee", "0.00012")
+                    .execute();
+        });
+
+        // Also insert a DENIED request — must NOT appear
+        insertApprovalRequest(ds, "req-denied-x", "nonce-denied-x", "DENIED");
+
+        HttpResponse<String> response = get(server, "/history/export", Map.of());
+        assertEquals(200, response.statusCode());
+
+        String body = response.body();
+        String[] lines = body.strip().split("\n");
+        assertEquals(3, lines.length, "Expected header + 2 data lines");
+
+        // Verify header
+        assertTrue(lines[0].contains("\"Type\""), "First line should be CSV header");
+        assertTrue(lines[0].contains("\"Txid\""), "Header should include Txid column");
+
+        // Verify first data row (bitcoin)
+        assertTrue(body.contains("\"Withdrawal\""), "Should contain Withdrawal type");
+        assertTrue(body.contains("\"BTC\""), "Should contain BTC ticker");
+        assertTrue(body.contains("\"0.05\""), "Should contain bitcoin amount");
+        assertTrue(body.contains("\"btc-txid-abc123\""), "Should contain bitcoin txid");
+        assertTrue(body.contains("\"0.00001234\""), "Should contain bitcoin fee");
+
+        // Verify second data row (monero)
+        assertTrue(body.contains("\"XMR\""), "Should contain XMR ticker");
+        assertTrue(body.contains("\"1.5\""), "Should contain monero amount");
+        assertTrue(body.contains("\"xmr-txid-def456\""), "Should contain monero txid");
+
+        // Verify addresses are in the comment
+        assertTrue(body.contains("bc1qexporttest1"), "Should contain bitcoin address in comment");
+        assertTrue(body.contains("4exportTestAddr"), "Should contain monero address in comment");
+    }
+
+    @Test
+    void historyExportRequiresSessionWhenPasswordProtected() throws Exception {
+        RunningServer server = sharedProtectedServer;
+
+        // Without session — should redirect to login
+        HttpResponse<String> response = get(server, "/history/export", Map.of());
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("login"), "Should show login page when not authenticated");
+        assertFalse(response.body().contains("\"Type\""), "Should not contain CSV content");
+
+        // Login to get session cookie
+        HttpResponse<String> loginResponse = postForm(server, "/login",
+                "password=" + SHARED_LANDING_PASSWORD, Map.of());
+        String setCookie = loginResponse.headers().firstValue("Set-Cookie").orElse("");
+        assertFalse(setCookie.isEmpty(), "Login should set session cookie");
+        String cookie = firstCookiePair(setCookie);
+
+        // With session — should return CSV
+        HttpResponse<String> authedResponse = get(server, "/history/export", Map.of("Cookie", cookie));
+        assertEquals(200, authedResponse.statusCode());
+
+        String contentType = authedResponse.headers().firstValue("Content-Type").orElse("");
+        assertTrue(contentType.contains("text/csv"), "Authenticated export should return text/csv");
+        assertTrue(authedResponse.body().startsWith("\"Type\""), "Authenticated export should start with CSV header");
+    }
+
     private static void updateApprovalRequestCoinAndTool(DataSource dataSource, String requestId, String coin, String toolName) {
         JdbiFactory.create(dataSource).useHandle(h ->
                 h.createUpdate("UPDATE approval_requests SET coin = :coin, tool_name = :tool WHERE id = :id")

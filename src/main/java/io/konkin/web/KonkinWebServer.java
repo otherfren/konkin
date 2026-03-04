@@ -361,6 +361,7 @@ public class KonkinWebServer {
         if (config.landingEnabled()) {
             app.get("/", webUiPageControllerFinal::handleRoot);
             app.get("/history", webUiPageControllerFinal::handleLog);
+            app.get("/history/export", webUiPageControllerFinal::handleHistoryExport);
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);

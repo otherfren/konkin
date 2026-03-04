@@ -89,6 +89,7 @@
 
         <div class="table-toolbar">
             <span class="table-meta">rows: ${lqTotalRows} · page ${lqPage} / ${lqTotalPages}</span>
+            <a href="${auditLogPath}/export" class="btn btn-sm btn-export" title="Export successful transactions (CoinTracking CSV)">&#x1F4E5; Export CSV</a>
         </div>
 
         <form method="get" action="${auditLogPath}" class="log-filter-form">

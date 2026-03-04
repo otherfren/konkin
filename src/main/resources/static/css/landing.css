@@ -157,7 +157,28 @@ body {
     display: flex;
     justify-content: flex-end;
     align-items: center;
+    gap: 12px;
     margin: 0 0 10px;
+}
+
+.btn-export {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+    color: var(--text);
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.btn-export:hover {
+    background: var(--border);
+    border-color: var(--accent);
 }
 
 .table-meta {
