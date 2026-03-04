@@ -1,3 +1,5 @@
+** This software is pre-alpha work-in-progress, no official release yet. **
+
 # Konkin.io
 
 Konkin.io is an MCP crypto wallet wrapper for AI agents.
