@@ -39,8 +39,8 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
     @BeforeAll
     static void startSharedServers() throws Exception {
-        sharedLandingServer = startServer(sharedTempDir, true, false, "unused");
-        sharedProtectedServer = startServer(sharedTempDir, true, true, SHARED_LANDING_PASSWORD);
+        sharedLandingServer = startServer(sharedTempDir, true, false, "unused", "web-landing-test");
+        sharedProtectedServer = startServer(sharedTempDir, true, true, SHARED_LANDING_PASSWORD, "web-landing-test");
     }
 
     @AfterAll

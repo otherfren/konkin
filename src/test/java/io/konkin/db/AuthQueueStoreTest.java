@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AuthQueueStoreTest {
 
-    private static final DataSource dataSource = TestDatabaseManager.dataSource();
+    private static final DataSource dataSource = TestDatabaseManager.dataSource("auth-queue-test");
     private static final Jdbi jdbi = JdbiFactory.create(dataSource);
     private ApprovalRequestRepository requestRepo;
     private HistoryRepository historyRepo;
@@ -31,7 +31,7 @@ class AuthQueueStoreTest {
 
     @BeforeEach
     void setUp() {
-        TestDatabaseManager.truncateAll();
+        TestDatabaseManager.truncateAll(dataSource);
         requestRepo = new ApprovalRequestRepository(dataSource);
         historyRepo = new HistoryRepository(dataSource);
         depLoader = new RequestDependencyLoader(dataSource);

@@ -110,7 +110,7 @@ public abstract class WebIntegrationTestSupport {
             boolean landingPasswordProtected,
             String landingPassword
     ) throws Exception {
-        return startServer(tempDir, landingEnabled, landingPasswordProtected, landingPassword);
+        return startServer(tempDir, landingEnabled, landingPasswordProtected, landingPassword, "web-test");
     }
 
     protected static RunningServer startServer(
@@ -118,6 +118,16 @@ public abstract class WebIntegrationTestSupport {
             boolean landingEnabled,
             boolean landingPasswordProtected,
             String landingPassword
+    ) throws Exception {
+        return startServer(workDir, landingEnabled, landingPasswordProtected, landingPassword, "web-test");
+    }
+
+    protected static RunningServer startServer(
+            Path workDir,
+            boolean landingEnabled,
+            boolean landingPasswordProtected,
+            String landingPassword,
+            String dbName
     ) throws Exception {
         int port = freePort();
 
@@ -129,7 +139,7 @@ public abstract class WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String dbUrl = "jdbc:h2:mem:konkin-test;DB_CLOSE_DELAY=-1";
+        String dbUrl = "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
 
         String configToml = """
                 config-version = 1
@@ -175,7 +185,7 @@ public abstract class WebIntegrationTestSupport {
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource(dbName));
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
         server.start();
 

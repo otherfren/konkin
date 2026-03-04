@@ -14,12 +14,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class KvStoreTest {
 
-    private static final DataSource dataSource = TestDatabaseManager.dataSource();
+    private static final DataSource dataSource = TestDatabaseManager.dataSource("kv-store-test");
     private KvStore store;
 
     @BeforeEach
     void setUp() {
-        TestDatabaseManager.truncateAll();
+        TestDatabaseManager.truncateAll(dataSource);
         store = new KvStore(dataSource);
     }
 
