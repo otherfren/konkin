@@ -666,8 +666,8 @@
       <div class="auth-text-pane" data-text-for="tab-complex">
         <h2 class="section-title">Complex Example: 24h budget, 2-of-3, veto</h2>
         <ul class="talking-points">
-          <li>Auto-deny if cumulative expenses are above 10 LTC within 24h</li>
-          <li>Auto-approve if amount is lower than 0.2 LTC</li>
+          <li>Auto-deny if cumulative expenses are above 10 XMR within 24h</li>
+          <li>Auto-approve if amount is lower than 0.2 XMR</li>
           <li>If we are in-between, 2-of-3 auth channels need to approve</li>
           <li>Two Telegram users and one additional ai agents can approve/deny</li>
           <li>The Telegram users have veto-right, meaning transaction is immediately denied if one of them disapproves</li>
@@ -700,11 +700,28 @@ type  = <span class="hl">"value-gt"</span>
 value = <span class="hl">0.05</span></pre>
       </div>
       <div id="tab-complex" class="tab-pane">
-        <pre class="tab-code"><span class="cm"># example code</span>
-<span class="hl">from</span> konkin <span class="hl">import</span> <span class="hl2">Approval</span>
+        <pre class="tab-code"><span class="hl2">[coins.monero]</span>
+enabled = <span class="hl">true</span>
 
-policy = <span class="hl2">Approval</span>(channels=[<span class="hl2">"telegram"</span>])
-policy.require_above(btc=<span class="hl2">0.001</span>)</pre>
+<span class="hl2">[coins.monero.auth]</span>
+web-ui              = <span class="hl">false</span>
+rest-api            = <span class="hl">true</span>
+telegram            = <span class="hl">true</span>
+mcp                 = <span class="hl">"xmr-main"</span>
+min-approvals-required = <span class="hl">2</span>
+veto-channels       = [<span class="hl">"telegram"</span>]
+mcp-auth-channels   = [<span class="hl">"agent-arthur"</span>, <span class="hl">"agent-merlin"</span>]
+
+<span class="hl2">[[coins.monero.auth.auto-accept]]</span>
+<span class="hl2">[coins.monero.auth.auto-accept.criteria]</span>
+type  = <span class="hl">"value-lt"</span>
+value = <span class="hl">0.2</span>
+
+<span class="hl2">[[coins.monero.auth.auto-deny]]</span>
+<span class="hl2">[coins.monero.auth.auto-deny.criteria]</span>
+type   = <span class="hl">"cumulated-value-gt"</span>
+value  = <span class="hl">10</span>
+period = <span class="hl">"24h"</span></pre>
       </div>
     </div>
   </div>

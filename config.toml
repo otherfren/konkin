@@ -69,7 +69,7 @@ auto-deny-timeout = "3m"
 enabled = true
 
 [coins.litecoin]
-enabled = true
+enabled = false
 #example values for future litecoin auth config
 
 [coins.litecoin.auth]
@@ -91,11 +91,10 @@ period = "48h"
 
 [coins.monero]
 enabled = true
-#example values for future monero auth config
 
 [coins.monero.auth]
-web-ui = true
-rest-api = false
+web-ui = false
+rest-api = true
 telegram = true
 mcp = "xmr-main"
 min-approvals-required = 2
@@ -105,13 +104,13 @@ mcp-auth-channels = ["agent-arthur", "agent-merlin"]
 [[coins.monero.auth.auto-accept]]
 [coins.monero.auth.auto-accept.criteria]
 type = "value-lt"
-value = 0.30
+value = 0.2
 
 [[coins.monero.auth.auto-deny]]
 [coins.monero.auth.auto-deny.criteria]
 type = "cumulated-value-gt"
-value = 1.5
-period = "7d"
+value = 10
+period = "24h"
 
 [coins.testdummycoin]
 enabled = false
