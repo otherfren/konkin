@@ -173,7 +173,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         HttpResponse<String> root = get(sharedServer, "/", Map.of());
         assertEquals(404, root.statusCode());
 
-        HttpResponse<String> logPage = get(sharedServer, "/log", Map.of());
+        HttpResponse<String> logPage = get(sharedServer, "/history", Map.of());
         assertEquals(404, logPage.statusCode());
 
         HttpResponse<String> authDefinitions = get(sharedServer, "/wallets", Map.of());

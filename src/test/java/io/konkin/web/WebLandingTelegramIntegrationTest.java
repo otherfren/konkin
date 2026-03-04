@@ -82,14 +82,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals(200, root.statusCode());
         assertTrue(root.body().contains("KONKIN"));
         assertTrue(root.body().contains("Authorization Queue"));
-        assertFalse(root.body().contains("Audit Log"));
+        assertFalse(root.body().contains("History"));
 
-        HttpResponse<String> logPage = get(server, "/log", Map.of());
+        HttpResponse<String> logPage = get(server, "/history", Map.of());
         assertEquals(200, logPage.statusCode());
         assertTrue(logPage.body().contains("KONKIN"));
-        assertTrue(logPage.body().contains("Audit Log"));
+        assertTrue(logPage.body().contains("History"));
         assertFalse(logPage.body().contains("Authorization Queue"));
-        assertTrue(logPage.body().contains("menu-active\">audit<"));
+        assertTrue(logPage.body().contains("menu-active\">history<"));
 
         HttpResponse<String> loginGet = get(server, "/login", Map.of());
         assertEquals(302, loginGet.statusCode());
@@ -198,11 +198,11 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertFalse(rootPage.body().contains("req-log-denied-33333"));
         assertFalse(rootPage.body().contains("req-log-failed-55555"));
 
-        HttpResponse<String> logPage = get(server, "/log", Map.of());
+        HttpResponse<String> logPage = get(server, "/history", Map.of());
         assertEquals(200, logPage.statusCode());
 
         String body = logPage.body();
-        assertTrue(body.contains("Audit Log"));
+        assertTrue(body.contains("History"));
         assertTrue(body.contains("Resolved / Processed Requests"));
         assertFalse(body.contains("State Transitions"));
         assertEquals(1, countOccurrences(body, "<table class=\"queue-table\">"));
@@ -231,7 +231,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertTrue(body.contains("queue-copy-btn"));
         assertTrue(body.contains("queue-details-trigger"));
 
-        HttpResponse<String> byDecider = get(server, "/log?log_queue_filter=test-actor", Map.of());
+        HttpResponse<String> byDecider = get(server, "/history?log_queue_filter=test-actor", Map.of());
         assertEquals(200, byDecider.statusCode());
         assertTrue(byDecider.body().contains("req-log-completed-11111"));
         assertFalse(byDecider.body().contains("req-log-denied-33333"));
@@ -239,25 +239,25 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertFalse(byDecider.body().contains("req-log-pending-22222"));
         assertFalse(byDecider.body().contains("req-log-queued-44444"));
 
-        HttpResponse<String> byId = get(server, "/log?log_queue_filter=denied", Map.of());
+        HttpResponse<String> byId = get(server, "/history?log_queue_filter=denied", Map.of());
         assertEquals(200, byId.statusCode());
         assertFalse(byId.body().contains("req-log-completed-11111"));
         assertTrue(byId.body().contains("req-log-denied-33333"));
         assertFalse(byId.body().contains("req-log-failed-55555"));
 
-        HttpResponse<String> byCoin = get(server, "/log?log_queue_coin=litecoin", Map.of());
+        HttpResponse<String> byCoin = get(server, "/history?log_queue_coin=litecoin", Map.of());
         assertEquals(200, byCoin.statusCode());
         assertFalse(byCoin.body().contains("req-log-completed-11111"));
         assertTrue(byCoin.body().contains("req-log-denied-33333"));
         assertTrue(byCoin.body().contains("req-log-failed-55555"));
 
-        HttpResponse<String> byTool = get(server, "/log?log_queue_tool=wallet_sweep", Map.of());
+        HttpResponse<String> byTool = get(server, "/history?log_queue_tool=wallet_sweep", Map.of());
         assertEquals(200, byTool.statusCode());
         assertFalse(byTool.body().contains("req-log-completed-11111"));
         assertTrue(byTool.body().contains("req-log-denied-33333"));
         assertTrue(byTool.body().contains("req-log-failed-55555"));
 
-        HttpResponse<String> byState = get(server, "/log?log_queue_state=DENIED", Map.of());
+        HttpResponse<String> byState = get(server, "/history?log_queue_state=DENIED", Map.of());
         assertEquals(200, byState.statusCode());
         assertFalse(byState.body().contains("req-log-completed-11111"));
         assertTrue(byState.body().contains("req-log-denied-33333"));
@@ -265,7 +265,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
         HttpResponse<String> combined = get(
                 server,
-                "/log?log_queue_coin=litecoin&log_queue_tool=wallet_sweep&log_queue_state=DENIED",
+                "/history?log_queue_coin=litecoin&log_queue_tool=wallet_sweep&log_queue_state=DENIED",
                 Map.of()
         );
         assertEquals(200, combined.statusCode());
@@ -273,7 +273,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertTrue(combined.body().contains("req-log-denied-33333"));
         assertFalse(combined.body().contains("req-log-failed-55555"));
 
-        HttpResponse<String> sortedByIdAsc = get(server, "/log?log_queue_sort=id&log_queue_dir=asc", Map.of());
+        HttpResponse<String> sortedByIdAsc = get(server, "/history?log_queue_sort=id&log_queue_dir=asc", Map.of());
         assertEquals(200, sortedByIdAsc.statusCode());
         assertTrue(sortedByIdAsc.body().contains("log_queue_sort=id&log_queue_dir=desc"));
     }
@@ -1338,7 +1338,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals(200, rootWithoutSession.statusCode());
         assertTrue(rootWithoutSession.body().contains("Enter your landing password"));
 
-        HttpResponse<String> logWithoutSession = get(server, "/log", Map.of());
+        HttpResponse<String> logWithoutSession = get(server, "/history", Map.of());
         assertEquals(200, logWithoutSession.statusCode());
         assertTrue(logWithoutSession.body().contains("Enter your landing password"));
 
@@ -1359,14 +1359,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals(200, rootWithSession.statusCode());
         assertTrue(rootWithSession.body().contains("logout"));
         assertTrue(rootWithSession.body().contains("Authorization Queue"));
-        assertFalse(rootWithSession.body().contains("Audit Log"));
+        assertFalse(rootWithSession.body().contains("History"));
 
-        HttpResponse<String> logWithSession = get(server, "/log", Map.of("Cookie", sessionCookie));
+        HttpResponse<String> logWithSession = get(server, "/history", Map.of("Cookie", sessionCookie));
         assertEquals(200, logWithSession.statusCode());
         assertTrue(logWithSession.body().contains("logout"));
-        assertTrue(logWithSession.body().contains("Audit Log"));
+        assertTrue(logWithSession.body().contains("History"));
         assertFalse(logWithSession.body().contains("Authorization Queue"));
-        assertTrue(logWithSession.body().contains("menu-active\">audit<"));
+        assertTrue(logWithSession.body().contains("menu-active\">history<"));
 
         HttpResponse<String> logout = postForm(server, "/logout", "", Map.of("Cookie", sessionCookie));
         assertEquals(302, logout.statusCode());
@@ -1376,7 +1376,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals(200, rootAfterLogout.statusCode());
         assertTrue(rootAfterLogout.body().contains("Enter your landing password"));
 
-        HttpResponse<String> logAfterLogout = get(server, "/log", Map.of("Cookie", sessionCookie));
+        HttpResponse<String> logAfterLogout = get(server, "/history", Map.of("Cookie", sessionCookie));
         assertEquals(200, logAfterLogout.statusCode());
         assertTrue(logAfterLogout.body().contains("Enter your landing password"));
     }

@@ -100,7 +100,7 @@ public class LandingPageService {
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
-        model.put("auditLogPath", "/log");
+        model.put("auditLogPath", "/history");
         model.put("telegramPath", "/telegram");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("walletsPath", "/wallets");
@@ -128,7 +128,7 @@ public class LandingPageService {
         model.put("logQueuePage", logQueuePage == null ? Map.of() : logQueuePage);
 
         String selectedTemplate;
-        if ("log".equals(activePage)) {
+        if ("history".equals(activePage)) {
             selectedTemplate = AUDIT_LOG_TEMPLATE_NAME;
         } else if ("telegram".equals(activePage)) {
             selectedTemplate = TELEGRAM_TEMPLATE_NAME;
@@ -144,7 +144,7 @@ public class LandingPageService {
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
-        model.put("auditLogPath", "/log");
+        model.put("auditLogPath", "/history");
         model.put("telegramPath", "/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
@@ -164,7 +164,7 @@ public class LandingPageService {
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
-        model.put("auditLogPath", "/log");
+        model.put("auditLogPath", "/history");
         model.put("telegramPath", "/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
@@ -184,7 +184,7 @@ public class LandingPageService {
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
-        model.put("auditLogPath", "/log");
+        model.put("auditLogPath", "/history");
         model.put("telegramPath", "/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");

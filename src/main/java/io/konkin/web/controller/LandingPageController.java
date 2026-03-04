@@ -154,7 +154,7 @@ public class LandingPageController {
     }
 
     public void handleLog(Context ctx) {
-        renderLandingForPage(ctx, "log");
+        renderLandingForPage(ctx, "history");
     }
 
     public void handleDetailsPage(Context ctx) {
