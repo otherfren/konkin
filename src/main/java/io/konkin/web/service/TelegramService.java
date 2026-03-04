@@ -372,9 +372,20 @@ public class TelegramService {
      * Edits a previously sent message's text (removes inline keyboard by default).
      */
     public boolean editMessageText(String chatId, long messageId, String newText) {
+        return editMessageText(chatId, messageId, newText, true);
+    }
+
+    /**
+     * Edits a previously sent message's text, optionally removing the inline keyboard.
+     */
+    public boolean editMessageText(String chatId, long messageId, String newText, boolean removeKeyboard) {
         String payload = "chat_id=" + encode(chatId)
                 + "&message_id=" + messageId
                 + "&text=" + encode(newText);
+
+        if (removeKeyboard) {
+            payload += "&reply_markup=" + encode("{\"inline_keyboard\":[]}");
+        }
 
         HttpRequest request = HttpRequest.newBuilder(editMessageTextEndpoint)
                 .timeout(Duration.ofSeconds(5))

@@ -622,13 +622,13 @@
     </div>
     <div class="two-col-panel">
       <div class="tab-bar">
-        <button class="tab-btn active" data-target="s1-preview">Web-UI configuration</button>
-        <button class="tab-btn" data-target="s1-code">config.toml</button>
+        <button class="tab-btn" data-target="s1-preview">Web-UI configuration</button>
+        <button class="tab-btn active" data-target="s1-code">config.toml</button>
       </div>
-      <div id="s1-preview" class="tab-pane active">
+      <div id="s1-preview" class="tab-pane">
         <div class="tab-pane-img"><img src="images/auto_deny.png"></div>
       </div>
-      <div id="s1-code" class="tab-pane">
+      <div id="s1-code" class="tab-pane active">
         <pre class="tab-code"><span class="hl2">[telegram]</span>
 enabled          = <span class="hl">true</span>
 secret-file      = <span class="hl">"./secrets/telegram.secret"</span>

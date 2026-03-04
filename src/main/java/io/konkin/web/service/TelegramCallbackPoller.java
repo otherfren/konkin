@@ -263,14 +263,15 @@ public class TelegramCallbackPoller {
                 : "\u274C Denied";
         telegramService.answerCallbackQuery(callbackQueryId, answerText);
 
-        // Edit the original message to show the outcome
+        // Edit the original message: remove buttons and show outcome with new state
         long messageId = message.path("message_id").asLong(-1);
         if (messageId > 0) {
             String originalText = message.path("text").asText("");
             String outcomeLabel = "approve".equals(decision)
                     ? "\u2705 Approved by " + decidedBy
                     : "\u274C Denied by " + decidedBy;
-            String updatedText = originalText + "\n\n" + outcomeLabel;
+            String stateLabel = "\uD83D\uDCCB Status: " + nextState;
+            String updatedText = originalText + "\n\n" + outcomeLabel + "\n" + stateLabel;
             telegramService.editMessageText(chatId, messageId, updatedText);
         }
 

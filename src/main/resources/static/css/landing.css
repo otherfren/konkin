@@ -1753,6 +1753,7 @@ p {
 .details-raw-section {
     display: none;
     margin-top: 6px;
+    text-align: left;
 }
 
 .details-raw-section.is-visible {
