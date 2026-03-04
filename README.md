@@ -4,14 +4,12 @@ Konkin.io is an MCP crypto wallet wrapper for AI agents.
 
 - You can send crypto using natural language.
 - It keeps secret keys completely hidden from your AI agents.
-- It includes 2FA via Telegram.
-
+- It includes 2FA via Telegram and other agents.
 
 **Konkin.io currently in early alpha and supports only Bitcoin right now.**
 
 I’ll be adding more coins soon.
 
-One or more **auth agents** — web UI, Telegram, REST API, or another AI — approve or deny them before anything gets executed on-chain.
 
 ---
 
@@ -19,6 +17,7 @@ One or more **auth agents** — web UI, Telegram, REST API, or another AI — ap
 
 - **Java 21** or newer
 - **Maven 3.9** or newer
+- at least one crypto wallet daemon
 
 ---
 
