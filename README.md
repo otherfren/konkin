@@ -8,8 +8,6 @@ Konkin.io is an MCP crypto wallet wrapper for AI agents.
 - It keeps secret keys completely hidden from your AI agents.
 - It includes 2FA via Telegram and other agents.
 
-**Konkin.io currently in early alpha and supports only Bitcoin right now.**
-
 I’ll be adding more coins soon.
 
 
@@ -103,7 +101,7 @@ claude mcp add --transport sse \
 
 This creates a `.mcp.json` in the project root. Restart Claude Code — you should see `konkin` in the MCP server list. Verify with `claude mcp list`.
 
-### 4. Tell your agent how to use Konkin
+### 4. If you struggle to add Konkin, give your agent this tutorial
 
 Copy the contents of **`documents/SKILL-driver-agent.md`** into your agent's instructions (e.g. paste it into Claude Code's custom instructions, or into your project's `.claude/` directory as a skill file).
 
