@@ -350,7 +350,7 @@ public class LandingPageController {
         Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
         sessionCookie.setPath("/");
         sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(false);
+        sessionCookie.setSecure(isSecureRequest(ctx));
         sessionCookie.setMaxAge((int) SESSION_TTL.toSeconds());
         sessionCookie.setSameSite(SameSite.STRICT);
         ctx.cookie(sessionCookie);
@@ -396,6 +396,14 @@ public class LandingPageController {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static boolean isSecureRequest(Context ctx) {
+        String forwardedProto = ctx.header("X-Forwarded-Proto");
+        if (forwardedProto != null) {
+            return "https".equalsIgnoreCase(forwardedProto.trim());
+        }
+        return "https".equalsIgnoreCase(ctx.scheme());
     }
 
     // ── Internal: render landing page ──────────────────────────────────────
