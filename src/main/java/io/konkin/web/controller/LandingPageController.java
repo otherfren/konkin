@@ -19,6 +19,7 @@ package io.konkin.web.controller;
 import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
+import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.DepositAddress;
 import io.konkin.crypto.WalletSupervisor;
@@ -722,12 +723,19 @@ public class LandingPageController {
             return;
         }
 
+        // Resolve veto channels for this coin
+        List<String> vetoChannels = List.of();
+        ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
+        if (requestRow != null) {
+            vetoChannels = resolveVetoChannels(requestRow.coin());
+        }
+
         // Cast vote transactionally (locks the request row, prevents race conditions)
         VoteService.VoteResult result;
         try {
             result = voteService.castVote(
                     requestId, channelId, decision, null, WEB_UI_CHANNEL_ID,
-                    "web_ui", WEB_UI_CHANNEL_ID
+                    "web_ui", WEB_UI_CHANNEL_ID, vetoChannels
             );
         } catch (RuntimeException e) {
             log.warn("Queue decision {} failed from {} for requestId={}: {}", decision, ctx.ip(), requestId, e.getMessage());
@@ -780,6 +788,25 @@ public class LandingPageController {
             throw new IllegalStateException("Failed to resolve approval channel for web-ui");
         }
         return reloaded.id();
+    }
+
+    private List<String> resolveVetoChannels(String coin) {
+        CoinConfig coinConfig = resolveCoinConfig(coin);
+        if (coinConfig == null || coinConfig.auth() == null || coinConfig.auth().vetoChannels() == null) {
+            return List.of();
+        }
+        return coinConfig.auth().vetoChannels();
+    }
+
+    private CoinConfig resolveCoinConfig(String coin) {
+        if (coin == null) return null;
+        return switch (coin) {
+            case "bitcoin" -> config.bitcoin();
+            case "litecoin" -> config.litecoin();
+            case "monero" -> config.monero();
+            case "testdummycoin" -> config.testDummyCoin();
+            default -> null;
+        };
     }
 
     // ── History export ──────────────────────────────────────────────────────

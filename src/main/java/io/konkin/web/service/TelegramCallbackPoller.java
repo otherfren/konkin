@@ -184,11 +184,14 @@ public class TelegramCallbackPoller {
         String firstName = from.path("first_name").asText("").trim();
         String decidedBy = !username.isEmpty() ? "@" + username : (!firstName.isEmpty() ? firstName : "telegram-user");
 
+        // Resolve veto channels for this coin
+        List<String> vetoChannels = resolveVetoChannels(requestRow.coin());
+
         // Cast vote transactionally (locks the request row, prevents race conditions)
         String decision = action;
         VoteService.VoteResult result = voteService.castVote(
                 requestId, TELEGRAM_CHANNEL_ID, decision, null, decidedBy,
-                ACTOR_TYPE, ACTOR_ID
+                ACTOR_TYPE, ACTOR_ID, vetoChannels
         );
 
         if (!result.success()) {
@@ -316,6 +319,14 @@ public class TelegramCallbackPoller {
         } catch (Exception e) {
             log.warn("Telegram auto-deny sweep failed: {}", e.getMessage());
         }
+    }
+
+    private List<String> resolveVetoChannels(String coin) {
+        CoinConfig coinConfig = resolveCoinConfig(coin);
+        if (coinConfig == null || coinConfig.auth() == null || coinConfig.auth().vetoChannels() == null) {
+            return List.of();
+        }
+        return coinConfig.auth().vetoChannels();
     }
 
     private boolean isTelegramEnabledForCoin(String coin) {

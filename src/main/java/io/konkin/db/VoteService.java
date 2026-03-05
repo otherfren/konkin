@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Transactional vote-casting service. Wraps the entire vote + tally + state-update
@@ -52,8 +53,9 @@ public class VoteService {
      * @param decision    "approve" or "deny"
      * @param reason      optional reason text (nullable)
      * @param decidedBy   identifier of the voter (nullable)
-     * @param actorType   actor type for state transition log (e.g., "agent", "telegram", "web_ui")
-     * @param actorId     actor id for state transition log
+     * @param actorType    actor type for state transition log (e.g., "agent", "telegram", "web_ui")
+     * @param actorId      actor id for state transition log
+     * @param vetoChannels channels with veto power for this coin (empty/null = any deny vote denies)
      * @return the result of the vote
      */
     public VoteResult castVote(
@@ -63,7 +65,8 @@ public class VoteService {
             String reason,
             String decidedBy,
             String actorType,
-            String actorId
+            String actorId,
+            List<String> vetoChannels
     ) {
         return jdbi.inTransaction(h -> {
             // 1. Lock the approval request row
@@ -126,7 +129,27 @@ public class VoteService {
             String reasonText = row.stateReasonText();
             Instant resolvedAt = row.resolvedAt();
 
+            boolean hasVetoDeny = false;
             if (approvalsDenied > 0) {
+                if (vetoChannels == null || vetoChannels.isEmpty()) {
+                    // No veto channels configured — any deny vote triggers denial
+                    hasVetoDeny = true;
+                } else {
+                    // Only deny votes from veto channels trigger denial
+                    long vetoDenyCount = h.createQuery("""
+                                    SELECT COUNT(*) FROM approval_votes
+                                    WHERE request_id = :rid AND LOWER(decision) = 'deny'
+                                      AND LOWER(channel_id) IN (<vetoChannels>)
+                                    """)
+                            .bind("rid", requestId)
+                            .bindList("vetoChannels", vetoChannels.stream().map(String::toLowerCase).toList())
+                            .mapTo(Long.class)
+                            .one();
+                    hasVetoDeny = vetoDenyCount > 0;
+                }
+            }
+
+            if (hasVetoDeny) {
                 nextState = "DENIED";
                 reasonCode = "vote_denied";
                 reasonText = "Denied by " + actorType + " approval vote";

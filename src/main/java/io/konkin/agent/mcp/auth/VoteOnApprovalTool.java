@@ -89,10 +89,13 @@ public final class VoteOnApprovalTool {
             // Ensure channel row exists (idempotent, outside the vote transaction)
             String channelId = ensureAuthChannelId(agentName, channelRepo);
 
+            // Resolve veto channels for this coin
+            List<String> vetoChannels = resolveVetoChannels(requestRow.coin(), runtimeConfig);
+
             // Cast vote transactionally (locks the request row, prevents race conditions)
             VoteService.VoteResult result = voteService.castVote(
                     requestId, channelId, decision, reason, agentName,
-                    "agent", agentName
+                    "agent", agentName, vetoChannels
             );
 
             if (!result.success()) {
@@ -102,6 +105,22 @@ public final class VoteOnApprovalTool {
             String json = toJson(Map.of("status", "accepted", "requestId", requestId, "decision", decision));
             return new CallToolResult(List.of(new TextContent(json)), false, null, null);
         });
+    }
+
+    static List<String> resolveVetoChannels(String coin, KonkinConfig runtimeConfig) {
+        if (coin == null || runtimeConfig == null) return List.of();
+        String normalized = coin.trim().toLowerCase();
+        CoinConfig coinConfig = switch (normalized) {
+            case "bitcoin" -> runtimeConfig.bitcoin();
+            case "litecoin" -> runtimeConfig.litecoin();
+            case "monero" -> runtimeConfig.monero();
+            case "testdummycoin" -> runtimeConfig.testDummyCoin();
+            default -> null;
+        };
+        if (coinConfig == null || coinConfig.auth() == null || coinConfig.auth().vetoChannels() == null) {
+            return List.of();
+        }
+        return coinConfig.auth().vetoChannels();
     }
 
     static boolean isAgentAssignedToCoin(String agentName, String coin, KonkinConfig runtimeConfig) {
