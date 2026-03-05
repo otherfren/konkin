@@ -27,6 +27,7 @@ import io.konkin.db.ChannelRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.RequestDependencyLoader;
 import io.konkin.db.VoteRepository;
+import io.konkin.db.VoteService;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.ExecutionAttemptDetail;
@@ -86,6 +87,7 @@ public class LandingPageController {
     private final KonkinConfig config;
     private final LandingPageMapper mapper;
     private final WalletSupervisor walletSupervisor;
+    private final VoteService voteService;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
@@ -105,7 +107,7 @@ public class LandingPageController {
     ) {
         this(landingPageService, passwordProtectionEnabled, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, null);
+                channelRepo, historyRepo, depLoader, config, mapper, null, null);
     }
 
     public LandingPageController(
@@ -122,6 +124,27 @@ public class LandingPageController {
             KonkinConfig config,
             LandingPageMapper mapper,
             WalletSupervisor walletSupervisor
+    ) {
+        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
+                telegramEnabled, telegramWebController, requestRepo, voteRepo,
+                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisor, null);
+    }
+
+    public LandingPageController(
+            LandingPageService landingPageService,
+            boolean passwordProtectionEnabled,
+            PasswordFileManager passwordFileManager,
+            boolean telegramEnabled,
+            TelegramWebController telegramWebController,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
+            KonkinConfig config,
+            LandingPageMapper mapper,
+            WalletSupervisor walletSupervisor,
+            VoteService voteService
     ) {
         if (passwordProtectionEnabled && passwordFileManager == null) {
             throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
@@ -144,6 +167,7 @@ public class LandingPageController {
         this.config = config;
         this.mapper = mapper;
         this.walletSupervisor = walletSupervisor;
+        this.voteService = voteService;
     }
 
     public void setTelegramWebController(TelegramWebController telegramWebController) {
@@ -680,17 +704,7 @@ public class LandingPageController {
     }
 
     private void applyQueueDecision(Context ctx, String requestId, String decision) {
-        ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
-        if (requestRow == null || !isVoteableState(requestRow.state())) {
-            renderLandingForPage(ctx, "queue", "", false, "", "Request not found or already resolved.", true, null);
-            return;
-        }
-
-        if (requestRow.expiresAt() != null && requestRow.expiresAt().isBefore(Instant.now())) {
-            renderLandingForPage(ctx, "queue", "", false, "", "Request has expired and can no longer be voted on.", true, null);
-            return;
-        }
-
+        // Ensure the web-ui channel row exists (idempotent, outside the vote transaction)
         String channelId;
         try {
             channelId = ensureWebUiChannelId();
@@ -700,84 +714,26 @@ public class LandingPageController {
             return;
         }
 
-        List<VoteDetail> existingVotes = voteRepo.listVotesForRequest(requestId);
-        boolean alreadyVoted = existingVotes.stream()
-                .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
-        if (alreadyVoted) {
-            renderLandingForPage(ctx, "queue", "", false, "", "This web-ui session already voted on this request.", true, null);
-            return;
-        }
-
-        Instant now = Instant.now();
-
+        // Cast vote transactionally (locks the request row, prevents race conditions)
+        VoteService.VoteResult result;
         try {
-            voteRepo.insertVote(new VoteDetail(
-                    0L, requestId, channelId, decision, null, WEB_UI_CHANNEL_ID, now
-            ));
-
-            List<VoteDetail> votes = voteRepo.listVotesForRequest(requestId);
-            int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
-            int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
-
-            String previousState = requestRow.state();
-            String nextState = previousState;
-            String reasonCode = requestRow.stateReasonCode();
-            String reasonText = requestRow.stateReasonText();
-            Instant resolvedAt = requestRow.resolvedAt();
-
-            if (approvalsDenied > 0) {
-                nextState = "DENIED";
-                reasonCode = "vote_denied";
-                reasonText = "Denied by web-ui approval vote";
-                resolvedAt = now;
-            } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
-                nextState = "APPROVED";
-                reasonCode = "approval_threshold_met";
-                reasonText = "Minimum approvals reached";
-            } else if ("QUEUED".equalsIgnoreCase(previousState)) {
-                nextState = "PENDING";
-                reasonCode = "awaiting_more_votes";
-                reasonText = "Awaiting additional approvals";
-            }
-
-            ApprovalRequestRow updated = new ApprovalRequestRow(
-                    requestRow.id(),
-                    requestRow.coin(),
-                    requestRow.toolName(),
-                    requestRow.requestSessionId(),
-                    requestRow.nonceUuid(),
-                    requestRow.payloadHashSha256(),
-                    requestRow.nonceComposite(),
-                    requestRow.toAddress(),
-                    requestRow.amountNative(),
-                    requestRow.feePolicy(),
-                    requestRow.feeCapNative(),
-                    requestRow.memo(),
-                    requestRow.reason(),
-                    requestRow.requestedAt(),
-                    requestRow.expiresAt(),
-                    nextState,
-                    reasonCode,
-                    reasonText,
-                    requestRow.minApprovalsRequired(),
-                    approvalsGranted,
-                    approvalsDenied,
-                    requestRow.policyActionAtCreation(),
-                    requestRow.createdAt(),
-                    now,
-                    resolvedAt
+            result = voteService.castVote(
+                    requestId, channelId, decision, null, WEB_UI_CHANNEL_ID,
+                    "web_ui", WEB_UI_CHANNEL_ID
             );
-            requestRepo.updateApprovalRequest(updated);
-
-            if (!Objects.equals(previousState, nextState)) {
-                historyRepo.insertStateTransition(new StateTransitionRow(
-                        0L, requestId, previousState, nextState,
-                        "web_ui", WEB_UI_CHANNEL_ID, reasonCode, now
-                ));
-            }
         } catch (RuntimeException e) {
             log.warn("Queue decision {} failed from {} for requestId={}: {}", decision, ctx.ip(), requestId, e.getMessage());
             renderLandingForPage(ctx, "queue", "", false, "", "Failed to persist queue decision.", true, null);
+            return;
+        }
+
+        if (!result.success()) {
+            String errorMessage = switch (result.error()) {
+                case "already_voted" -> "This web-ui session already voted on this request.";
+                case "request_expired" -> "Request has expired and can no longer be voted on.";
+                default -> "Request not found or already resolved.";
+            };
+            renderLandingForPage(ctx, "queue", "", false, "", errorMessage, true, null);
             return;
         }
 

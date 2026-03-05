@@ -48,6 +48,7 @@ import io.konkin.db.HistoryRepository;
 import io.konkin.db.KvStore;
 import io.konkin.db.RequestDependencyLoader;
 import io.konkin.db.VoteRepository;
+import io.konkin.db.VoteService;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.controller.TelegramWebController;
@@ -104,6 +105,7 @@ public class KonkinWebServer {
     private HistoryRepository historyRepo;
     private RequestDependencyLoader depLoader;
     private TelegramApprovalNotifier telegramNotifier;
+    private VoteService voteService;
 
     public void start() {
         running = false;
@@ -117,6 +119,7 @@ public class KonkinWebServer {
             channelRepo = new ChannelRepository(dataSource);
             historyRepo = new HistoryRepository(dataSource);
             depLoader = new RequestDependencyLoader(dataSource);
+            voteService = new VoteService(dataSource);
         }
 
         KvStoreController kvStoreController = dataSource != null ? new KvStoreController(new KvStore(dataSource)) : null;
@@ -250,7 +253,8 @@ public class KonkinWebServer {
                     depLoader,
                     config,
                     mapper,
-                    walletSupervisor
+                    walletSupervisor,
+                    voteService
             );
 
             telegramWebController.setLandingPageController(landingPageController);
@@ -419,7 +423,7 @@ public class KonkinWebServer {
         if (telegramNotifier != null && requestRepo != null && voteRepo != null && historyRepo != null) {
             ensureTelegramChannel();
             telegramCallbackPoller = new TelegramCallbackPoller(
-                    telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, config
+                    telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, config, voteService
             );
             telegramCallbackPoller.start();
         }
@@ -502,7 +506,8 @@ public class KonkinWebServer {
                     depLoader,
                     config,
                     walletSupervisor,
-                    telegramNotifier
+                    telegramNotifier,
+                    voteService
             );
             try {
                 endpoint.start();
@@ -533,7 +538,8 @@ public class KonkinWebServer {
                     depLoader,
                     config,
                     null,
-                    null
+                    null,
+                    voteService
             );
             try {
                 endpoint.start();

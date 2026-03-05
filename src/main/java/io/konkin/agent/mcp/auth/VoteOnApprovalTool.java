@@ -23,12 +23,9 @@ import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
-import io.konkin.db.HistoryRepository;
-import io.konkin.db.VoteRepository;
+import io.konkin.db.VoteService;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
-import io.konkin.db.entity.StateTransitionRow;
-import io.konkin.db.entity.VoteDetail;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
@@ -38,17 +35,11 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 public final class VoteOnApprovalTool {
 
     private static final ObjectMapper JSON = new ObjectMapper()
             .registerModule(new JavaTimeModule());
-
-    private static final Set<String> TERMINAL_STATES = Set.of(
-            "DENIED", "TIMED_OUT", "CANCELLED", "COMPLETED", "FAILED", "REJECTED", "EXPIRED"
-    );
 
     private VoteOnApprovalTool() {
     }
@@ -56,9 +47,8 @@ public final class VoteOnApprovalTool {
     public static SyncToolSpecification create(
             String agentName,
             ApprovalRequestRepository requestRepo,
-            VoteRepository voteRepo,
+            VoteService voteService,
             ChannelRepository channelRepo,
-            HistoryRepository historyRepo,
             KonkinConfig runtimeConfig
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
@@ -84,15 +74,11 @@ public final class VoteOnApprovalTool {
                 return errorResult("invalid_decision", "decision must be 'approve' or 'deny'");
             }
 
+            // Pre-check: agent must be assigned to the coin (read-only, before locking)
             ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
-            if (requestRow == null || !isVoteableState(requestRow.state())) {
+            if (requestRow == null) {
                 return errorResult("request_not_found_or_resolved",
                         "Request not found or already resolved");
-            }
-
-            if (requestRow.expiresAt() != null && requestRow.expiresAt().isBefore(Instant.now())) {
-                return errorResult("request_expired",
-                        "Request has expired and can no longer be voted on");
             }
 
             if (!isAgentAssignedToCoin(agentName, requestRow.coin(), runtimeConfig)) {
@@ -100,89 +86,22 @@ public final class VoteOnApprovalTool {
                         "This agent is not assigned to the coin '" + requestRow.coin() + "'");
             }
 
+            // Ensure channel row exists (idempotent, outside the vote transaction)
             String channelId = ensureAuthChannelId(agentName, channelRepo);
-            List<VoteDetail> existingVotes = voteRepo.listVotesForRequest(requestId);
-            boolean alreadyVoted = existingVotes.stream()
-                    .anyMatch(vote -> vote.channelId() != null && vote.channelId().equalsIgnoreCase(channelId));
-            if (alreadyVoted) {
-                return errorResult("already_voted", "This agent has already voted on this request");
-            }
 
-            Instant now = Instant.now();
-            voteRepo.insertVote(new VoteDetail(
-                    0L, requestId, channelId, decision, reason, agentName, now
-            ));
-
-            List<VoteDetail> votes = voteRepo.listVotesForRequest(requestId);
-            int approvalsGranted = (int) votes.stream().filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
-            int approvalsDenied = (int) votes.stream().filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
-
-            String previousState = requestRow.state();
-            String nextState = previousState;
-            String reasonCode = requestRow.stateReasonCode();
-            String reasonText = requestRow.stateReasonText();
-            Instant resolvedAt = requestRow.resolvedAt();
-
-            if (approvalsDenied > 0) {
-                nextState = "DENIED";
-                reasonCode = "vote_denied";
-                reasonText = "Denied by auth approval vote";
-                resolvedAt = now;
-            } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
-                nextState = "APPROVED";
-                reasonCode = "approval_threshold_met";
-                reasonText = "Minimum approvals reached";
-            } else if ("QUEUED".equalsIgnoreCase(previousState)) {
-                nextState = "PENDING";
-                reasonCode = "awaiting_more_votes";
-                reasonText = "Awaiting additional approvals";
-            }
-
-            ApprovalRequestRow updated = new ApprovalRequestRow(
-                    requestRow.id(),
-                    requestRow.coin(),
-                    requestRow.toolName(),
-                    requestRow.requestSessionId(),
-                    requestRow.nonceUuid(),
-                    requestRow.payloadHashSha256(),
-                    requestRow.nonceComposite(),
-                    requestRow.toAddress(),
-                    requestRow.amountNative(),
-                    requestRow.feePolicy(),
-                    requestRow.feeCapNative(),
-                    requestRow.memo(),
-                    requestRow.reason(),
-                    requestRow.requestedAt(),
-                    requestRow.expiresAt(),
-                    nextState,
-                    reasonCode,
-                    reasonText,
-                    requestRow.minApprovalsRequired(),
-                    approvalsGranted,
-                    approvalsDenied,
-                    requestRow.policyActionAtCreation(),
-                    requestRow.createdAt(),
-                    now,
-                    resolvedAt
+            // Cast vote transactionally (locks the request row, prevents race conditions)
+            VoteService.VoteResult result = voteService.castVote(
+                    requestId, channelId, decision, reason, agentName,
+                    "agent", agentName
             );
-            requestRepo.updateApprovalRequest(updated);
 
-            if (!Objects.equals(previousState, nextState)) {
-                historyRepo.insertStateTransition(new StateTransitionRow(
-                        0L, requestId, previousState, nextState,
-                        "agent", agentName, reasonCode, now
-                ));
+            if (!result.success()) {
+                return errorResult(result.error(), result.errorMessage());
             }
 
             String json = toJson(Map.of("status", "accepted", "requestId", requestId, "decision", decision));
             return new CallToolResult(List.of(new TextContent(json)), false, null, null);
         });
-    }
-
-    private static boolean isVoteableState(String state) {
-        if (state == null) return false;
-        String normalized = state.trim().toUpperCase();
-        return "QUEUED".equals(normalized) || "PENDING".equals(normalized);
     }
 
     static boolean isAgentAssignedToCoin(String agentName, String coin, KonkinConfig runtimeConfig) {

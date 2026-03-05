@@ -23,6 +23,7 @@ import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.VoteRepository;
+import io.konkin.db.VoteService;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.StateTransitionRow;
 import io.konkin.db.entity.VoteDetail;
@@ -53,6 +54,7 @@ public class TelegramCallbackPoller {
     private final VoteRepository voteRepo;
     private final HistoryRepository historyRepo;
     private final KonkinConfig config;
+    private final VoteService voteService;
 
     private ScheduledExecutorService scheduler;
     private long nextOffset;
@@ -62,13 +64,15 @@ public class TelegramCallbackPoller {
             ApprovalRequestRepository requestRepo,
             VoteRepository voteRepo,
             HistoryRepository historyRepo,
-            KonkinConfig config
+            KonkinConfig config,
+            VoteService voteService
     ) {
         this.telegramService = telegramService;
         this.requestRepo = requestRepo;
         this.voteRepo = voteRepo;
         this.historyRepo = historyRepo;
         this.config = config;
+        this.voteService = voteService;
         this.nextOffset = 0;
     }
 
@@ -161,19 +165,13 @@ public class TelegramCallbackPoller {
             return;
         }
 
-        // Resolve the voter identity
-        String username = from.path("username").asText("").trim();
-        String firstName = from.path("first_name").asText("").trim();
-        String decidedBy = !username.isEmpty() ? "@" + username : (!firstName.isEmpty() ? firstName : "telegram-user");
-
-        // Look up the request
+        // Pre-check: is the request still around? (read-only, for early Telegram UX feedback)
         ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
         if (requestRow == null) {
             telegramService.answerCallbackQuery(callbackQueryId, "Request not found.");
             return;
         }
 
-        // Check if the request is still votable
         String currentState = requestRow.state();
         if (!"QUEUED".equalsIgnoreCase(currentState) && !"PENDING".equalsIgnoreCase(currentState)) {
             telegramService.answerCallbackQuery(callbackQueryId, "This request has already been resolved.");
@@ -181,100 +179,21 @@ public class TelegramCallbackPoller {
             return;
         }
 
-        // Check if expired
-        if (requestRow.expiresAt() != null && Instant.now().isAfter(requestRow.expiresAt())) {
-            telegramService.answerCallbackQuery(callbackQueryId, "This request has expired.");
-            return;
-        }
+        // Resolve the voter identity
+        String username = from.path("username").asText("").trim();
+        String firstName = from.path("first_name").asText("").trim();
+        String decidedBy = !username.isEmpty() ? "@" + username : (!firstName.isEmpty() ? firstName : "telegram-user");
 
-        // Check for duplicate vote from telegram channel
-        List<VoteDetail> existingVotes = voteRepo.listVotesForRequest(requestId);
-        boolean alreadyVoted = existingVotes.stream()
-                .anyMatch(v -> TELEGRAM_CHANNEL_ID.equals(v.channelId()));
-        if (alreadyVoted) {
-            telegramService.answerCallbackQuery(callbackQueryId, "A vote has already been cast via Telegram.");
-            return;
-        }
-
-        // Insert the vote
-        Instant now = Instant.now();
-        String decision = action; // "approve" or "deny"
-        voteRepo.insertVote(new VoteDetail(
-                0L, requestId, TELEGRAM_CHANNEL_ID, decision, null, decidedBy, now
-        ));
-
-        // Evaluate vote outcome
-        List<VoteDetail> allVotes = voteRepo.listVotesForRequest(requestId);
-        int approvalsGranted = (int) allVotes.stream()
-                .filter(v -> "approve".equalsIgnoreCase(v.decision())).count();
-        int approvalsDenied = (int) allVotes.stream()
-                .filter(v -> "deny".equalsIgnoreCase(v.decision())).count();
-
-        String previousState = currentState;
-        String nextState = previousState;
-        String reasonCode;
-        String reasonText;
-        Instant resolvedAt = null;
-
-        if (approvalsDenied > 0) {
-            nextState = "DENIED";
-            reasonCode = "vote_denied";
-            reasonText = "Denied by Telegram vote";
-            resolvedAt = now;
-        } else if (approvalsGranted >= Math.max(1, requestRow.minApprovalsRequired())) {
-            nextState = "APPROVED";
-            reasonCode = "approval_threshold_met";
-            reasonText = "Minimum approvals reached";
-            resolvedAt = now;
-        } else if ("QUEUED".equalsIgnoreCase(previousState)) {
-            nextState = "PENDING";
-            reasonCode = "awaiting_more_votes";
-            reasonText = "Awaiting additional approvals";
-        } else {
-            reasonCode = "awaiting_more_votes";
-            reasonText = "Awaiting additional approvals";
-        }
-
-        // Update request state
-        ApprovalRequestRow updated = new ApprovalRequestRow(
-                requestRow.id(),
-                requestRow.coin(),
-                requestRow.toolName(),
-                requestRow.requestSessionId(),
-                requestRow.nonceUuid(),
-                requestRow.payloadHashSha256(),
-                requestRow.nonceComposite(),
-                requestRow.toAddress(),
-                requestRow.amountNative(),
-                requestRow.feePolicy(),
-                requestRow.feeCapNative(),
-                requestRow.memo(),
-                requestRow.reason(),
-                requestRow.requestedAt(),
-                requestRow.expiresAt(),
-                nextState,
-                reasonCode,
-                reasonText,
-                requestRow.minApprovalsRequired(),
-                approvalsGranted,
-                approvalsDenied,
-                requestRow.policyActionAtCreation(),
-                requestRow.createdAt(),
-                now,
-                resolvedAt
+        // Cast vote transactionally (locks the request row, prevents race conditions)
+        String decision = action;
+        VoteService.VoteResult result = voteService.castVote(
+                requestId, TELEGRAM_CHANNEL_ID, decision, null, decidedBy,
+                ACTOR_TYPE, ACTOR_ID
         );
-        requestRepo.updateApprovalRequest(updated);
 
-        // Insert state transition if state changed
-        if (!nextState.equals(previousState)) {
-            try {
-                historyRepo.insertStateTransition(new StateTransitionRow(
-                        0L, requestId, previousState, nextState,
-                        ACTOR_TYPE, ACTOR_ID, reasonCode, now
-                ));
-            } catch (Exception e) {
-                log.warn("State transition log failed for request {}: {}", requestId, e.getMessage());
-            }
+        if (!result.success()) {
+            telegramService.answerCallbackQuery(callbackQueryId, mapTelegramErrorText(result.error()));
+            return;
         }
 
         // Answer the callback query
@@ -290,13 +209,22 @@ public class TelegramCallbackPoller {
             String outcomeLabel = "approve".equals(decision)
                     ? "\u2705 Approved by " + decidedBy
                     : "\u274C Denied by " + decidedBy;
-            String stateLabel = "\uD83D\uDCCB Status: " + nextState;
+            String stateLabel = "\uD83D\uDCCB Status: " + result.nextState();
             String updatedText = originalText + "\n\n" + outcomeLabel + "\n" + stateLabel;
             telegramService.editMessageText(chatId, messageId, updatedText);
         }
 
         log.info("Telegram vote processed: request={}, decision={}, by={}, state={}->{}",
-                requestId, decision, decidedBy, previousState, nextState);
+                requestId, decision, decidedBy, result.previousState(), result.nextState());
+    }
+
+    private static String mapTelegramErrorText(String error) {
+        return switch (error) {
+            case "already_voted" -> "A vote has already been cast via Telegram.";
+            case "request_expired" -> "This request has expired.";
+            case "request_not_found_or_resolved" -> "This request has already been resolved.";
+            default -> "Vote failed: " + error;
+        };
     }
 
     private void sweepAutoDeny() {

@@ -43,6 +43,7 @@ import io.konkin.db.ChannelRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.RequestDependencyLoader;
 import io.konkin.db.VoteRepository;
+import io.konkin.db.VoteService;
 import io.modelcontextprotocol.server.McpServer;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import io.modelcontextprotocol.server.McpSyncServer;
@@ -77,6 +78,7 @@ public class McpAgentServer {
     private final KonkinConfig runtimeConfig;
     private final WalletSupervisor walletSupervisor;
     private final TelegramApprovalNotifier telegramNotifier;
+    private final VoteService voteService;
 
     private Server jettyServer;
     private McpSyncServer mcpSyncServer;
@@ -97,7 +99,8 @@ public class McpAgentServer {
             RequestDependencyLoader depLoader,
             KonkinConfig runtimeConfig,
             WalletSupervisor walletSupervisor,
-            TelegramApprovalNotifier telegramNotifier
+            TelegramApprovalNotifier telegramNotifier,
+            VoteService voteService
     ) {
         this.agentName = Objects.requireNonNull(agentName, "agentName");
         this.agentType = Objects.requireNonNull(agentType, "agentType");
@@ -112,6 +115,7 @@ public class McpAgentServer {
         this.runtimeConfig = runtimeConfig;
         this.walletSupervisor = walletSupervisor;
         this.telegramNotifier = telegramNotifier;
+        this.voteService = voteService;
     }
 
     public void start() throws Exception {
@@ -189,7 +193,7 @@ public class McpAgentServer {
 
     private void registerAuthPrimitives() {
         if (requestRepo != null && voteRepo != null && channelRepo != null && historyRepo != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(VoteOnApprovalTool.create(agentName, requestRepo, voteRepo, channelRepo, historyRepo, runtimeConfig));
+            mcpSyncServer.addTool(VoteOnApprovalTool.create(agentName, requestRepo, voteService, channelRepo, runtimeConfig));
             mcpSyncServer.addTool(ListEligibleRequestsTool.create(agentName, requestRepo, voteRepo, channelRepo, runtimeConfig));
             mcpSyncServer.addResource(PendingApprovalsResource.resource(agentName, requestRepo, runtimeConfig));
             mcpSyncServer.addResourceTemplate(ApprovalDetailsResource.template(agentName, requestRepo, voteRepo, runtimeConfig));
