@@ -16,16 +16,10 @@
 
 package io.konkin.crypto;
 
-import io.konkin.crypto.bitcoin.BitcoinExtras;
-import io.konkin.crypto.bitcoin.BitcoinWalletFactory;
-import org.bitcoinj.base.BitcoinNetwork;
-import org.consensusj.bitcoin.jsonrpc.BitcoinClient;
-import org.consensusj.jsonrpc.JsonRpcStatusException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.net.URI;
 import java.time.Instant;
 import java.util.concurrent.*;
 import java.util.function.Function;
@@ -46,9 +40,9 @@ public class WalletSupervisor {
     private ExecutorService rpcExecutor;
     private ScheduledExecutorService scheduler;
 
-    public WalletSupervisor(WalletConnectionConfig config) {
+    public WalletSupervisor(WalletConnectionConfig config, CoinWalletFactory walletFactory) {
         this.config = config;
-        this.walletFactory = new BitcoinWalletFactory();
+        this.walletFactory = walletFactory;
         this.snapshot = new WalletSnapshot(config.coin(), WalletStatus.OFFLINE, null, null, null);
     }
 
@@ -193,8 +187,8 @@ public class WalletSupervisor {
     }
 
     private void handleOffline(WalletStatus previousStatus) {
-        // Try loadwallet in case node restarted
-        tryLoadWallet();
+        // Let the factory prepare the node (e.g., Bitcoin's loadwallet after node restart)
+        walletFactory.prepareNode(config);
 
         // Try recreating wallet connection
         try {
@@ -224,36 +218,8 @@ public class WalletSupervisor {
     }
 
     private void connectWallet() {
-        tryLoadWallet();
+        walletFactory.prepareNode(config);
         wallet = walletFactory.create(config);
         log.info("Wallet {} created", config.coin());
-    }
-
-    private void tryLoadWallet() {
-        if (config.coin() != Coin.BTC) {
-            return;
-        }
-
-        String walletName = config.extras().get(BitcoinExtras.WALLET_NAME);
-        if (walletName == null || walletName.isBlank()) {
-            return;
-        }
-
-        try {
-            URI baseUri = URI.create(config.rpcUrl());
-            BitcoinClient bareClient = new BitcoinClient(
-                    BitcoinNetwork.MAINNET, baseUri, config.username(), config.password());
-            bareClient.send("loadwallet", Object.class, walletName);
-            log.info("Loaded Bitcoin wallet '{}' on node", walletName);
-        } catch (JsonRpcStatusException e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.contains("already loaded")) {
-                log.debug("Bitcoin wallet '{}' already loaded", walletName);
-            } else {
-                log.warn("Failed to load Bitcoin wallet '{}': {}", walletName, msg);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to send loadwallet RPC: {}", e.getMessage());
-        }
     }
 }

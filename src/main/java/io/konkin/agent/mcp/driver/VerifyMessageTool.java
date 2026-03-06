@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -33,9 +34,9 @@ public final class VerifyMessageTool {
 
     private VerifyMessageTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
         properties.put("message", Map.of("type", "string", "description", "The original message that was signed"));
         properties.put("address", Map.of("type", "string", "description", "The address that allegedly signed the message"));
         properties.put("signature", Map.of("type", "string", "description", "The signature to verify"));
@@ -59,6 +60,10 @@ public final class VerifyMessageTool {
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
+
             if (message == null || message.isBlank()) return errorResult("invalid_input", "message is required");
             if (address == null || address.isBlank()) return errorResult("invalid_input", "address is required");
             if (signature == null || signature.isBlank()) return errorResult("invalid_input", "signature is required");
@@ -67,12 +72,14 @@ public final class VerifyMessageTool {
                 boolean valid = supervisor.execute(w ->
                         w.verifyMessage(message.trim(), address.trim(), signature.trim()));
                 return jsonResult(Map.of(
-                        "coin", "bitcoin",
+                        "coin", coin.trim().toLowerCase(),
                         "address", address.trim(),
                         "valid", valid
                 ));
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("verify_message", e);
             }
         });
     }

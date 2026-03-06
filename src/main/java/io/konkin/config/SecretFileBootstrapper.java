@@ -118,14 +118,27 @@ final class SecretFileBootstrapper {
 
         if (config.bitcoin().enabled()) {
             ensureSecretFileExists(
-                    Path.of(config.bitcoin().bitcoinDaemonConfigSecretFile()),
+                    Path.of(config.bitcoin().daemonConfigSecretFile()),
                     "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
                     defaultBitcoinDaemonSecretContent()
             );
             ensureSecretFileExists(
-                    Path.of(config.bitcoin().bitcoinWalletConfigSecretFile()),
+                    Path.of(config.bitcoin().walletConfigSecretFile()),
                     "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
                     defaultBitcoinWalletSecretContent()
+            );
+        }
+
+        if (config.monero().enabled()) {
+            ensureSecretFileExists(
+                    Path.of(config.monero().daemonConfigSecretFile()),
+                    "coins.monero.secret-files.monero-daemon-config-file",
+                    defaultMoneroDaemonSecretContent()
+            );
+            ensureSecretFileExists(
+                    Path.of(config.monero().walletConfigSecretFile()),
+                    "coins.monero.secret-files.monero-wallet-rpc-config-file",
+                    defaultMoneroWalletRpcSecretContent()
             );
         }
     }
@@ -232,6 +245,25 @@ final class SecretFileBootstrapper {
                 # Fill with your wallet details.
                 wallet=REPLACE_WITH_BITCOIN_WALLET_NAME
                 wallet-passphrase=REPLACE_WITH_BITCOIN_WALLET_PASSPHRASE
+                """;
+    }
+
+    private static String defaultMoneroDaemonSecretContent() {
+        return """
+                # KONKIN Monero daemon secret config (monerod)
+                # Fill with your monerod RPC bind details.
+                rpc-bind-ip=127.0.0.1
+                rpc-bind-port=18081
+                """;
+    }
+
+    private static String defaultMoneroWalletRpcSecretContent() {
+        return """
+                # KONKIN Monero wallet-rpc secret config (monero-wallet-rpc)
+                # Fill with your monero-wallet-rpc credentials.
+                rpc-bind-ip=127.0.0.1
+                rpc-bind-port=18082
+                rpc-login=REPLACE_WITH_WALLET_RPC_USER:REPLACE_WITH_WALLET_RPC_PASSWORD
                 """;
     }
 

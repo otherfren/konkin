@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletBalance;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
@@ -34,9 +35,9 @@ public final class WalletBalanceTool {
 
     private WalletBalanceTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
                 "wallet_balance",
@@ -51,6 +52,10 @@ public final class WalletBalanceTool {
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
+
             try {
                 WalletBalance balance = supervisor.execute(w -> w.balance());
                 return jsonResult(Map.of(
@@ -60,6 +65,8 @@ public final class WalletBalanceTool {
                 ));
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("wallet_balance", e);
             }
         });
     }

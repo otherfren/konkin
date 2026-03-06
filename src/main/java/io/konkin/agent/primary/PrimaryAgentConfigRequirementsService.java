@@ -396,7 +396,7 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkBitcoinDaemonSecret() {
-        Path daemonSecret = safePath(config.bitcoin().bitcoinDaemonConfigSecretFile());
+        Path daemonSecret = safePath(config.bitcoin().daemonConfigSecretFile());
         if (daemonSecret == null || !Files.exists(daemonSecret)) {
             return item(
                     "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
@@ -441,7 +441,7 @@ public class PrimaryAgentConfigRequirementsService {
     }
 
     private RequirementItem checkBitcoinWalletSecret() {
-        Path walletSecret = safePath(config.bitcoin().bitcoinWalletConfigSecretFile());
+        Path walletSecret = safePath(config.bitcoin().walletConfigSecretFile());
         if (walletSecret == null || !Files.exists(walletSecret)) {
             return item(
                     "coins.bitcoin.secret-files.bitcoin-wallet-config-file",

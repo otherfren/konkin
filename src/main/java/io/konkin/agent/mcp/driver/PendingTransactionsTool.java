@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.Transaction;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
@@ -35,9 +36,9 @@ public final class PendingTransactionsTool {
 
     private PendingTransactionsTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
         properties.put("direction", Map.of("type", "string",
                 "description", "Filter by direction: incoming, outgoing, or both (default: both)"));
 
@@ -54,6 +55,10 @@ public final class PendingTransactionsTool {
             String direction = argString(request.arguments(), "direction");
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
+
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
 
             String dir = direction == null ? "both" : direction.trim().toLowerCase();
 
@@ -84,13 +89,15 @@ public final class PendingTransactionsTool {
                 }
 
                 return jsonResult(Map.of(
-                        "coin", "bitcoin",
+                        "coin", coin.trim().toLowerCase(),
                         "direction", dir,
                         "transactions", txList,
                         "count", txList.size()
                 ));
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("pending_transactions", e);
             }
         });
     }

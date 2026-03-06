@@ -21,4 +21,13 @@ public interface CoinWalletFactory {
     Coin coin();
 
     CoinWallet create(WalletConnectionConfig config);
+
+    /**
+     * Optional hook called by the supervisor before creating a wallet instance.
+     * Allows coin-specific node preparation (e.g., Bitcoin's loadwallet RPC).
+     * Default implementation does nothing.
+     */
+    default void prepareNode(WalletConnectionConfig config) {
+        // no-op by default
+    }
 }

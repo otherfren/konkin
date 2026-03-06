@@ -96,8 +96,8 @@ final class KonkinConfigValidator {
         }
 
         validateBitcoinConfig(config);
+        validateMoneroConfig(config);
         validateNonBitcoinCoinConfig("litecoin", config.litecoin(), config);
-        validateNonBitcoinCoinConfig("monero", config.monero(), config);
         validateNonBitcoinCoinConfig("testdummycoin", config.testDummyCoin(), config);
         validateAgentsConfig(config);
     }
@@ -108,17 +108,17 @@ final class KonkinConfigValidator {
             return;
         }
 
-        if (bitcoin.bitcoinDaemonConfigSecretFile() == null || bitcoin.bitcoinDaemonConfigSecretFile().isBlank()) {
+        if (bitcoin.daemonConfigSecretFile() == null || bitcoin.daemonConfigSecretFile().isBlank()) {
             throw new IllegalStateException(
                     "Invalid config: coins.bitcoin.secret-files.bitcoin-daemon-config-file must be set when coins.bitcoin.enabled=true.");
         }
-        if (bitcoin.bitcoinWalletConfigSecretFile() == null || bitcoin.bitcoinWalletConfigSecretFile().isBlank()) {
+        if (bitcoin.walletConfigSecretFile() == null || bitcoin.walletConfigSecretFile().isBlank()) {
             throw new IllegalStateException(
                     "Invalid config: coins.bitcoin.secret-files.bitcoin-wallet-config-file must be set when coins.bitcoin.enabled=true.");
         }
 
-        validatePath(bitcoin.bitcoinDaemonConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-daemon-config-file");
-        validatePath(bitcoin.bitcoinWalletConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-wallet-config-file");
+        validatePath(bitcoin.daemonConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-daemon-config-file");
+        validatePath(bitcoin.walletConfigSecretFile(), "coins.bitcoin.secret-files.bitcoin-wallet-config-file");
 
         CoinAuthConfig auth = bitcoin.auth();
         int configuredChannelCount = countConfiguredChannels(auth);
@@ -158,6 +158,64 @@ final class KonkinConfigValidator {
                 config.telegramEnabled()
         );
         CoinAuthCriteriaValidator.validateNoContradictions("bitcoin", auth);
+    }
+
+    private static void validateMoneroConfig(KonkinConfig config) {
+        CoinConfig monero = config.monero();
+        if (!monero.enabled()) {
+            return;
+        }
+
+        if (monero.daemonConfigSecretFile() == null || monero.daemonConfigSecretFile().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.monero.secret-files.monero-daemon-config-file must be set when coins.monero.enabled=true.");
+        }
+        if (monero.walletConfigSecretFile() == null || monero.walletConfigSecretFile().isBlank()) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.monero.secret-files.monero-wallet-rpc-config-file must be set when coins.monero.enabled=true.");
+        }
+
+        validatePath(monero.daemonConfigSecretFile(), "coins.monero.secret-files.monero-daemon-config-file");
+        validatePath(monero.walletConfigSecretFile(), "coins.monero.secret-files.monero-wallet-rpc-config-file");
+
+        CoinAuthConfig auth = monero.auth();
+        int configuredChannelCount = countConfiguredChannels(auth);
+        if (configuredChannelCount == 0) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.monero.auth must enable at least one channel (web-ui/rest-api/telegram/mcp-auth-channels)."
+            );
+        }
+
+        if (auth.minApprovalsRequired() <= 0) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.monero.auth.min-approvals-required must be > 0."
+            );
+        }
+
+        if (auth.minApprovalsRequired() > configuredChannelCount) {
+            throw new IllegalStateException(
+                    "Invalid config: coins.monero.auth.min-approvals-required=" + auth.minApprovalsRequired()
+                            + " exceeds configured auth channels=" + configuredChannelCount + "."
+            );
+        }
+
+        validateVetoChannels("monero", auth);
+
+        for (ApprovalRule rule : auth.autoAccept()) {
+            ensureRuleConsistency(rule, "coins.monero.auth.auto-accept");
+        }
+        for (ApprovalRule rule : auth.autoDeny()) {
+            ensureRuleConsistency(rule, "coins.monero.auth.auto-deny");
+        }
+
+        CoinAuthCriteriaValidator.validateChannelAvailability(
+                "monero",
+                auth,
+                config.landingEnabled(),
+                config.restApiEnabled(),
+                config.telegramEnabled()
+        );
+        CoinAuthCriteriaValidator.validateNoContradictions("monero", auth);
     }
 
     private static void validateNonBitcoinCoinConfig(String coinName, CoinConfig coin, KonkinConfig config) {

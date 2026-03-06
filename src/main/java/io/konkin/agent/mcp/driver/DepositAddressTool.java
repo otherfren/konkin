@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.DepositAddress;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
@@ -34,9 +35,9 @@ public final class DepositAddressTool {
 
     private DepositAddressTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
                 "deposit_address",
@@ -51,6 +52,10 @@ public final class DepositAddressTool {
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
+
             try {
                 DepositAddress addr = supervisor.execute(w -> w.depositAddress());
                 Map<String, Object> result = new LinkedHashMap<>();
@@ -60,6 +65,8 @@ public final class DepositAddressTool {
                 return jsonResult(result);
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("deposit_address", e);
             }
         });
     }

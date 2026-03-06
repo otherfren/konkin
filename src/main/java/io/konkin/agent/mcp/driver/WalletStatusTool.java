@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
@@ -33,9 +34,9 @@ public final class WalletStatusTool {
 
     private WalletStatusTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
                 "wallet_status",
@@ -50,11 +51,17 @@ public final class WalletStatusTool {
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
+
             try {
                 var status = supervisor.execute(w -> w.status());
-                return jsonResult(Map.of("coin", "bitcoin", "status", status.name()));
+                return jsonResult(Map.of("coin", coin.trim().toLowerCase(), "status", status.name()));
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("wallet_status", e);
             }
         });
     }

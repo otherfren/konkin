@@ -17,6 +17,7 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.SignedMessage;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletSupervisor;
@@ -34,9 +35,9 @@ public final class SignMessageTool {
 
     private SignMessageTool() {}
 
-    public static SyncToolSpecification create(WalletSupervisor supervisor, KonkinConfig config) {
+    public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
         properties.put("message", Map.of("type", "string", "description", "The message to sign"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
@@ -53,6 +54,10 @@ public final class SignMessageTool {
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
+            if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
+
             if (message == null || message.isBlank()) {
                 return errorResult("invalid_input", "message is required");
             }
@@ -67,6 +72,8 @@ public final class SignMessageTool {
                 ));
             } catch (WalletException e) {
                 return walletError(e);
+            } catch (Exception e) {
+                return unexpectedError("sign_message", e);
             }
         });
     }

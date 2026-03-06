@@ -20,16 +20,22 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletConnectionException;
 import io.konkin.crypto.WalletException;
 import io.konkin.crypto.WalletInsufficientFundsException;
+import io.konkin.crypto.WalletSupervisor;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 
 final class WalletToolSupport {
+
+    private static final Logger log = LoggerFactory.getLogger(WalletToolSupport.class);
 
     private static final ObjectMapper JSON = new ObjectMapper()
             .registerModule(new JavaTimeModule());
@@ -52,6 +58,11 @@ final class WalletToolSupport {
         return errorResult("wallet_error", e.getMessage());
     }
 
+    static CallToolResult unexpectedError(String toolName, Exception e) {
+        log.error("MCP tool {} unexpected error: {}", toolName, e.getMessage(), e);
+        return errorResult("internal_error", "Unexpected error in " + toolName + ": " + e.getMessage());
+    }
+
     static CallToolResult jsonResult(Object value) {
         return new CallToolResult(List.of(new TextContent(toJson(value))), false, null, null);
     }
@@ -61,13 +72,26 @@ final class WalletToolSupport {
             return errorResult("invalid_input", "coin is required");
         }
         String normalized = coin.trim().toLowerCase();
-        if (!"bitcoin".equals(normalized)) {
-            return errorResult("unsupported_coin", "Coin '" + normalized + "' is not supported. Supported: bitcoin.");
-        }
-        if (!config.bitcoin().enabled()) {
-            return errorResult("coin_not_enabled", "Bitcoin is currently disabled in config.");
-        }
-        return null;
+        return switch (normalized) {
+            case "bitcoin" -> config.bitcoin().enabled() ? null
+                    : errorResult("coin_not_enabled", "Bitcoin is currently disabled in config.");
+            case "monero" -> config.monero().enabled() ? null
+                    : errorResult("coin_not_enabled", "Monero is currently disabled in config.");
+            default -> errorResult("unsupported_coin",
+                    "Coin '" + normalized + "' is not supported. Supported: bitcoin, monero.");
+        };
+    }
+
+    static Coin resolveCoin(String coin) {
+        return switch (coin.trim().toLowerCase()) {
+            case "bitcoin" -> Coin.BTC;
+            case "monero" -> Coin.XMR;
+            default -> null;
+        };
+    }
+
+    static WalletSupervisor lookupSupervisor(Map<Coin, WalletSupervisor> supervisors, Coin coin) {
+        return supervisors.get(coin);
     }
 
     static String argString(Map<String, Object> args, String key) {

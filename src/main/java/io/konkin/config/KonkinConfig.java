@@ -165,8 +165,8 @@ public class KonkinConfig {
                     config.telegramChatIds.size());
             log.info("Bitcoin config — enabled={}, daemonSecretFile={}, walletSecretFile={}, webUi={}, restApi={}, telegram={}, mcpId={}, mcpAuthChannels={}, autoAcceptRules={}, autoDenyRules={}",
                     config.bitcoin.enabled(),
-                    config.bitcoin.bitcoinDaemonConfigSecretFile(),
-                    config.bitcoin.bitcoinWalletConfigSecretFile(),
+                    config.bitcoin.daemonConfigSecretFile(),
+                    config.bitcoin.walletConfigSecretFile(),
                     config.bitcoin.auth().webUi(),
                     config.bitcoin.auth().restApi(),
                     config.bitcoin.auth().telegram(),

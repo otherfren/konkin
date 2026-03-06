@@ -31,12 +31,17 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public final class VoteOnApprovalTool {
+
+    private static final Logger log = LoggerFactory.getLogger(VoteOnApprovalTool.class);
 
     private static final ObjectMapper JSON = new ObjectMapper()
             .registerModule(new JavaTimeModule());
@@ -65,45 +70,52 @@ public final class VoteOnApprovalTool {
         );
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
-            Map<String, Object> args = request.arguments();
-            String requestId = requireNonBlank(argString(args, "requestId"), "requestId is required");
-            String decision = requireNonBlank(argString(args, "decision"), "decision is required").trim().toLowerCase();
-            String reason = optionalTrim(argString(args, "reason"));
+            try {
+                Map<String, Object> args = request.arguments();
+                String requestId = requireNonBlank(argString(args, "requestId"), "requestId is required");
+                String decision = requireNonBlank(argString(args, "decision"), "decision is required").trim().toLowerCase();
+                String reason = optionalTrim(argString(args, "reason"));
 
-            if (!"approve".equals(decision) && !"deny".equals(decision)) {
-                return errorResult("invalid_decision", "decision must be 'approve' or 'deny'");
+                if (!"approve".equals(decision) && !"deny".equals(decision)) {
+                    return errorResult("invalid_decision", "decision must be 'approve' or 'deny'");
+                }
+
+                // Pre-check: agent must be assigned to the coin (read-only, before locking)
+                ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
+                if (requestRow == null) {
+                    return errorResult("request_not_found_or_resolved",
+                            "Request not found or already resolved");
+                }
+
+                if (!isAgentAssignedToCoin(agentName, requestRow.coin(), runtimeConfig)) {
+                    return errorResult("agent_not_assigned_to_coin",
+                            "This agent is not assigned to the coin '" + requestRow.coin() + "'");
+                }
+
+                // Ensure channel row exists (idempotent, outside the vote transaction)
+                String channelId = ensureAuthChannelId(agentName, channelRepo);
+
+                // Resolve veto channels for this coin
+                List<String> vetoChannels = resolveVetoChannels(requestRow.coin(), runtimeConfig);
+
+                // Cast vote transactionally (locks the request row, prevents race conditions)
+                VoteService.VoteResult result = voteService.castVote(
+                        requestId, channelId, decision, reason, agentName,
+                        "agent", agentName, vetoChannels
+                );
+
+                if (!result.success()) {
+                    return errorResult(result.error(), result.errorMessage());
+                }
+
+                String json = toJson(Map.of("status", "accepted", "requestId", requestId, "decision", decision));
+                return new CallToolResult(List.of(new TextContent(json)), false, null, null);
+            } catch (IllegalArgumentException e) {
+                return errorResult("validation_error", e.getMessage());
+            } catch (Exception e) {
+                log.error("vote_on_approval unexpected error: {}", e.getMessage(), e);
+                return errorResult("internal_error", "Unexpected error in vote_on_approval: " + e.getMessage());
             }
-
-            // Pre-check: agent must be assigned to the coin (read-only, before locking)
-            ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
-            if (requestRow == null) {
-                return errorResult("request_not_found_or_resolved",
-                        "Request not found or already resolved");
-            }
-
-            if (!isAgentAssignedToCoin(agentName, requestRow.coin(), runtimeConfig)) {
-                return errorResult("agent_not_assigned_to_coin",
-                        "This agent is not assigned to the coin '" + requestRow.coin() + "'");
-            }
-
-            // Ensure channel row exists (idempotent, outside the vote transaction)
-            String channelId = ensureAuthChannelId(agentName, channelRepo);
-
-            // Resolve veto channels for this coin
-            List<String> vetoChannels = resolveVetoChannels(requestRow.coin(), runtimeConfig);
-
-            // Cast vote transactionally (locks the request row, prevents race conditions)
-            VoteService.VoteResult result = voteService.castVote(
-                    requestId, channelId, decision, reason, agentName,
-                    "agent", agentName, vetoChannels
-            );
-
-            if (!result.success()) {
-                return errorResult(result.error(), result.errorMessage());
-            }
-
-            String json = toJson(Map.of("status", "accepted", "requestId", requestId, "decision", decision));
-            return new CallToolResult(List.of(new TextContent(json)), false, null, null);
         });
     }
 

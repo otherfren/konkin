@@ -18,10 +18,16 @@ package io.konkin.crypto.monero;
 
 public final class MoneroExtras {
 
-    public static final String PAYMENT_ID = "paymentId";
-    public static final String PRIORITY = "priority";
-    public static final String TX_KEY = "txKey";
     public static final String DAEMON_RPC_URL = "daemonRpcUrl";
+    public static final String DAEMON_RPC_USERNAME = "daemonRpcUsername";
+    public static final String DAEMON_RPC_PASSWORD = "daemonRpcPassword";
+    public static final String NETWORK = "network";
+    public static final String ACCOUNT_INDEX = "accountIndex";
+    public static final String PRIORITY = "priority";
+    public static final String PAYMENT_ID = "paymentId";
+    public static final String TX_KEY = "txKey";
+    public static final String FEE_CAP_NATIVE = "feeCapNative";
+    public static final String MEMO = "memo";
 
     private MoneroExtras() {}
 }

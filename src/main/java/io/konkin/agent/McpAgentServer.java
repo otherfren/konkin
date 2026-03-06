@@ -36,6 +36,7 @@ import io.konkin.agent.mcp.driver.WalletStatusTool;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.web.service.TelegramApprovalNotifier;
 import io.konkin.db.ApprovalRequestRepository;
@@ -61,6 +62,7 @@ import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class McpAgentServer {
@@ -76,7 +78,7 @@ public class McpAgentServer {
     private final HistoryRepository historyRepo;
     private final RequestDependencyLoader depLoader;
     private final KonkinConfig runtimeConfig;
-    private final WalletSupervisor walletSupervisor;
+    private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final TelegramApprovalNotifier telegramNotifier;
     private final VoteService voteService;
 
@@ -98,7 +100,7 @@ public class McpAgentServer {
             HistoryRepository historyRepo,
             RequestDependencyLoader depLoader,
             KonkinConfig runtimeConfig,
-            WalletSupervisor walletSupervisor,
+            Map<Coin, WalletSupervisor> walletSupervisors,
             TelegramApprovalNotifier telegramNotifier,
             VoteService voteService
     ) {
@@ -113,7 +115,7 @@ public class McpAgentServer {
         this.historyRepo = historyRepo;
         this.depLoader = depLoader;
         this.runtimeConfig = runtimeConfig;
-        this.walletSupervisor = walletSupervisor;
+        this.walletSupervisors = walletSupervisors;
         this.telegramNotifier = telegramNotifier;
         this.voteService = voteService;
     }
@@ -175,13 +177,13 @@ public class McpAgentServer {
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
             mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
         }
-        if (walletSupervisor != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisor, runtimeConfig));
-            mcpSyncServer.addTool(WalletBalanceTool.create(walletSupervisor, runtimeConfig));
-            mcpSyncServer.addTool(DepositAddressTool.create(walletSupervisor, runtimeConfig));
-            mcpSyncServer.addTool(PendingTransactionsTool.create(walletSupervisor, runtimeConfig));
-            mcpSyncServer.addTool(SignMessageTool.create(walletSupervisor, runtimeConfig));
-            mcpSyncServer.addTool(VerifyMessageTool.create(walletSupervisor, runtimeConfig));
+        if (walletSupervisors != null && !walletSupervisors.isEmpty() && runtimeConfig != null) {
+            mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(WalletBalanceTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(DepositAddressTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(PendingTransactionsTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(SignMessageTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(VerifyMessageTool.create(walletSupervisors, runtimeConfig));
         }
         if (requestRepo != null && depLoader != null) {
             mcpSyncServer.addResourceTemplate(DecisionStatusResource.template(requestRepo, depLoader));

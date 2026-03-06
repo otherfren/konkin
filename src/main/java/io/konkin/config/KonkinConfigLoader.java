@@ -133,7 +133,7 @@ final class KonkinConfigLoader {
 
         CoinConfig bitcoin = loadBitcoinConfig(toml);
         CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main");
-        CoinConfig monero = loadCoinConfig(toml, "monero", "xmr-main");
+        CoinConfig monero = loadMoneroConfig(toml);
         CoinConfig testDummyCoin = loadTestDummyCoinConfig(toml, debugEnabled);
 
         return new KonkinConfig(
@@ -265,6 +265,37 @@ final class KonkinConfigLoader {
                 enabled,
                 daemonSecretFile,
                 walletSecretFile,
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
+        );
+    }
+
+    private static CoinConfig loadMoneroConfig(FileConfig toml) {
+        String coinPrefix = "coins.monero";
+        boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
+
+        String daemonSecretFile = toml.getOrElse(
+                coinPrefix + ".secret-files.monero-daemon-config-file",
+                "./secrets/monero-daemon.conf");
+        String walletRpcSecretFile = toml.getOrElse(
+                coinPrefix + ".secret-files.monero-wallet-rpc-config-file",
+                "./secrets/monero-wallet-rpc.conf");
+
+        boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
+        boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
+        boolean telegram = toml.getOrElse(coinPrefix + ".auth.telegram", false);
+        String mcp = toml.getOrElse(coinPrefix + ".auth.mcp", "xmr-main");
+        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, coinPrefix + ".auth", mcp);
+
+        List<ApprovalRule> autoAccept = readApprovalRules(toml, coinPrefix + ".auth.auto-accept");
+        List<ApprovalRule> autoDeny = readApprovalRules(toml, coinPrefix + ".auth.auto-deny");
+
+        int minApprovalsRequired = toml.getIntOrElse(coinPrefix + ".auth.min-approvals-required", 1);
+        List<String> vetoChannels = loadVetoChannels(toml, coinPrefix + ".auth");
+
+        return new CoinConfig(
+                enabled,
+                daemonSecretFile,
+                walletRpcSecretFile,
                 new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
     }

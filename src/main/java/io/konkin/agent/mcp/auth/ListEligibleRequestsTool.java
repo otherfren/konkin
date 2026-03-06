@@ -30,6 +30,9 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;
 import io.modelcontextprotocol.spec.McpSchema.TextContent;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -50,6 +53,8 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public final class ListEligibleRequestsTool {
+
+    private static final Logger log = LoggerFactory.getLogger(ListEligibleRequestsTool.class);
 
     private static final ObjectMapper JSON = new ObjectMapper()
             .registerModule(new JavaTimeModule())
@@ -75,53 +80,60 @@ public final class ListEligibleRequestsTool {
         );
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
-            List<ApprovalRequestRow> votable = requestRepo.findVotableRequests();
-            Instant now = Instant.now();
+            try {
+                List<ApprovalRequestRow> votable = requestRepo.findVotableRequests();
+                Instant now = Instant.now();
 
-            // Resolve the agent's channel id (may or may not exist yet)
-            String channelId = resolveChannelId(agentName, channelRepo);
+                // Resolve the agent's channel id (may or may not exist yet)
+                String channelId = resolveChannelId(agentName, channelRepo);
 
-            // Collect request IDs the agent has already voted on
-            Set<String> alreadyVotedRequestIds = collectAlreadyVotedRequestIds(channelId, votable, voteRepo);
+                // Collect request IDs the agent has already voted on
+                Set<String> alreadyVotedRequestIds = collectAlreadyVotedRequestIds(channelId, votable, voteRepo);
 
-            List<Map<String, Object>> eligible = new ArrayList<>();
-            for (ApprovalRequestRow row : votable) {
-                // Skip if agent is not assigned to this coin
-                if (!VoteOnApprovalTool.isAgentAssignedToCoin(agentName, row.coin(), runtimeConfig)) {
-                    continue;
+                List<Map<String, Object>> eligible = new ArrayList<>();
+                for (ApprovalRequestRow row : votable) {
+                    // Skip if agent is not assigned to this coin
+                    if (!VoteOnApprovalTool.isAgentAssignedToCoin(agentName, row.coin(), runtimeConfig)) {
+                        continue;
+                    }
+                    // Skip if already expired
+                    if (row.expiresAt() != null && row.expiresAt().isBefore(now)) {
+                        continue;
+                    }
+                    // Skip if agent has already voted
+                    if (alreadyVotedRequestIds.contains(row.id())) {
+                        continue;
+                    }
+
+                    Map<String, Object> entry = new LinkedHashMap<>();
+                    entry.put("requestId", row.id());
+                    entry.put("coin", row.coin());
+                    entry.put("type", toApprovalType(row.toolName()));
+                    entry.put("state", row.state());
+                    if (row.toAddress() != null) entry.put("to", row.toAddress());
+                    if (row.amountNative() != null) entry.put("amount", row.amountNative());
+                    if (row.reason() != null && !row.reason().isBlank()) entry.put("reason", row.reason());
+                    if (row.memo() != null && !row.memo().isBlank()) entry.put("memo", row.memo());
+                    entry.put("approvalsGranted", row.approvalsGranted());
+                    entry.put("minApprovalsRequired", row.minApprovalsRequired());
+                    entry.put("requestedAt", row.requestedAt());
+                    entry.put("expiresAt", row.expiresAt());
+                    eligible.add(Map.copyOf(entry));
                 }
-                // Skip if already expired
-                if (row.expiresAt() != null && row.expiresAt().isBefore(now)) {
-                    continue;
-                }
-                // Skip if agent has already voted
-                if (alreadyVotedRequestIds.contains(row.id())) {
-                    continue;
-                }
 
-                Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("requestId", row.id());
-                entry.put("coin", row.coin());
-                entry.put("type", toApprovalType(row.toolName()));
-                entry.put("state", row.state());
-                if (row.toAddress() != null) entry.put("to", row.toAddress());
-                if (row.amountNative() != null) entry.put("amount", row.amountNative());
-                if (row.reason() != null && !row.reason().isBlank()) entry.put("reason", row.reason());
-                if (row.memo() != null && !row.memo().isBlank()) entry.put("memo", row.memo());
-                entry.put("approvalsGranted", row.approvalsGranted());
-                entry.put("minApprovalsRequired", row.minApprovalsRequired());
-                entry.put("requestedAt", row.requestedAt());
-                entry.put("expiresAt", row.expiresAt());
-                eligible.add(Map.copyOf(entry));
+                Map<String, Object> result = new LinkedHashMap<>();
+                result.put("agentName", agentName);
+                result.put("eligibleCount", eligible.size());
+                result.put("requests", eligible);
+
+                String json = toJson(result);
+                return new CallToolResult(List.of(new TextContent(json)), false, null, null);
+            } catch (Exception e) {
+                log.error("list_eligible_requests unexpected error: {}", e.getMessage(), e);
+                String json = toJson(Map.of("error", "internal_error",
+                        "message", "Unexpected error in list_eligible_requests: " + e.getMessage()));
+                return new CallToolResult(List.of(new TextContent(json)), true, null, null);
             }
-
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("agentName", agentName);
-            result.put("eligibleCount", eligible.size());
-            result.put("requests", eligible);
-
-            String json = toJson(result);
-            return new CallToolResult(List.of(new TextContent(json)), false, null, null);
         });
     }
 

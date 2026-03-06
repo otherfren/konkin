@@ -39,17 +39,17 @@ public class TransactionExecutionService {
     private static final Logger log = LoggerFactory.getLogger(TransactionExecutionService.class);
     private static final Duration EXECUTING_TIMEOUT = Duration.ofMinutes(10);
 
-    private final WalletSupervisor walletSupervisor;
+    private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final ApprovalRequestRepository requestRepo;
     private final HistoryRepository historyRepo;
     private ScheduledExecutorService scheduler;
 
     public TransactionExecutionService(
-            WalletSupervisor walletSupervisor,
+            Map<Coin, WalletSupervisor> walletSupervisors,
             ApprovalRequestRepository requestRepo,
             HistoryRepository historyRepo
     ) {
-        this.walletSupervisor = walletSupervisor;
+        this.walletSupervisors = walletSupervisors;
         this.requestRepo = requestRepo;
         this.historyRepo = historyRepo;
     }
@@ -148,8 +148,17 @@ public class TransactionExecutionService {
         Coin coin = resolveCoin(row.coin());
         SendRequest sendRequest = new SendRequest(coin, row.toAddress(), amount, extras);
 
+        WalletSupervisor supervisor = walletSupervisors.get(coin);
+        if (supervisor == null) {
+            String reason = "No wallet supervisor configured for " + coin;
+            log.error("{} — cannot execute request {}", reason, row.id());
+            failRequest(row, now, new IllegalStateException(reason),
+                    "non_retryable_error", "no_wallet_supervisor", reason);
+            return;
+        }
+
         try {
-            SendResult result = walletSupervisor.execute(w -> w.send(sendRequest));
+            SendResult result = supervisor.execute(w -> w.send(sendRequest));
 
             Instant finished = Instant.now();
 

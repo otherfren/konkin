@@ -25,6 +25,7 @@ import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Transaction;
 import io.konkin.crypto.WalletSnapshot;
 import io.konkin.crypto.WalletStatus;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.KvStore;
 import io.konkin.db.entity.ApprovalChannelRow;
@@ -60,16 +61,16 @@ public class LandingPageMapper {
     private static final String KV_DEPOSIT_ADDRESS_PREFIX = "deposit-address:";
 
     private final KonkinConfig config;
-    private final WalletSupervisor walletSupervisor;
+    private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final KvStore kvStore;
 
-    public LandingPageMapper(KonkinConfig config, WalletSupervisor walletSupervisor) {
-        this(config, walletSupervisor, null);
+    public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors) {
+        this(config, walletSupervisors, null);
     }
 
-    public LandingPageMapper(KonkinConfig config, WalletSupervisor walletSupervisor, KvStore kvStore) {
+    public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore) {
         this.config = config;
-        this.walletSupervisor = walletSupervisor;
+        this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.kvStore = kvStore;
     }
 
@@ -739,10 +740,11 @@ public class LandingPageMapper {
         coin.put("coin", coinId);
         coin.put("coinIconName", coinIconName(coinId));
         coin.put("enabled", coinConfig.enabled());
-        coin.put("daemonSecretFile", safe(coinConfig.bitcoinDaemonConfigSecretFile()));
-        coin.put("walletSecretFile", safe(coinConfig.bitcoinWalletConfigSecretFile()));
+        coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
+        coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
 
-        if (walletSupervisor != null && "bitcoin".equals(coinId)) {
+        WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
+        if (walletSupervisor != null) {
             WalletSnapshot snap = walletSupervisor.snapshot();
             coin.put("connectionStatus", snap.status().name().toLowerCase());
             coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
@@ -750,7 +752,7 @@ public class LandingPageMapper {
             coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
 
             if (snap.status() != WalletStatus.OFFLINE) {
-                coin.put("transactions", loadTransactions());
+                coin.put("transactions", loadTransactions(walletSupervisor));
             } else {
                 coin.put("transactions", List.of());
             }
@@ -781,13 +783,13 @@ public class LandingPageMapper {
 
     private static final int MAX_TRANSACTIONS = 100;
 
-    private List<Map<String, Object>> loadTransactions() {
-        if (walletSupervisor == null) {
+    private List<Map<String, Object>> loadTransactions(WalletSupervisor supervisor) {
+        if (supervisor == null) {
             return List.of();
         }
         try {
-            List<Transaction> incoming = walletSupervisor.execute(wallet -> wallet.recentIncoming());
-            List<Transaction> outgoing = walletSupervisor.execute(wallet -> wallet.recentOutgoing());
+            List<Transaction> incoming = supervisor.execute(wallet -> wallet.recentIncoming());
+            List<Transaction> outgoing = supervisor.execute(wallet -> wallet.recentOutgoing());
 
             List<Transaction> merged = new ArrayList<>();
             if (incoming != null) merged.addAll(incoming);
@@ -866,6 +868,18 @@ public class LandingPageMapper {
         }
 
         return List.copyOf(mappedRules);
+    }
+
+    // ── Coin → supervisor lookup ────────────────────────────────────────────
+
+    private WalletSupervisor resolveSupervisor(String coinId) {
+        if (coinId == null) return null;
+        Coin coin = switch (coinId.toLowerCase(Locale.ROOT)) {
+            case "bitcoin" -> Coin.BTC;
+            case "monero" -> Coin.XMR;
+            default -> null;
+        };
+        return coin != null ? walletSupervisors.get(coin) : null;
     }
 
     // ── Shared record ──────────────────────────────────────────────────────

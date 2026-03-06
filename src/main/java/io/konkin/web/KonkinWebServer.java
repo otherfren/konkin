@@ -37,6 +37,7 @@ import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.TransactionExecutionService;
 import io.konkin.crypto.WalletConnectionConfig;
 import io.konkin.crypto.WalletSecretLoader;
@@ -70,6 +71,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -96,7 +98,7 @@ public class KonkinWebServer {
     private LandingResourceWatcher landingResourceWatcher;
     private ApprovalExpiryService approvalExpiryService;
     private TelegramCallbackPoller telegramCallbackPoller;
-    private WalletSupervisor walletSupervisor;
+    private final Map<Coin, WalletSupervisor> walletSupervisors = new LinkedHashMap<>();
     private TransactionExecutionService executionService;
     private boolean running;
     private final List<McpAgentServer> agentEndpoints = new ArrayList<>();
@@ -140,13 +142,28 @@ public class KonkinWebServer {
         if (config.bitcoin().enabled()) {
             try {
                 WalletConnectionConfig btcConfig = WalletSecretLoader.loadBitcoin(
-                        config.bitcoin().bitcoinDaemonConfigSecretFile(),
-                        config.bitcoin().bitcoinWalletConfigSecretFile()
+                        config.bitcoin().daemonConfigSecretFile(),
+                        config.bitcoin().walletConfigSecretFile()
                 );
-                walletSupervisor = new WalletSupervisor(btcConfig);
-                walletSupervisor.start();
+                WalletSupervisor btcSupervisor = new WalletSupervisor(btcConfig, new io.konkin.crypto.bitcoin.BitcoinWalletFactory());
+                btcSupervisor.start();
+                walletSupervisors.put(Coin.BTC, btcSupervisor);
             } catch (Exception e) {
                 log.warn("Failed to start Bitcoin wallet supervisor: {}", e.getMessage());
+            }
+        }
+
+        if (config.monero().enabled()) {
+            try {
+                WalletConnectionConfig xmrConfig = WalletSecretLoader.loadMonero(
+                        config.monero().daemonConfigSecretFile(),
+                        config.monero().walletConfigSecretFile()
+                );
+                WalletSupervisor xmrSupervisor = new WalletSupervisor(xmrConfig, new io.konkin.crypto.monero.MoneroWalletFactory());
+                xmrSupervisor.start();
+                walletSupervisors.put(Coin.XMR, xmrSupervisor);
+            } catch (Exception e) {
+                log.warn("Failed to start Monero wallet supervisor: {}", e.getMessage());
             }
         }
 
@@ -230,7 +247,7 @@ public class KonkinWebServer {
             );
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
-            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisor, kvStore);
+            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore);
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
@@ -254,7 +271,7 @@ public class KonkinWebServer {
                     depLoader,
                     config,
                     mapper,
-                    walletSupervisor,
+                    walletSupervisors,
                     voteService
             );
 
@@ -427,8 +444,8 @@ public class KonkinWebServer {
             approvalExpiryService.start();
         }
 
-        if (walletSupervisor != null && requestRepo != null && historyRepo != null) {
-            executionService = new TransactionExecutionService(walletSupervisor, requestRepo, historyRepo);
+        if (!walletSupervisors.isEmpty() && requestRepo != null && historyRepo != null) {
+            executionService = new TransactionExecutionService(walletSupervisors, requestRepo, historyRepo);
             executionService.start();
         }
 
@@ -517,7 +534,7 @@ public class KonkinWebServer {
                     historyRepo,
                     depLoader,
                     config,
-                    walletSupervisor,
+                    walletSupervisors,
                     telegramNotifier,
                     voteService
             );
@@ -655,10 +672,10 @@ public class KonkinWebServer {
             executionService = null;
         }
 
-        if (walletSupervisor != null) {
-            walletSupervisor.close();
-            walletSupervisor = null;
+        for (WalletSupervisor supervisor : walletSupervisors.values()) {
+            supervisor.close();
         }
+        walletSupervisors.clear();
 
         if (landingResourceWatcher != null) {
             landingResourceWatcher.stop();

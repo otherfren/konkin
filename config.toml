@@ -93,23 +93,23 @@ period = "48h"
 enabled = true
 
 [coins.monero.auth]
-web-ui = false
-rest-api = true
+web-ui = true
+rest-api = false
 telegram = true
 mcp = "xmr-main"
 min-approvals-required = 2
-veto-channels = ["telegram"]
-mcp-auth-channels = ["agent-arthur", "agent-merlin"]
+veto-channels = ["telegram", "web-ui"]
+mcp-auth-channels = ["agent-merlin"]
 
 [[coins.monero.auth.auto-accept]]
 [coins.monero.auth.auto-accept.criteria]
 type = "value-lt"
-value = 0.2
+value = 0.01
 
 [[coins.monero.auth.auto-deny]]
 [coins.monero.auth.auto-deny.criteria]
 type = "cumulated-value-gt"
-value = 10
+value = 5
 period = "24h"
 
 [coins.testdummycoin]

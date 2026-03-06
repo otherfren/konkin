@@ -21,6 +21,7 @@ import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
 import io.konkin.crypto.DepositAddress;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
@@ -94,7 +95,7 @@ public class LandingPageController {
     private final RequestDependencyLoader depLoader;
     private final KonkinConfig config;
     private final LandingPageMapper mapper;
-    private final WalletSupervisor walletSupervisor;
+    private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final VoteService voteService;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
@@ -131,11 +132,11 @@ public class LandingPageController {
             RequestDependencyLoader depLoader,
             KonkinConfig config,
             LandingPageMapper mapper,
-            WalletSupervisor walletSupervisor
+            Map<Coin, WalletSupervisor> walletSupervisors
     ) {
         this(landingPageService, passwordProtectionEnabled, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisor, null);
+                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, null);
     }
 
     public LandingPageController(
@@ -151,7 +152,7 @@ public class LandingPageController {
             RequestDependencyLoader depLoader,
             KonkinConfig config,
             LandingPageMapper mapper,
-            WalletSupervisor walletSupervisor,
+            Map<Coin, WalletSupervisor> walletSupervisors,
             VoteService voteService
     ) {
         if (passwordProtectionEnabled && passwordFileManager == null) {
@@ -174,7 +175,7 @@ public class LandingPageController {
         this.depLoader = depLoader;
         this.config = config;
         this.mapper = mapper;
-        this.walletSupervisor = walletSupervisor;
+        this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.voteService = voteService;
     }
 
@@ -278,14 +279,16 @@ public class LandingPageController {
             return;
         }
 
-        if (walletSupervisor == null) {
-            log.warn("Generate deposit address requested but no wallet supervisor available");
+        Coin coin = resolveCoin(coinId);
+        WalletSupervisor supervisor = coin != null ? walletSupervisors.get(coin) : null;
+        if (supervisor == null) {
+            log.warn("Generate deposit address requested but no wallet supervisor available for {}", coinId);
             ctx.redirect("/wallets");
             return;
         }
 
         try {
-            DepositAddress depositAddress = walletSupervisor.execute(wallet -> wallet.depositAddress());
+            DepositAddress depositAddress = supervisor.execute(wallet -> wallet.depositAddress());
             String address = depositAddress.address();
 
             mapper.persistDepositAddress(coinId, address);
@@ -1009,6 +1012,15 @@ public class LandingPageController {
             case "pirate" -> "ARRR";
             case "zano" -> "ZANO";
             default -> coin.toUpperCase(Locale.ROOT);
+        };
+    }
+
+    private static Coin resolveCoin(String coinId) {
+        if (coinId == null) return null;
+        return switch (coinId.toLowerCase(Locale.ROOT)) {
+            case "bitcoin" -> Coin.BTC;
+            case "monero" -> Coin.XMR;
+            default -> null;
         };
     }
 
