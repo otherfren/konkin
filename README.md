@@ -1,5 +1,9 @@
 **Alpha version — no official release yet.**
 
+![Build](https://github.com/otherfren/konkin/actions/workflows/ci.yml/badge.svg)
+![Coverage](.github/badges/jacoco.svg)
+![Branches](.github/badges/branches.svg)
+
 # Konkin.io
 
 MCP crypto wallet wrapper for AI agents.

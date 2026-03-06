@@ -599,7 +599,7 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 assertTrue(result.isError());
                 JsonNode json = parseToolResult(result);
                 assertEquals("unsupported_coin", json.path("error").asText());
-                assertTrue(json.path("message").asText().contains("Supported coins: bitcoin, testdummycoin."));
+                assertTrue(json.path("message").asText().contains("Supported coins: bitcoin, monero, testdummycoin."));
             }
         }
     }
