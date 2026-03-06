@@ -488,11 +488,22 @@ public class LandingPageController {
             TelegramWebController.TelegramConfirmData telegramConfirmData
     ) {
         if (!passwordProtectionEnabled || hasValidSession(ctx)) {
-            TelegramPageData telegramPageData = loadTelegramPageData();
-            TablePageData queuePageData = loadQueuePageData(ctx);
-            queuePageData = applyQueueUiState(queuePageData, queueNotice, queueNoticeError, queueConfirmData);
-            TablePageData auditPageData = loadAuditPageData(ctx);
-            TablePageData logQueuePageData = loadLogQueuePageData(ctx);
+            // Only load data needed for the active page to avoid unnecessary DB queries
+            TelegramPageData telegramPageData = "telegram".equals(activePage)
+                    ? loadTelegramPageData()
+                    : new TelegramPageData(List.of(), List.of());
+
+            TablePageData queuePageData = "queue".equals(activePage)
+                    ? applyQueueUiState(loadQueuePageData(ctx), queueNotice, queueNoticeError, queueConfirmData)
+                    : applyQueueUiState(emptyPageData("expires_at", "asc"), queueNotice, queueNoticeError, queueConfirmData);
+
+            TablePageData auditPageData = "history".equals(activePage)
+                    ? loadAuditPageData(ctx)
+                    : emptyPageData("created_at", "desc");
+
+            TablePageData logQueuePageData = "history".equals(activePage)
+                    ? loadLogQueuePageData(ctx)
+                    : emptyLogQueuePageData();
 
             boolean telegramConfirmRequired = false;
             String telegramConfirmMode = "";
@@ -680,6 +691,20 @@ public class LandingPageController {
         }
 
         return new TablePageData(source.rows(), Map.copyOf(pageMeta));
+    }
+
+    private static TablePageData emptyLogQueuePageData() {
+        TablePageData empty = emptyPageData("updated_at", "desc");
+        Map<String, Object> pageMeta = new LinkedHashMap<>(empty.pageMeta());
+        pageMeta.put("filterQuery", "");
+        pageMeta.put("filterText", "");
+        pageMeta.put("filterCoin", "");
+        pageMeta.put("filterTool", "");
+        pageMeta.put("filterState", "");
+        pageMeta.put("filterCoins", List.of());
+        pageMeta.put("filterTools", List.of());
+        pageMeta.put("filterStates", List.of());
+        return new TablePageData(empty.rows(), Map.copyOf(pageMeta));
     }
 
     private static TablePageData emptyPageData(String sortBy, String sortDir) {
