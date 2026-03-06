@@ -287,7 +287,7 @@ public class KonkinWebServer {
             ctx.header("X-Content-Type-Options", "nosniff");
             ctx.header("X-Frame-Options", "DENY");
             ctx.header("Referrer-Policy", "strict-origin-when-cross-origin");
-            ctx.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
+            ctx.header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
             if ("https".equalsIgnoreCase(ctx.header("X-Forwarded-Proto")) || "https".equalsIgnoreCase(ctx.scheme())) {
                 ctx.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
             }
