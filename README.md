@@ -1,5 +1,3 @@
-**Pre-alpha — no official release yet.**
-
 # Konkin.io
 
 MCP crypto wallet wrapper for AI agents.
