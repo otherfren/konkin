@@ -126,17 +126,13 @@ public class TransactionExecutionService {
     private void executeRequest(ApprovalRequestRow row) {
         Instant now = Instant.now();
 
-        // Transition to EXECUTING
-        ApprovalRequestRow executing = new ApprovalRequestRow(
-                row.id(), row.coin(), row.toolName(), row.requestSessionId(),
-                row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
-                row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
-                row.requestedAt(), row.expiresAt(),
-                "EXECUTING", "executing_send", "Transaction execution in progress",
-                row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
-                row.policyActionAtCreation(), row.createdAt(), now, null
-        );
-        requestRepo.updateApprovalRequest(executing);
+        // [H-6] Optimistic locking: atomically transition APPROVED → EXECUTING
+        boolean claimed = requestRepo.compareAndSetState(row.id(), "APPROVED", "EXECUTING",
+                "executing_send", "Transaction execution in progress", now);
+        if (!claimed) {
+            log.debug("Request {} was already claimed by another poller, skipping", row.id());
+            return;
+        }
         historyRepo.insertStateTransition(new StateTransitionRow(
                 0L, row.id(), "APPROVED", "EXECUTING",
                 "system", "tx-execution-service", "executing_send", now
@@ -230,7 +226,7 @@ public class TransactionExecutionService {
             case "bitcoin" -> Coin.BTC;
             case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
-            default -> Coin.BTC;
+            default -> throw new IllegalArgumentException("Unrecognized coin: " + coin);
         };
     }
 }

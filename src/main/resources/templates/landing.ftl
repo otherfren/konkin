@@ -53,7 +53,7 @@
 
     <#if queueNotice?has_content>
         <div class="queue-notice <#if queueNoticeError>queue-notice-error<#else>queue-notice-success</#if>">
-            ${queueNotice?html}
+            ${queueNotice}
         </div>
     </#if>
 
@@ -67,25 +67,25 @@
         <section class="queue-confirm-panel" aria-labelledby="queue-confirm-title">
             <h3 id="queue-confirm-title" class="queue-confirm-title">Confirmation required</h3>
             <p class="queue-confirm-copy">
-                Confirm <strong>${queueConfirmDecision?html}</strong> for request <span class="mono">${queueConfirmRequestIdShort?html}</span>.
+                Confirm <strong>${queueConfirmDecision}</strong> for request <span class="mono">${queueConfirmRequestIdShort}</span>.
             </p>
             <#if queueConfirmToolName?has_content || queueConfirmCoin?has_content || queueConfirmAmountNative?has_content || queueConfirmToAddress?has_content>
                 <div class="queue-confirm-details">
-                    <#if queueConfirmToolName?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">${queueConfirmToolName?html}</span></p></#if>
-                    <#if queueConfirmCoin?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">${queueConfirmCoin?html}</span></p></#if>
-                    <#if queueConfirmAmountNative?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">${queueConfirmAmountNative?html}</span></p></#if>
-                    <#if queueConfirmToAddress?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">${queueConfirmToAddress?html}</span></p></#if>
-                    <#if queueConfirmReason?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">${queueConfirmReason?html}</span></p></#if>
+                    <#if queueConfirmToolName?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">${queueConfirmToolName}</span></p></#if>
+                    <#if queueConfirmCoin?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">${queueConfirmCoin}</span></p></#if>
+                    <#if queueConfirmAmountNative?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">${queueConfirmAmountNative}</span></p></#if>
+                    <#if queueConfirmToAddress?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">${queueConfirmToAddress}</span></p></#if>
+                    <#if queueConfirmReason?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">${queueConfirmReason}</span></p></#if>
                 </div>
             </#if>
             <div class="queue-confirm-actions">
                 <form method="post" action="${queueConfirmActionPath}" class="queue-confirm-inline-form">
-                    <input type="hidden" name="request_id" value="${queueConfirmRequestId?html}">
+                    <input type="hidden" name="request_id" value="${queueConfirmRequestId}">
                     <input type="hidden" name="confirm" value="yes">
                     <button
                         type="submit"
                         class="queue-action-btn <#if queueConfirmDecision == 'deny'>queue-action-deny<#else>queue-action-approve</#if>"
-                    >confirm ${queueConfirmDecision?html}</button>
+                    >confirm ${queueConfirmDecision}</button>
                 </form>
                 <a
                     href="${queuePath}?queue_sort=${qSort}&queue_dir=${qDir}&queue_page=${qPage}&queue_page_size=${qPageSize}"
@@ -150,7 +150,7 @@
                                         type="button"
                                         class="queue-action-btn queue-copy-btn"
                                         hidden
-                                        data-copy-value="${(row.id!'')?html}"
+                                        data-copy-value="${(row.id!'')}"
                                     >copy</button>
                                 </#if>
                             </td>
@@ -175,19 +175,19 @@
                             <td class="mono queue-nowrap queue-small-text">${row.expiresIn!'-'}</td>
                             <td class="action-cell">
                                 <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve"
-                                      data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
-                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}"
-                                      data-reason="${(row.reason!'')?html}">
-                                    <input type="hidden" name="request_id" value="${(row.id!'')?html}">
+                                      data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
+                                      data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
+                                      data-reason="${(row.reason!'')}">
+                                    <input type="hidden" name="request_id" value="${(row.id!'')}">
                                     <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
                                 </form>
                             </td>
                             <td class="action-cell">
                                 <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny"
-                                      data-coin="${(row.coin!'')?html}" data-amount="${(row.amountNative!'')?html}"
-                                      data-to-address="${(row.toAddress!'')?html}" data-tool="${(row.toolName!'')?html}"
-                                      data-reason="${(row.reason!'')?html}">
-                                    <input type="hidden" name="request_id" value="${(row.id!'')?html}">
+                                      data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
+                                      data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
+                                      data-reason="${(row.reason!'')}">
+                                    <input type="hidden" name="request_id" value="${(row.id!'')}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
                                 </form>
                             </td>
@@ -197,7 +197,7 @@
                                     href="/details?id=${(row.id!'')?url('UTF-8')}"
                                     data-details-source-id="details-source-${row?index}"
                                 >details</a>
-                                <pre id="details-source-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')?html}</pre>
+                                <pre id="details-source-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')}</pre>
                             </td>
                         </tr>
                     </#list>

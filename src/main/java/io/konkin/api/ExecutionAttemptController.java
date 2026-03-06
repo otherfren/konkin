@@ -41,10 +41,12 @@ public class ExecutionAttemptController {
         }
     }
 
+    /**
+     * [C-2] Security: execution attempt creation via REST API is disabled.
+     * Execution attempts are created internally by the transaction execution service.
+     */
     public void create(Context ctx) {
-        ExecutionAttemptDetail row = ctx.bodyAsClass(ExecutionAttemptDetail.class);
-        historyRepo.insertExecutionAttempt(row);
-        ctx.status(201).json(row);
+        ctx.status(403).result("Direct execution attempt creation via REST API is not allowed. Execution attempts are managed internally.");
     }
 
     public void delete(Context ctx) {

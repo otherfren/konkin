@@ -43,7 +43,14 @@ public final class WalletSecretLoader {
         String rpcConnect = daemon.getProperty("rpcconnect", "127.0.0.1").trim();
         String rpcPort = daemon.getProperty("rpcport", "8332").trim();
 
-        String rpcUrl = "http://" + rpcConnect + ":" + rpcPort;
+        // [M-9] Validate that HTTP-only RPC connects to loopback; warn if not
+        boolean isLoopback = "127.0.0.1".equals(rpcConnect) || "localhost".equals(rpcConnect) || "::1".equals(rpcConnect);
+        String scheme = "http";
+        if (!isLoopback) {
+            log.warn("Bitcoin RPC connects to non-loopback address '{}' over plaintext HTTP. "
+                    + "Consider using HTTPS or ensuring network-level encryption.", rpcConnect);
+        }
+        String rpcUrl = scheme + "://" + rpcConnect + ":" + rpcPort;
 
         String walletName = wallet.getProperty("wallet", "").trim();
 

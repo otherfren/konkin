@@ -82,7 +82,7 @@
                             <#if balanceValue == "-">
                                 <span class="mono coins-balance-value">-</span>
                             <#else>
-                                <span class="mono coins-balance-value" data-balance-value="${balanceValue?html}" data-masked="true">***</span>
+                                <span class="mono coins-balance-value" data-balance-value="${balanceValue}" data-masked="true">***</span>
                                 <button
                                     type="button"
                                     class="coins-balance-toggle"

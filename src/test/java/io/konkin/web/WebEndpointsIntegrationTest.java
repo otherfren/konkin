@@ -1106,7 +1106,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("7d 2h"));
-            assertTrue(authDefinitions.body().contains("sum in window >"));
+            assertTrue(authDefinitions.body().contains("sum in window &gt;"));
             assertTrue(authDefinitions.body().contains("Time window"));
             // litecoin/monero not configured (enabled=false) in this test config, so they should not appear
             assertFalse(authDefinitions.body().contains("LITECOIN"));

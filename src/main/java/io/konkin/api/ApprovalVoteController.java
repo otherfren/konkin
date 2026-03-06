@@ -35,21 +35,20 @@ public class ApprovalVoteController {
         ctx.json(voteRepo.listAllVotes());
     }
 
+    /**
+     * [C-2] Security: vote creation via REST API is disabled.
+     * Votes must be cast through the proper approval channels (web UI, Telegram, MCP agents).
+     */
     public void create(Context ctx) {
-        VoteDetail row = ctx.bodyAsClass(VoteDetail.class);
-        voteRepo.insertVote(row);
-        ctx.status(201).json(row);
+        ctx.status(403).result("Direct vote creation via REST API is not allowed. Use the proper approval channels.");
     }
 
+    /**
+     * [C-2] Security: vote update via REST API is disabled.
+     * Vote decisions are immutable once cast.
+     */
     public void update(Context ctx) {
-        long id = ctx.pathParamAsClass("id", Long.class).get();
-        VoteDetail row = ctx.bodyAsClass(VoteDetail.class);
-        if (id != row.id()) {
-            ctx.status(400).result("ID in path does not match ID in body");
-            return;
-        }
-        voteRepo.updateVote(row);
-        ctx.status(200).json(row);
+        ctx.status(403).result("Vote modification via REST API is not allowed. Votes are immutable once cast.");
     }
 
     public void delete(Context ctx) {

@@ -51,8 +51,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -74,6 +76,11 @@ public class LandingPageController {
     private static final Duration SESSION_TTL = Duration.ofHours(12);
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String WEB_UI_CHANNEL_ID = "web-ui";
+
+    // [M-6] Rate limiting for web UI login — same approach as AgentOAuthHandler
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+    private static final long FAILED_LOGIN_WINDOW_SECONDS = 60;
+    private final Deque<Instant> failedLoginAttempts = new ArrayDeque<>();
 
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
@@ -338,8 +345,17 @@ public class LandingPageController {
             return;
         }
 
+        // [M-6] Rate limiting on web UI login endpoint
+        if (isLoginRateLimited()) {
+            log.warn("Rate-limited landing page login attempt from {}", ctx.ip());
+            ctx.status(429);
+            showLogin(ctx, true);
+            return;
+        }
+
         String password = ctx.formParam("password");
         if (password == null || password.isBlank() || !passwordFileManager.verifyPassword(password)) {
+            recordFailedLogin();
             log.warn("Failed landing page login from {}", ctx.ip());
             showLogin(ctx, true);
             return;
@@ -397,6 +413,25 @@ public class LandingPageController {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    // [M-6] Rate limiting helpers — mirrors AgentOAuthHandler pattern
+    private synchronized boolean isLoginRateLimited() {
+        purgeExpiredLoginAttempts(Instant.now());
+        return failedLoginAttempts.size() >= MAX_FAILED_LOGIN_ATTEMPTS;
+    }
+
+    private synchronized void recordFailedLogin() {
+        Instant now = Instant.now();
+        purgeExpiredLoginAttempts(now);
+        failedLoginAttempts.addLast(now);
+    }
+
+    private synchronized void purgeExpiredLoginAttempts(Instant now) {
+        Instant cutoff = now.minusSeconds(FAILED_LOGIN_WINDOW_SECONDS);
+        while (!failedLoginAttempts.isEmpty() && !failedLoginAttempts.peekFirst().isAfter(cutoff)) {
+            failedLoginAttempts.removeFirst();
+        }
     }
 
     private static boolean isSecureRequest(Context ctx) {
@@ -728,6 +763,15 @@ public class LandingPageController {
         ApprovalRequestRow requestRow = requestRepo.findApprovalRequestById(requestId);
         if (requestRow != null) {
             vetoChannels = resolveVetoChannels(requestRow.coin());
+
+            // [M-4] Verify web-ui is an authorized auth channel for this coin
+            CoinConfig coinConfig = resolveCoinConfig(requestRow.coin());
+            if (coinConfig != null && coinConfig.auth() != null && !coinConfig.auth().webUi()) {
+                log.warn("Web UI vote rejected: web-ui auth channel not enabled for coin={}, requestId={}", requestRow.coin(), requestId);
+                renderLandingForPage(ctx, "queue", "", false, "",
+                        "Web UI voting is not enabled for " + requestRow.coin() + ".", true, null);
+                return;
+            }
         }
 
         // Cast vote transactionally (locks the request row, prevents race conditions)

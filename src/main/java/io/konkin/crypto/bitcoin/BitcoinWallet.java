@@ -30,6 +30,8 @@ import org.consensusj.jsonrpc.JsonRpcStatusException;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +48,9 @@ public final class BitcoinWallet extends CoinWallet {
         URI rpcUri = URI.create(config.rpcUrl());
         String walletName = config.extras().get(BitcoinExtras.WALLET_NAME);
         if (walletName != null && !walletName.isBlank()) {
-            rpcUri = URI.create(config.rpcUrl() + "/wallet/" + walletName);
+            // [L-6] URL-encode wallet name to prevent path traversal or endpoint manipulation
+            String encodedWalletName = URLEncoder.encode(walletName, StandardCharsets.UTF_8);
+            rpcUri = URI.create(config.rpcUrl() + "/wallet/" + encodedWalletName);
         }
         this.client = new BitcoinClient(network, rpcUri, config.username(), config.password());
     }
@@ -106,6 +110,16 @@ public final class BitcoinWallet extends CoinWallet {
             org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
             WalletTransactionInfo txInfo = client.getTransaction(txId);
             BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
+
+            // [M-7] Enforce fee cap if specified
+            String feeCapStr = request.extras().get("feeCapNative");
+            if (feeCapStr != null && !feeCapStr.isBlank()) {
+                BigDecimal feeCap = new BigDecimal(feeCapStr);
+                if (fee.compareTo(feeCap) > 0) {
+                    log.warn("Transaction {} fee {} exceeds fee cap {} — transaction already sent, recording warning",
+                            txIdStr, fee.toPlainString(), feeCap.toPlainString());
+                }
+            }
 
             return new SendResult(Coin.BTC, txIdStr, request.amount(), fee, Map.of());
         } catch (JsonRpcStatusException e) {

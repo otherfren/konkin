@@ -45,7 +45,7 @@
 
     <#if telegramNotice?has_content>
         <div class="telegram-notice <#if telegramNoticeError>telegram-notice-error<#else>telegram-notice-success</#if>">
-            ${telegramNotice?html}
+            ${telegramNotice}
         </div>
     </#if>
 
@@ -56,13 +56,13 @@
                 <#if telegramConfirmModeValue == "reset">
                     Confirm reset of all approved Telegram chats.
                 <#else>
-                    Confirm <strong>unapprove</strong> for chat <span class="mono">${telegramConfirmChatIdShortValue?html}</span>.
+                    Confirm <strong>unapprove</strong> for chat <span class="mono">${telegramConfirmChatIdShortValue}</span>.
                 </#if>
             </p>
             <div class="queue-confirm-actions">
                 <form method="post" action="${telegramConfirmActionPathValue}" class="queue-confirm-inline-form">
                     <#if telegramConfirmModeValue != "reset">
-                        <input type="hidden" name="chat_id" value="${telegramConfirmChatIdValue?html}">
+                        <input type="hidden" name="chat_id" value="${telegramConfirmChatIdValue}">
                     </#if>
                     <input type="hidden" name="confirm" value="yes">
                     <button type="submit" class="queue-action-btn queue-action-deny">
@@ -92,16 +92,16 @@
                 <tbody>
                     <#list telegramChatRequests as chat>
                         <tr>
-                            <td class="mono">${chat.chatId?html}</td>
-                            <td>${chat.chatType?html}</td>
-                            <td>${chat.chatTitle?html}</td>
-                            <td><#if chat.chatUsername?has_content>@${chat.chatUsername?html}<#else>—</#if></td>
+                            <td class="mono">${chat.chatId}</td>
+                            <td>${chat.chatType}</td>
+                            <td>${chat.chatTitle}</td>
+                            <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
                                 <form method="post" action="/telegram/approve" class="telegram-inline-form">
-                                    <input type="hidden" name="chat_id" value="${chat.chatId?html}">
-                                    <input type="hidden" name="chat_type" value="${chat.chatType?html}">
-                                    <input type="hidden" name="chat_title" value="${chat.chatTitle?html}">
-                                    <input type="hidden" name="chat_username" value="${chat.chatUsername?html}">
+                                    <input type="hidden" name="chat_id" value="${chat.chatId}">
+                                    <input type="hidden" name="chat_type" value="${chat.chatType}">
+                                    <input type="hidden" name="chat_title" value="${chat.chatTitle}">
+                                    <input type="hidden" name="chat_username" value="${chat.chatUsername}">
                                     <button type="submit" class="btn-approve">approve</button>
                                 </form>
                             </td>
@@ -130,13 +130,13 @@
                 <tbody>
                     <#list telegramApprovedChats as chat>
                         <tr>
-                            <td class="mono">${chat.chatId?html}</td>
-                            <td>${chat.chatDisplayName?html}</td>
-                            <td>${chat.chatType?html}</td>
-                            <td><#if chat.chatUsername?has_content>@${chat.chatUsername?html}<#else>—</#if></td>
+                            <td class="mono">${chat.chatId}</td>
+                            <td>${chat.chatDisplayName}</td>
+                            <td>${chat.chatType}</td>
+                            <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
                                 <form method="post" action="/telegram/unapprove" class="telegram-inline-form telegram-decision-form" data-telegram-decision="unapprove">
-                                    <input type="hidden" name="chat_id" value="${chat.chatId?html}">
+                                    <input type="hidden" name="chat_id" value="${chat.chatId}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">unapprove</button>
                                 </form>
                             </td>
@@ -165,7 +165,7 @@
                 rows="4"
                 maxlength="4096"
                 placeholder="Type your message..."
-            >${telegramDraft?html}</textarea>
+            >${telegramDraft}</textarea>
             <button type="submit" class="telegram-button">Send via Telegram to all bot subscribers</button>
         </form>
     </section>

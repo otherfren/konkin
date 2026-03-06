@@ -44,7 +44,7 @@
         <div class="auth-chip-row">
             <#list configuredAuthChannels as channel>
                 <span class="auth-chip <#if (channel.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                    ${(channel.name!'-')?html}: <strong>${(channel.enabled!false)?string('enabled', 'disabled')}</strong>
+                    ${(channel.name!'-')}: <strong>${(channel.enabled!false)?string('enabled', 'disabled')}</strong>
                 </span>
             </#list>
         </div>
@@ -92,7 +92,7 @@
                     <span class="mono auth-meta-value auth-inline-meta">daemon: ${coin.daemonSecretFile!'unknown'} · wallet: ${coin.walletSecretFile!'unknown'}</span>
                     <h4 class="auth-meta-label">Balance</h4>
                     <span class="auth-secret">
-                        <span class="mono auth-meta-value auth-secret-value" data-secret-value="${(coin.maskedBalance!'unknown')?html}" data-masked="true">***</span>
+                        <span class="mono auth-meta-value auth-secret-value" data-secret-value="${(coin.maskedBalance!'unknown')}" data-masked="true">***</span>
                         <button
                             type="button"
                             class="auth-secret-toggle"
@@ -111,7 +111,7 @@
                         <#assign lastAddr = (coin.lastDepositAddress!'')>
                         <#if lastAddr?has_content>
                             <div class="deposit-address-display">
-                                <textarea class="deposit-address-textarea" readonly rows="2" id="deposit-addr-${coin?index}">${lastAddr?html}</textarea>
+                                <textarea class="deposit-address-textarea" readonly rows="2" id="deposit-addr-${coin?index}">${lastAddr}</textarea>
                                 <button
                                     type="button"
                                     class="deposit-copy-btn"
@@ -126,7 +126,7 @@
                             <p class="deposit-address-empty mono">No deposit address generated yet.</p>
                         </#if>
                         <form method="post" action="/wallets/generate-address" class="deposit-generate-form">
-                            <input type="hidden" name="coin" value="${(coin.coin!'')?html}">
+                            <input type="hidden" name="coin" value="${(coin.coin!'')}">
                             <button type="submit" class="deposit-generate-btn">Generate new address</button>
                         </form>
                     </section>
@@ -161,12 +161,12 @@
                             <tbody>
                                 <#list txList as tx>
                                     <tr class="tx-row <#if !(tx.confirmed!false)>incoming-tx-unconfirmed</#if>" data-epoch="${(tx.epochMillis!0)?c}">
-                                        <td class="mono" title="${(tx.txId!'-')?html}">${(tx.txIdShort!'-')?html}</td>
-                                        <td><span class="tx-direction tx-direction-${(tx.direction!'incoming')?html}">${(tx.direction!'incoming')?html}</span></td>
-                                        <td class="mono">${(tx.amount!'-')?html}</td>
-                                        <td class="mono">${(tx.confirmations!'0')?html}</td>
+                                        <td class="mono" title="${(tx.txId!'-')}">${(tx.txIdShort!'-')}</td>
+                                        <td><span class="tx-direction tx-direction-${(tx.direction!'incoming')}">${(tx.direction!'incoming')}</span></td>
+                                        <td class="mono">${(tx.amount!'-')}</td>
+                                        <td class="mono">${(tx.confirmations!'0')}</td>
                                         <td><span class="incoming-tx-status <#if (tx.confirmed!false)>incoming-tx-confirmed-badge<#else>incoming-tx-unconfirmed-badge</#if>">${(tx.confirmed!false)?string('confirmed', 'unconfirmed')}</span></td>
-                                        <td class="mono">${(tx.timestamp!'-')?html}</td>
+                                        <td class="mono">${(tx.timestamp!'-')}</td>
                                     </tr>
                                 </#list>
                             </tbody>
@@ -191,7 +191,7 @@
                         <div class="auth-chip-row auth-chip-row-tight">
                             <#list verificationAgents as agent>
                                 <span class="auth-chip <#if (agent.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                                    ${(agent.name!'unknown')?html} @ ${(agent.connectUrl!'unknown')?html}:${(agent.port!'unknown')?html}
+                                    ${(agent.name!'unknown')} @ ${(agent.connectUrl!'unknown')}:${(agent.port!'unknown')}
                                 </span>
                             </#list>
                         </div>
@@ -259,7 +259,7 @@
                 <#if channelWarnings?size gt 0>
                     <ul class="auth-warning-list">
                         <#list channelWarnings as warning>
-                            <li>${warning?html}</li>
+                            <li>${warning}</li>
                         </#list>
                     </ul>
                 </#if>

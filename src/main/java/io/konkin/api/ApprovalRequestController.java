@@ -52,17 +52,47 @@ public class ApprovalRequestController {
         ctx.json(result);
     }
 
+    /**
+     * [C-2] Security: create is restricted — state must be PENDING/QUEUED, vote counters must be zero.
+     * Prevents attackers from inserting pre-approved requests.
+     */
     public void create(Context ctx) {
         ApprovalRequestRow row = ctx.bodyAsClass(ApprovalRequestRow.class);
+        String state = row.state();
+        if (state != null && !"PENDING".equalsIgnoreCase(state) && !"QUEUED".equalsIgnoreCase(state)) {
+            ctx.status(400).result("Cannot create request with state '" + state + "'. Only PENDING or QUEUED allowed.");
+            return;
+        }
+        if (row.approvalsGranted() != 0 || row.approvalsDenied() != 0) {
+            ctx.status(400).result("Cannot create request with non-zero approval/denial counts.");
+            return;
+        }
         requestRepo.insertApprovalRequest(row);
         ctx.status(201).json(row);
     }
 
+    /**
+     * [C-2] Security: update is restricted — cannot change state, vote counters, or nonce fields via API.
+     */
     public void update(Context ctx) {
         String id = ctx.pathParam("id");
         ApprovalRequestRow row = ctx.bodyAsClass(ApprovalRequestRow.class);
         if (!id.equals(row.id())) {
             ctx.status(400).result("ID in path does not match ID in body");
+            return;
+        }
+        ApprovalRequestRow existing = requestRepo.findApprovalRequestById(id);
+        if (existing == null) {
+            ctx.status(404).result("Request not found");
+            return;
+        }
+        // Prevent state/vote manipulation via PUT
+        if (row.state() != null && !row.state().equals(existing.state())) {
+            ctx.status(400).result("Cannot change request state via API update. State transitions are managed internally.");
+            return;
+        }
+        if (row.approvalsGranted() != existing.approvalsGranted() || row.approvalsDenied() != existing.approvalsDenied()) {
+            ctx.status(400).result("Cannot change approval/denial counts via API update.");
             return;
         }
         requestRepo.updateApprovalRequest(row);

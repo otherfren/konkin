@@ -25,6 +25,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -87,7 +88,7 @@ public class AgentOAuthHandler {
             return;
         }
 
-        if (!expectedClientId.equals(clientId) || !expectedClientSecret.equals(clientSecret)) {
+        if (!constantTimeEquals(expectedClientId, clientId) || !constantTimeEquals(expectedClientSecret, clientSecret)) {
             recordFailedAttempt();
             throw new UnauthorizedResponse("invalid_client");
         }
@@ -119,10 +120,23 @@ public class AgentOAuthHandler {
     }
 
     public boolean validateCredentials(String clientId, String clientSecret) {
-        return expectedClientId.equals(clientId) && expectedClientSecret.equals(clientSecret);
+        return constantTimeEquals(expectedClientId, clientId) && constantTimeEquals(expectedClientSecret, clientSecret);
     }
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    /**
+     * Constant-time string comparison to prevent timing side-channel attacks on secret values.
+     */
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return a == null && b == null;
+        }
+        return MessageDigest.isEqual(
+                a.getBytes(StandardCharsets.UTF_8),
+                b.getBytes(StandardCharsets.UTF_8)
+        );
     }
 }

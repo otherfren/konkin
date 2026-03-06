@@ -17,6 +17,8 @@
         </encoder>
     </appender>
 
+    <logger name="org.consensusj.jsonrpc" level="ERROR"/>
+
     <root level="${LOG_LEVEL:-INFO}">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="FILE"/>

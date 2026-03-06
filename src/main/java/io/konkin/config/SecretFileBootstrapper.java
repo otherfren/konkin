@@ -23,9 +23,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Creates missing secret files with sensible defaults on first start.
@@ -38,8 +41,63 @@ final class SecretFileBootstrapper {
     private SecretFileBootstrapper() {
     }
 
+    /**
+     * [M-3] Path for the auto-generated database password secret file.
+     */
+    private static final Path DB_SECRET_FILE = Path.of("./secrets/db.secret");
+    private static final String DB_SECRET_KEY = "db-password";
+
     static void bootstrap(KonkinConfig config) {
         bootstrapSecretFiles(config);
+    }
+
+    /**
+     * [M-3] Ensures a random DB password file exists, generates one on first boot.
+     * Returns the password from the file, or null if the config doesn't use default sa/sa credentials.
+     */
+    static String ensureDbPassword(String configuredPassword) {
+        // Only auto-generate if the user left the default insecure password
+        if (!"sa".equals(configuredPassword)) {
+            return configuredPassword;
+        }
+
+        if (Files.exists(DB_SECRET_FILE)) {
+            // Read existing generated password
+            try {
+                java.util.Properties props = new java.util.Properties();
+                try (var reader = Files.newBufferedReader(DB_SECRET_FILE, StandardCharsets.UTF_8)) {
+                    props.load(reader);
+                }
+                String stored = props.getProperty(DB_SECRET_KEY);
+                if (stored != null && !stored.isBlank()) {
+                    return stored;
+                }
+            } catch (IOException e) {
+                log.warn("Failed to read DB secret file {}, falling back to configured password", DB_SECRET_FILE, e);
+                return configuredPassword;
+            }
+        }
+
+        // Generate and persist a new random password
+        String generatedPassword = generateHexSecret(24);
+        try {
+            Path parent = DB_SECRET_FILE.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.writeString(DB_SECRET_FILE,
+                    "# Auto-generated database password — do not edit" + System.lineSeparator()
+                            + DB_SECRET_KEY + "=" + generatedPassword + System.lineSeparator(),
+                    StandardCharsets.UTF_8);
+            setOwnerOnlyPermissionsIfPossible(DB_SECRET_FILE);
+            log.warn("Generated random database password and stored in {}", DB_SECRET_FILE.toAbsolutePath());
+            log.warn("The default 'sa' password in config.toml is no longer used for the database connection.");
+        } catch (IOException e) {
+            log.warn("Failed to write DB secret file {}, falling back to configured password", DB_SECRET_FILE, e);
+            return configuredPassword;
+        }
+
+        return generatedPassword;
     }
 
     private static void bootstrapSecretFiles(KonkinConfig config) {
@@ -83,6 +141,7 @@ final class SecretFileBootstrapper {
                 Files.createDirectories(parent);
             }
             Files.writeString(secretFile, content, StandardCharsets.UTF_8);
+            setOwnerOnlyPermissionsIfPossible(secretFile);
             log.warn("Created missing secret file for {} at {}", keyName, secretFile.toAbsolutePath());
         } catch (IOException e) {
             throw new IllegalStateException("Failed to create secret file for " + keyName + ": " + secretFile, e);
@@ -103,6 +162,7 @@ final class SecretFileBootstrapper {
             String content = "client-id=" + clientId + System.lineSeparator()
                     + "client-secret=" + clientSecret + System.lineSeparator();
             Files.writeString(secretFile, content, StandardCharsets.UTF_8);
+            setOwnerOnlyPermissionsIfPossible(secretFile);
             log.warn("Created missing {} agent secret file at {}", agentRole, secretFile.toAbsolutePath());
             printAgentSecretBanner(secretFile, clientId, agentRole, clientSecret);
         } catch (IOException e) {
@@ -122,6 +182,7 @@ final class SecretFileBootstrapper {
             }
             String apiKey = generateApiKey();
             Files.writeString(secretFile, "api-key=" + apiKey + System.lineSeparator(), StandardCharsets.UTF_8);
+            setOwnerOnlyPermissionsIfPossible(secretFile);
             log.warn("Created missing rest-api secret file at {}", secretFile.toAbsolutePath());
             printRestApiKeyBanner(secretFile, apiKey);
         } catch (IOException e) {
@@ -190,5 +251,22 @@ final class SecretFileBootstrapper {
             hex.append(Character.forDigit(value & 0xF, 16));
         }
         return hex.toString();
+    }
+
+    /**
+     * [M-1] Set owner-only (600) permissions on secret files to prevent other users from reading them.
+     */
+    private static void setOwnerOnlyPermissionsIfPossible(Path file) {
+        try {
+            Set<PosixFilePermission> perms = EnumSet.of(
+                    PosixFilePermission.OWNER_READ,
+                    PosixFilePermission.OWNER_WRITE
+            );
+            Files.setPosixFilePermissions(file, perms);
+        } catch (UnsupportedOperationException ignored) {
+            // Non-POSIX filesystem (e.g. Windows), ignore.
+        } catch (IOException e) {
+            log.warn("Failed to set owner-only permissions on secret file: {}", file, e);
+        }
     }
 }

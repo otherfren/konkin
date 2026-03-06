@@ -24,6 +24,7 @@ import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.mapper.RowMapper;
 
 import javax.sql.DataSource;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -448,6 +449,30 @@ public class ApprovalRequestRepository {
         return jdbi.withHandle(h -> h.createUpdate("DELETE FROM approval_coin_runtime WHERE coin = :coin")
                 .bind("coin", coin)
                 .execute() > 0);
+    }
+
+    /**
+     * Atomically transition a request from expectedState to newState.
+     * Returns true if exactly one row was updated (i.e. state matched), false otherwise.
+     * This prevents TOCTOU race conditions in the execution poller.
+     */
+    public boolean compareAndSetState(String id, String expectedState, String newState,
+                                      String reasonCode, String reasonText, Instant updatedAt) {
+        return jdbi.withHandle(h -> h.createUpdate("""
+                        UPDATE approval_requests
+                        SET state = :newState,
+                            state_reason_code = :reasonCode,
+                            state_reason_text = :reasonText,
+                            updated_at = :updatedAt
+                        WHERE id = :id AND state = :expectedState
+                        """)
+                .bind("id", id)
+                .bind("expectedState", expectedState)
+                .bind("newState", newState)
+                .bind("reasonCode", reasonCode)
+                .bind("reasonText", reasonText)
+                .bind("updatedAt", updatedAt)
+                .execute() == 1);
     }
 
     // --- Private ---

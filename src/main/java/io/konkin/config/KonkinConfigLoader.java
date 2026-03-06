@@ -48,7 +48,9 @@ final class KonkinConfigLoader {
         int logRotateMaxSizeMb = toml.getIntOrElse("server.log-rotate-max-size-mb", 10);
         String dbUrl = toml.getOrElse("database.url", "jdbc:h2:./data/konkin");
         String dbUser = toml.getOrElse("database.user", "konkin");
-        String dbPassword = toml.getOrElse("database.password", "konkin");
+        // [M-3] Resolve DB password: replace default 'sa' with auto-generated secret
+        String dbPassword = SecretFileBootstrapper.ensureDbPassword(
+                toml.getOrElse("database.password", "konkin"));
         int dbPoolSize = toml.getIntOrElse("database.pool-size", 5);
 
         boolean landingEnabled = getOrElseWithFallback(toml, "web-ui.enabled", "landing.enabled", false);

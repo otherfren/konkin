@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -281,6 +282,17 @@ public class KonkinWebServer {
             }
         });
 
+        // [M-2] Security response headers for all requests
+        app.before(ctx -> {
+            ctx.header("X-Content-Type-Options", "nosniff");
+            ctx.header("X-Frame-Options", "DENY");
+            ctx.header("Referrer-Policy", "strict-origin-when-cross-origin");
+            ctx.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
+            if ("https".equalsIgnoreCase(ctx.header("X-Forwarded-Proto")) || "https".equalsIgnoreCase(ctx.scheme())) {
+                ctx.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            }
+        });
+
         if (config.restApiEnabled()) {
             Path restApiSecretFile = Path.of(config.restApiSecretFile());
             String expectedApiKey = readRestApiKey(restApiSecretFile);
@@ -292,7 +304,7 @@ public class KonkinWebServer {
                 }
 
                 String providedApiKey = ctx.header("X-API-Key");
-                if (providedApiKey == null || !providedApiKey.equals(expectedApiKey)) {
+                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedApiKey)) {
                     throw new UnauthorizedResponse();
                 }
             });
@@ -663,5 +675,18 @@ public class KonkinWebServer {
 
     public boolean isRunning() {
         return running;
+    }
+
+    /**
+     * Constant-time string comparison to prevent timing side-channel attacks on secret values.
+     */
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                a.getBytes(StandardCharsets.UTF_8),
+                b.getBytes(StandardCharsets.UTF_8)
+        );
     }
 }

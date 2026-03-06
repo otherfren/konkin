@@ -24,4 +24,16 @@ public record WalletConnectionConfig(Coin coin, String rpcUrl, String username, 
         if (rpcUrl == null || rpcUrl.isBlank()) throw new IllegalArgumentException("rpcUrl must not be blank");
         extras = extras == null ? Map.of() : Map.copyOf(extras);
     }
+
+    /**
+     * [M-8] Override toString to redact credentials — prevents accidental leakage in logs/stack traces.
+     */
+    @Override
+    public String toString() {
+        return "WalletConnectionConfig[coin=" + coin
+                + ", rpcUrl=" + rpcUrl
+                + ", username=" + (username != null ? "***" : "null")
+                + ", password=***"
+                + ", extras=" + extras + "]";
+    }
 }

@@ -20,6 +20,9 @@ import io.konkin.db.JdbiFactory;
 import org.jdbi.v3.core.Jdbi;
 
 import javax.sql.DataSource;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
@@ -27,6 +30,11 @@ import java.util.Optional;
 
 /**
  * Persists agent bearer tokens in the H2 database so they survive server restarts.
+ * <p>
+ * [L-1] Tokens are stored as SHA-256 hashes. The raw token is returned to the caller
+ * on {@link #issueToken(String)} and never persisted. On validation, the provided
+ * token is hashed and compared against the stored hash.
+ * <p>
  * Tokens never expire — they are only removed when:
  * <ul>
  *   <li>a new token is issued and the per-agent limit (2) is exceeded (oldest evicted)</li>
@@ -39,17 +47,18 @@ public class AgentTokenStore {
     private static final int TOKEN_BYTE_LENGTH = 32;
     private static final int MAX_ACTIVE_TOKENS_PER_AGENT = 2;
 
+    // [L-1] Queries now use token_hash column instead of token
     private static final String INSERT_TOKEN =
-            "INSERT INTO agent_tokens (token, agent_name, created_at) VALUES (:token, :agentName, :createdAt)";
+            "INSERT INTO agent_tokens (token_hash, agent_name, created_at) VALUES (:tokenHash, :agentName, :createdAt)";
 
-    private static final String SELECT_BY_TOKEN =
-            "SELECT agent_name FROM agent_tokens WHERE token = :token";
+    private static final String SELECT_BY_TOKEN_HASH =
+            "SELECT agent_name FROM agent_tokens WHERE token_hash = :tokenHash";
 
-    private static final String SELECT_TOKENS_FOR_AGENT =
-            "SELECT token FROM agent_tokens WHERE agent_name = :agentName ORDER BY created_at ASC";
+    private static final String SELECT_TOKEN_HASHES_FOR_AGENT =
+            "SELECT token_hash FROM agent_tokens WHERE agent_name = :agentName ORDER BY created_at ASC";
 
-    private static final String DELETE_TOKEN =
-            "DELETE FROM agent_tokens WHERE token = :token";
+    private static final String DELETE_TOKEN_HASH =
+            "DELETE FROM agent_tokens WHERE token_hash = :tokenHash";
 
     private static final String DELETE_ALL =
             "DELETE FROM agent_tokens";
@@ -63,11 +72,12 @@ public class AgentTokenStore {
 
     public String issueToken(String agentName) {
         String token = generateToken();
+        String tokenHash = sha256Hex(token);
         Instant now = Instant.now();
 
         jdbi.useHandle(h -> {
             h.createUpdate(INSERT_TOKEN)
-                    .bind("token", token)
+                    .bind("tokenHash", tokenHash)
                     .bind("agentName", agentName)
                     .bind("createdAt", now)
                     .execute();
@@ -84,9 +94,10 @@ public class AgentTokenStore {
             return Optional.empty();
         }
 
+        String tokenHash = sha256Hex(token);
         return jdbi.withHandle(h ->
-                h.createQuery(SELECT_BY_TOKEN)
-                        .bind("token", token)
+                h.createQuery(SELECT_BY_TOKEN_HASH)
+                        .bind("tokenHash", tokenHash)
                         .mapTo(String.class)
                         .findOne()
         );
@@ -98,15 +109,15 @@ public class AgentTokenStore {
 
     private void evictOldTokens(String agentName) {
         jdbi.useHandle(h -> {
-            List<String> tokens = h.createQuery(SELECT_TOKENS_FOR_AGENT)
+            List<String> tokenHashes = h.createQuery(SELECT_TOKEN_HASHES_FOR_AGENT)
                     .bind("agentName", agentName)
                     .mapTo(String.class)
                     .list();
 
-            while (tokens.size() > MAX_ACTIVE_TOKENS_PER_AGENT) {
-                String oldest = tokens.remove(0);
-                h.createUpdate(DELETE_TOKEN)
-                        .bind("token", oldest)
+            while (tokenHashes.size() > MAX_ACTIVE_TOKENS_PER_AGENT) {
+                String oldest = tokenHashes.remove(0);
+                h.createUpdate(DELETE_TOKEN_HASH)
+                        .bind("tokenHash", oldest)
                         .execute();
             }
         });
@@ -124,5 +135,25 @@ public class AgentTokenStore {
             chars[i * 2 + 1] = hex[value & 0x0F];
         }
         return new String(chars);
+    }
+
+    /**
+     * [L-1] SHA-256 hash of the token, returned as lowercase hex.
+     */
+    private static String sha256Hex(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(token.getBytes(StandardCharsets.UTF_8));
+            char[] hexChars = new char[hash.length * 2];
+            final char[] hexArray = "0123456789abcdef".toCharArray();
+            for (int i = 0; i < hash.length; i++) {
+                int v = hash[i] & 0xFF;
+                hexChars[i * 2] = hexArray[v >>> 4];
+                hexChars[i * 2 + 1] = hexArray[v & 0x0F];
+            }
+            return new String(hexChars);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
     }
 }

@@ -41,10 +41,12 @@ public class StateTransitionController {
         }
     }
 
+    /**
+     * [C-2] Security: state transition creation via REST API is disabled.
+     * State transitions are managed internally by the approval and execution services.
+     */
     public void create(Context ctx) {
-        StateTransitionRow row = ctx.bodyAsClass(StateTransitionRow.class);
-        historyRepo.insertStateTransition(row);
-        ctx.status(201).json(row);
+        ctx.status(403).result("Direct state transition creation via REST API is not allowed. State transitions are managed internally.");
     }
 
     public void delete(Context ctx) {

@@ -16,6 +16,7 @@
 
 package io.konkin.web.service;
 
+import freemarker.core.HTMLOutputFormat;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
@@ -59,6 +60,7 @@ public class LandingPageService {
 
         this.freemarker = new Configuration(Configuration.VERSION_2_3_34);
         this.freemarker.setDefaultEncoding("UTF-8");
+        this.freemarker.setOutputFormat(HTMLOutputFormat.INSTANCE);
         this.freemarker.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         this.freemarker.setLogTemplateExceptions(false);
         this.freemarker.setWrapUncheckedExceptions(true);

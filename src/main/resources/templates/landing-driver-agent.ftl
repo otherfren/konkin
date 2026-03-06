@@ -136,7 +136,7 @@
             <#if (mcpRegistration.enabled!false)>
                 <div class="driver-command-block">
                     <span class="auth-kv-label">1) Get bearer token</span>
-                    <pre class="driver-command"><code>${(mcpRegistration.tokenCommand!'-')?html}</code></pre>
+                    <pre class="driver-command"><code>${(mcpRegistration.tokenCommand!'-')}</code></pre>
                 </div>
                 <#assign agentCommands = mcpRegistration.agentCommands![]>
                 <#if agentCommands?has_content>
@@ -145,20 +145,20 @@
                             <span class="auth-kv-label">Agent</span>
                             <select id="driver-agent-select" class="driver-agent-select" aria-label="Select agent">
                                 <#list agentCommands as agent>
-                                    <option value="${agent.id?html}">${agent.label?html}</option>
+                                    <option value="${agent.id}">${agent.label}</option>
                                 </#list>
                             </select>
                         </div>
                     </div>
                     <#list agentCommands as agent>
-                        <div class="driver-agent-commands" data-agent-id="${agent.id?html}"<#if !agent?is_first> style="display:none"</#if>>
+                        <div class="driver-agent-commands" data-agent-id="${agent.id}"<#if !agent?is_first> style="display:none"</#if>>
                             <div class="driver-command-block">
                                 <span class="auth-kv-label">2) Register MCP server</span>
-                                <pre class="driver-command"><code>${(agent.registerCommand!'-')?html}</code></pre>
+                                <pre class="driver-command"><code>${(agent.registerCommand!'-')}</code></pre>
                             </div>
                             <div class="driver-command-block">
                                 <span class="auth-kv-label">3) Verify registration</span>
-                                <pre class="driver-command"><code>${(agent.verifyCommand!'-')?html}</code></pre>
+                                <pre class="driver-command"><code>${(agent.verifyCommand!'-')}</code></pre>
                             </div>
                         </div>
                     </#list>

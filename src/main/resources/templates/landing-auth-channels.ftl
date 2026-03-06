@@ -128,11 +128,11 @@
                                 <#if (user.approved!false)>approved<#else>discovered</#if>
                             </span>
                         </td>
-                        <td><span class="auth-channel-name">${(user.chatDisplayName!'-')?html}</span></td>
-                        <td>${(user.chatType!'unknown')?html}</td>
+                        <td><span class="auth-channel-name">${(user.chatDisplayName!'-')}</span></td>
+                        <td>${(user.chatType!'unknown')}</td>
                         <td>
                             <span class="auth-channel-secret-wrap">
-                                <span class="mono auth-secret-value" data-secret-value="${(user.chatId!'-')?html}" data-masked="true">***</span>
+                                <span class="mono auth-secret-value" data-secret-value="${(user.chatId!'-')}" data-masked="true">***</span>
                                 <button
                                     type="button"
                                     class="auth-secret-toggle"
@@ -146,7 +146,7 @@
                         <td>
                             <#if (user.chatUsername!'')?has_content>
                                 <span class="auth-channel-secret-wrap">
-                                    <span class="mono auth-secret-value" data-secret-value="@${(user.chatUsername!'')?html}" data-masked="true">***</span>
+                                    <span class="mono auth-secret-value" data-secret-value="@${(user.chatUsername!'')}" data-masked="true">***</span>
                                     <button
                                         type="button"
                                         class="auth-secret-toggle"
@@ -160,7 +160,7 @@
                                 <span class="mono">-</span>
                             </#if>
                         </td>
-                        <td>${(user.chatTitle!'-')?html}</td>
+                        <td>${(user.chatTitle!'-')}</td>
                     </tr>
                 </#list>
                 </tbody>
@@ -237,7 +237,7 @@
 
         <#list authAgentMcpRegistrations as reg>
             <div class="auth-agent-mcp-block" aria-labelledby="auth-mcp-agent-${reg?index}">
-                <h4 id="auth-mcp-agent-${reg?index}" class="auth-section-title">${(reg.agentName!'-')?html}</h4>
+                <h4 id="auth-mcp-agent-${reg?index}" class="auth-section-title">${(reg.agentName!'-')}</h4>
                 <div class="auth-kv-grid">
                     <div class="auth-kv-item">
                         <span class="auth-kv-label">SSE endpoint</span>
@@ -252,29 +252,29 @@
                 <#if (reg.enabled!false)>
                     <div class="driver-command-block">
                         <span class="auth-kv-label">1) Get bearer token</span>
-                        <pre class="driver-command"><code>${(reg.tokenCommand!'-')?html}</code></pre>
+                        <pre class="driver-command"><code>${(reg.tokenCommand!'-')}</code></pre>
                     </div>
                     <#assign regAgentCommands = reg.agentCommands![]>
                     <#if regAgentCommands?has_content>
                         <div class="driver-command-block">
                             <div class="driver-agent-select-row">
                                 <span class="auth-kv-label">Agent</span>
-                                <select class="driver-agent-select auth-agent-mcp-select" data-reg-index="${reg?index}" aria-label="Select MCP client for ${(reg.agentName!'')?html}">
+                                <select class="driver-agent-select auth-agent-mcp-select" data-reg-index="${reg?index}" aria-label="Select MCP client for ${(reg.agentName!'')}">
                                     <#list regAgentCommands as agent>
-                                        <option value="${agent.id?html}">${agent.label?html}</option>
+                                        <option value="${agent.id}">${agent.label}</option>
                                     </#list>
                                 </select>
                             </div>
                         </div>
                         <#list regAgentCommands as agent>
-                            <div class="auth-agent-mcp-commands" data-reg-index="${reg?index}" data-agent-id="${agent.id?html}"<#if !agent?is_first> style="display:none"</#if>>
+                            <div class="auth-agent-mcp-commands" data-reg-index="${reg?index}" data-agent-id="${agent.id}"<#if !agent?is_first> style="display:none"</#if>>
                                 <div class="driver-command-block">
                                     <span class="auth-kv-label">2) Register MCP server</span>
-                                    <pre class="driver-command"><code>${(agent.registerCommand!'-')?html}</code></pre>
+                                    <pre class="driver-command"><code>${(agent.registerCommand!'-')}</code></pre>
                                 </div>
                                 <div class="driver-command-block">
                                     <span class="auth-kv-label">3) Verify registration</span>
-                                    <pre class="driver-command"><code>${(agent.verifyCommand!'-')?html}</code></pre>
+                                    <pre class="driver-command"><code>${(agent.verifyCommand!'-')}</code></pre>
                                 </div>
                             </div>
                         </#list>

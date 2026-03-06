@@ -101,21 +101,21 @@
             <select class="log-filter-select" name="log_queue_coin">
                 <option value="">all coins</option>
                 <#list lqFilterCoins as coin>
-                    <option value="${coin?html}"<#if coin == lqFilterCoin> selected</#if>>${coin}</option>
+                    <option value="${coin}"<#if coin == lqFilterCoin> selected</#if>>${coin}</option>
                 </#list>
             </select>
 
             <select class="log-filter-select" name="log_queue_tool">
                 <option value="">all tools</option>
                 <#list lqFilterTools as tool>
-                    <option value="${tool?html}"<#if tool == lqFilterTool> selected</#if>>${tool}</option>
+                    <option value="${tool}"<#if tool == lqFilterTool> selected</#if>>${tool}</option>
                 </#list>
             </select>
 
             <select class="log-filter-select" name="log_queue_state">
                 <option value="">all states</option>
                 <#list lqFilterStates as state>
-                    <option value="${state?html}"<#if state == lqFilterState> selected</#if>>${state}</option>
+                    <option value="${state}"<#if state == lqFilterState> selected</#if>>${state}</option>
                 </#list>
             </select>
 
@@ -123,7 +123,7 @@
                 class="log-filter-input"
                 type="text"
                 name="log_queue_filter"
-                value="${lqFilterText?html}"
+                value="${lqFilterText}"
                 placeholder="Filter by id or decider"
             >
             <button type="submit" class="queue-action-btn log-filter-btn">filter</button>
@@ -162,7 +162,7 @@
                                     type="button"
                                     class="queue-action-btn queue-copy-btn"
                                     hidden
-                                    data-copy-value="${(row.id!'')?html}"
+                                    data-copy-value="${(row.id!'')}"
                                 >copy</button>
                             </#if>
                         </td>
@@ -190,7 +190,7 @@
                                 href="/details?id=${(row.id!'')?url('UTF-8')}"
                                 data-details-source-id="details-source-log-${row?index}"
                             >details</a>
-                            <pre id="details-source-log-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')?html}</pre>
+                            <pre id="details-source-log-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')}</pre>
                         </td>
                         <td class="action-cell"></td>
                     </tr>
