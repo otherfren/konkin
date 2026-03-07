@@ -103,6 +103,28 @@ body {
     font-size: 0.75rem;
 }
 
+a.menu-group-active {
+    color: var(--accent);
+}
+
+.auth-coin-link {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.auth-coin-link:hover {
+    text-decoration: underline;
+}
+
+.menu-sub {
+    padding-left: 22px !important;
+    font-size: 0.78rem !important;
+}
+
+span.menu-sub {
+    display: block;
+}
+
 .menu-toggle {
     position: absolute;
     opacity: 0;

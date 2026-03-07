@@ -262,6 +262,7 @@ public class KonkinWebServer {
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
+            landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
@@ -421,6 +422,7 @@ public class KonkinWebServer {
             app.get("/history/export", webUiPageControllerFinal::handleHistoryExport);
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
+            app.get("/wallets/{coin}", webUiPageControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);

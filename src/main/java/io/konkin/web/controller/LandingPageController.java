@@ -277,6 +277,27 @@ public class LandingPageController {
         ));
     }
 
+    public void handleWalletPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String coinId = ctx.pathParam("coin").toLowerCase(Locale.ROOT);
+        Map<String, Object> walletData = mapper.buildSingleCoinWalletModel(coinId);
+        if (walletData == null) {
+            ctx.redirect("/wallets");
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderWallet(
+                passwordProtectionEnabled,
+                coinId,
+                walletData
+        ));
+    }
+
     public void handleGenerateDepositAddress(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);
@@ -309,7 +330,7 @@ public class LandingPageController {
             log.warn("Failed to generate deposit address for {}: {}", coinId, e.getMessage());
         }
 
-        ctx.redirect("/wallets");
+        ctx.redirect("/wallets/" + coinId);
     }
 
     public void handleAuthChannelsPage(Context ctx) {

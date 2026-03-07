@@ -250,10 +250,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
 
+            // No coins configured — /wallets renders the empty overview page
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("Wallets"));
-            // litecoin/monero not configured (enabled=false) in this test config, so they should not appear
             assertFalse(authDefinitions.body().contains("LITECOIN"));
             assertFalse(authDefinitions.body().contains("MONERO"));
             assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
@@ -1003,11 +1003,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("Auth channel configured"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-a"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-b"));
             assertTrue(authDefinitions.body().contains("2-of-N"));
             assertTrue(authDefinitions.body().contains("Veto channels"));
             assertTrue(authDefinitions.body().contains("telegram"));
@@ -1102,7 +1099,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("7d 2h"));
             assertTrue(authDefinitions.body().contains("sum in window &gt;"));
@@ -1213,14 +1210,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("Auth channel configured"));
-            assertTrue(authDefinitions.body().contains("web-ui: <strong>enabled</strong>"));
-            assertTrue(authDefinitions.body().contains("rest-api: <strong>enabled</strong>"));
-            assertTrue(authDefinitions.body().contains("telegram: <strong>disabled</strong>"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-enabled"));
-            assertFalse(authDefinitions.body().contains("verification-agent:agent-disabled"));
+            assertTrue(authDefinitions.body().contains("web-ui <strong>on</strong>"));
+            assertTrue(authDefinitions.body().contains("rest-api <strong>on</strong>"));
+            assertTrue(authDefinitions.body().contains("telegram <strong>off</strong>"));
         }
     }
 

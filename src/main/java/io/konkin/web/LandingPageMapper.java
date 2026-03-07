@@ -664,6 +664,30 @@ public class LandingPageMapper {
         return Map.copyOf(root);
     }
 
+    public List<String> getEnabledCoinIds() {
+        List<String> coins = new ArrayList<>();
+        if (config.bitcoin().enabled()) coins.add("bitcoin");
+        if (config.litecoin().enabled()) coins.add("litecoin");
+        if (config.monero().enabled()) coins.add("monero");
+        return List.copyOf(coins);
+    }
+
+    public Map<String, Object> buildSingleCoinWalletModel(String coinId) {
+        CoinConfig coinConfig = switch (coinId) {
+            case "bitcoin" -> config.bitcoin();
+            case "litecoin" -> config.litecoin();
+            case "monero" -> config.monero();
+            default -> null;
+        };
+        if (coinConfig == null || !coinConfig.enabled()) {
+            return null;
+        }
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("configuredAuthChannels", buildConfiguredAuthChannels());
+        root.put("coin", buildCoinAuthDefinition(coinId, coinConfig));
+        return Map.copyOf(root);
+    }
+
     // ── Configured auth channels ───────────────────────────────────────────
 
     public List<Map<String, Object>> buildConfiguredAuthChannels() {

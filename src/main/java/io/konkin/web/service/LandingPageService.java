@@ -41,6 +41,7 @@ public class LandingPageService {
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
     private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
+    private static final String WALLET_TEMPLATE_NAME = "landing-wallet.ftl";
     private static final String AUTH_CHANNELS_TEMPLATE_NAME = "landing-auth-channels.ftl";
     private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
     private static final String API_KEYS_TEMPLATE_NAME = "landing-api-keys.ftl";
@@ -50,6 +51,7 @@ public class LandingPageService {
     private final AtomicLong staticAssetsVersion;
     private final boolean telegramEnabled;
     private volatile boolean restApiKeyMissing;
+    private volatile List<String> enabledCoins = List.of();
 
     public LandingPageService(
             Path templateDirectory,
@@ -117,6 +119,7 @@ public class LandingPageService {
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);
         model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
         model.put("telegramNotice", telegramNotice == null ? "" : telegramNotice);
         model.put("telegramNoticeError", telegramNoticeError);
         model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
@@ -163,9 +166,33 @@ public class LandingPageService {
         model.put("showLogout", showLogout);
         model.put("activePage", "wallets");
         model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
         model.put("wallets", walletsData == null ? Map.of() : walletsData);
 
         return renderTemplate(WALLETS_TEMPLATE_NAME, model);
+    }
+
+    public String renderWallet(boolean showLogout, String coinId, Map<String, Object> walletData) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/history");
+        model.put("telegramPath", "/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", "wallet_" + coinId);
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
+        model.put("walletData", walletData == null ? Map.of() : walletData);
+
+        return renderTemplate(WALLET_TEMPLATE_NAME, model);
     }
 
     public String renderAuthChannels(boolean showLogout, Map<String, Object> authChannelsData) {
@@ -185,6 +212,7 @@ public class LandingPageService {
         model.put("showLogout", showLogout);
         model.put("activePage", "auth_channels");
         model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
         model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
@@ -207,6 +235,7 @@ public class LandingPageService {
         model.put("showLogout", showLogout);
         model.put("activePage", "driver_agent");
         model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
         model.put("driverAgent", driverAgentData == null ? Map.of() : driverAgentData);
 
         return renderTemplate(DRIVER_AGENT_TEMPLATE_NAME, model);
@@ -256,6 +285,7 @@ public class LandingPageService {
         model.put("showLogout", showLogout);
         model.put("activePage", "api_keys");
         model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
         model.put("restApiEnabled", restApiEnabled);
         model.put("hasApiKey", hasApiKey);
         model.put("revealedApiKey", revealedApiKey != null ? revealedApiKey : "");
@@ -269,6 +299,10 @@ public class LandingPageService {
 
     public void setRestApiKeyMissing(boolean missing) {
         this.restApiKeyMissing = missing;
+    }
+
+    public void setEnabledCoins(List<String> coins) {
+        this.enabledCoins = coins == null ? List.of() : List.copyOf(coins);
     }
 
     public void markStaticAssetsChanged() {
