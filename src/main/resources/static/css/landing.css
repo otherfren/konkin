@@ -98,6 +98,11 @@ body {
     border-left: 2px solid var(--accent);
 }
 
+.menu-warn {
+    color: #e6a817;
+    font-size: 0.75rem;
+}
+
 .menu-toggle {
     position: absolute;
     opacity: 0;
@@ -613,6 +618,34 @@ p {
 
 .setup-copy-button:hover {
     border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ── api keys ── */
+.api-keys-info {
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin: 0 0 12px;
+}
+
+.api-keys-info code {
+    color: var(--fg);
+}
+
+.api-keys-warn {
+    color: var(--accent);
+    font-size: 0.9rem;
+    margin: 0 0 16px;
+}
+
+.api-keys-back-link {
+    display: inline-block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.api-keys-back-link:hover {
     color: var(--accent);
 }
 

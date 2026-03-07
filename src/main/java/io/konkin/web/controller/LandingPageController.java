@@ -63,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.konkin.web.UiFormattingUtils.*;
 import static io.konkin.web.WebUtils.*;
@@ -99,6 +100,8 @@ public class LandingPageController {
     private final LandingPageMapper mapper;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final VoteService voteService;
+    private final Path restApiSecretFilePath;
+    private final AtomicReference<String> activeApiKey;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
@@ -119,28 +122,8 @@ public class LandingPageController {
     ) {
         this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, null, null);
-    }
-
-    public LandingPageController(
-            LandingPageService landingPageService,
-            boolean passwordProtectionEnabled,
-            Path passwordFilePath,
-            PasswordFileManager passwordFileManager,
-            boolean telegramEnabled,
-            TelegramWebController telegramWebController,
-            ApprovalRequestRepository requestRepo,
-            VoteRepository voteRepo,
-            ChannelRepository channelRepo,
-            HistoryRepository historyRepo,
-            RequestDependencyLoader depLoader,
-            KonkinConfig config,
-            LandingPageMapper mapper,
-            Map<Coin, WalletSupervisor> walletSupervisors
-    ) {
-        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
-                telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, null);
+                channelRepo, historyRepo, depLoader, config, mapper, null, null,
+                null, null);
     }
 
     public LandingPageController(
@@ -159,6 +142,31 @@ public class LandingPageController {
             LandingPageMapper mapper,
             Map<Coin, WalletSupervisor> walletSupervisors,
             VoteService voteService
+    ) {
+        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
+                telegramEnabled, telegramWebController, requestRepo, voteRepo,
+                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, voteService,
+                null, null);
+    }
+
+    public LandingPageController(
+            LandingPageService landingPageService,
+            boolean passwordProtectionEnabled,
+            Path passwordFilePath,
+            PasswordFileManager passwordFileManager,
+            boolean telegramEnabled,
+            TelegramWebController telegramWebController,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
+            KonkinConfig config,
+            LandingPageMapper mapper,
+            Map<Coin, WalletSupervisor> walletSupervisors,
+            VoteService voteService,
+            Path restApiSecretFilePath,
+            AtomicReference<String> activeApiKey
     ) {
         if (config == null) {
             throw new IllegalArgumentException("config is required");
@@ -179,6 +187,8 @@ public class LandingPageController {
         this.mapper = mapper;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.voteService = voteService;
+        this.restApiSecretFilePath = restApiSecretFilePath;
+        this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
     }
 
     public void setTelegramWebController(TelegramWebController telegramWebController) {
@@ -356,6 +366,80 @@ public class LandingPageController {
     private void showSetup(Context ctx, String step, String password) {
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderSetup(step, password));
+    }
+
+    // ── API key management ─────────────────────────────────────────────────
+
+    public void handleApiKeysPage(Context ctx) {
+        if (passwordProtectionEnabled && !isWizardMode() && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        boolean restApiEnabled = config.restApiEnabled();
+        boolean hasKey = activeApiKey.get() != null;
+        String secretFile = restApiSecretFilePath != null ? restApiSecretFilePath.toString() : "";
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderApiKeys(
+                passwordProtectionEnabled,
+                restApiEnabled, hasKey, "", secretFile));
+    }
+
+    public void handleApiKeysRotate(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        if (!config.restApiEnabled() || restApiSecretFilePath == null) {
+            ctx.redirect("/api_keys");
+            return;
+        }
+
+        String newKey = generateApiKey();
+        writeApiKeyFile(restApiSecretFilePath, newKey);
+        activeApiKey.set(newKey);
+        landingPageService.setRestApiKeyMissing(false);
+        log.info("REST API key rotated via web UI, secret file: {}", restApiSecretFilePath.toAbsolutePath());
+
+        String secretFile = restApiSecretFilePath.toString();
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderApiKeys(
+                passwordProtectionEnabled,
+                true, true, newKey, secretFile));
+    }
+
+    private static String generateApiKey() {
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    }
+
+    private static void writeApiKeyFile(Path secretFile, String apiKey) {
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                java.nio.file.Files.createDirectories(parent);
+            }
+            java.nio.file.Files.writeString(secretFile,
+                    "api-key=" + apiKey + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            setOwnerOnlyPermissions(secretFile);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Failed to write REST API secret file: " + secretFile, e);
+        }
+    }
+
+    private static void setOwnerOnlyPermissions(Path file) {
+        try {
+            java.nio.file.Files.setPosixFilePermissions(file, java.util.EnumSet.of(
+                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
+            ));
+        } catch (UnsupportedOperationException ignored) {
+        } catch (java.io.IOException e) {
+            log.warn("Failed to set owner-only permissions on secret file: {}", file, e);
+        }
     }
 
     // ── Login / logout ─────────────────────────────────────────────────────

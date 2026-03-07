@@ -75,6 +75,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class KonkinWebServer {
 
@@ -230,6 +231,13 @@ public class KonkinWebServer {
             }
         }
 
+        AtomicReference<String> activeApiKeyRef = new AtomicReference<>();
+        Path restApiSecretPath = config.restApiEnabled() ? Path.of(config.restApiSecretFile()) : null;
+
+        if (config.restApiEnabled() && restApiSecretPath != null && Files.exists(restApiSecretPath)) {
+            activeApiKeyRef.set(readRestApiKey(restApiSecretPath));
+        }
+
         if (config.landingEnabled()) {
             landingTemplateDirectory = Path.of(config.landingTemplateDirectory()).toAbsolutePath().normalize();
             landingStaticDirectory = Path.of(config.landingStaticDirectory()).toAbsolutePath().normalize();
@@ -250,6 +258,7 @@ public class KonkinWebServer {
                     config.landingAutoReloadEnabled(),
                     config.telegramEnabled() && config.landingEnabled()
             );
+            landingPageService.setRestApiKeyMissing(config.restApiEnabled() && activeApiKeyRef.get() == null);
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore);
@@ -278,7 +287,9 @@ public class KonkinWebServer {
                     config,
                     mapper,
                     walletSupervisors,
-                    voteService
+                    voteService,
+                    restApiSecretPath,
+                    activeApiKeyRef
             );
 
             telegramWebController.setLandingPageController(landingPageController);
@@ -317,8 +328,10 @@ public class KonkinWebServer {
         });
 
         if (config.restApiEnabled()) {
-            Path restApiSecretFile = Path.of(config.restApiSecretFile());
-            String expectedApiKey = readRestApiKey(restApiSecretFile);
+            if (activeApiKeyRef.get() == null) {
+                log.info("REST API secret file not found at {} — API key can be created via /api_keys",
+                        restApiSecretPath.toAbsolutePath());
+            }
             app.before(ctx -> {
                 String path = ctx.path();
                 boolean apiRequest = "/api/v1".equals(path) || path.startsWith("/api/v1/");
@@ -326,8 +339,13 @@ public class KonkinWebServer {
                     return;
                 }
 
+                String expectedKey = activeApiKeyRef.get();
+                if (expectedKey == null) {
+                    throw new io.javalin.http.ServiceUnavailableResponse();
+                }
+
                 String providedApiKey = ctx.header("X-API-Key");
-                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedApiKey)) {
+                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedKey)) {
                     throw new UnauthorizedResponse();
                 }
             });
@@ -408,6 +426,8 @@ public class KonkinWebServer {
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
             app.get("/setup", webUiPageControllerFinal::handleSetupPage);
             app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
+            app.get("/api_keys", webUiPageControllerFinal::handleApiKeysPage);
+            app.post("/api_keys/rotate", webUiPageControllerFinal::handleApiKeysRotate);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);

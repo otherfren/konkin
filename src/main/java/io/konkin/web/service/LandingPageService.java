@@ -43,11 +43,13 @@ public class LandingPageService {
     private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
     private static final String AUTH_CHANNELS_TEMPLATE_NAME = "landing-auth-channels.ftl";
     private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
+    private static final String API_KEYS_TEMPLATE_NAME = "landing-api-keys.ftl";
 
     private final Configuration freemarker;
     private final String staticHostedPath;
     private final AtomicLong staticAssetsVersion;
     private final boolean telegramEnabled;
+    private volatile boolean restApiKeyMissing;
 
     public LandingPageService(
             Path templateDirectory,
@@ -109,6 +111,8 @@ public class LandingPageService {
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);
@@ -153,6 +157,8 @@ public class LandingPageService {
         model.put("driverAgentPath", "/driver_agent");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
         model.put("activePage", "wallets");
@@ -172,6 +178,8 @@ public class LandingPageService {
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -192,6 +200,8 @@ public class LandingPageService {
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -223,8 +233,42 @@ public class LandingPageService {
         return renderTemplate(SETUP_TEMPLATE_NAME, model);
     }
 
+    public String renderApiKeys(
+            boolean showLogout,
+            boolean restApiEnabled,
+            boolean hasApiKey,
+            String revealedApiKey,
+            String secretFilePath
+    ) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/history");
+        model.put("telegramPath", "/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", "api_keys");
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("restApiEnabled", restApiEnabled);
+        model.put("hasApiKey", hasApiKey);
+        model.put("revealedApiKey", revealedApiKey != null ? revealedApiKey : "");
+        model.put("secretFilePath", secretFilePath != null ? secretFilePath : "");
+        return renderTemplate(API_KEYS_TEMPLATE_NAME, model);
+    }
+
     public void clearTemplateCache() {
         freemarker.clearTemplateCache();
+    }
+
+    public void setRestApiKeyMissing(boolean missing) {
+        this.restApiKeyMissing = missing;
     }
 
     public void markStaticAssetsChanged() {
