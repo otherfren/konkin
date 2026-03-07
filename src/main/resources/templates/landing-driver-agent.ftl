@@ -92,33 +92,6 @@
     </section>
 
     <div class="driver-panels-grid">
-        <section class="auth-overview-panel" aria-labelledby="driver-auth-method-title">
-            <h3 id="driver-auth-method-title" class="auth-section-title">Auth Method</h3>
-            <p class="driver-panel-copy">Driver agent authentication uses OAuth 2.0 client credentials. This aligns with the README credential and bearer-token flow.</p>
-            <div class="auth-kv-grid">
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">Method</span>
-                    <span class="mono auth-kv-value">${authMethod.method!'-'}</span>
-                </div>
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">Client ID</span>
-                    <span class="mono auth-kv-value">${authMethod.clientId!'-'}</span>
-                </div>
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">Token endpoint</span>
-                    <span class="mono auth-kv-value">${authMethod.tokenEndpoint!'-'}</span>
-                </div>
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">Authorization header</span>
-                    <span class="mono auth-kv-value">${authMethod.authorizationHeader!'-'}</span>
-                </div>
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">Secret file</span>
-                    <span class="mono auth-kv-value">${authMethod.secretFile!'-'}</span>
-                </div>
-            </div>
-        </section>
-
         <section class="auth-overview-panel" aria-labelledby="driver-mcp-registration-title">
             <h3 id="driver-mcp-registration-title" class="auth-section-title">MCP Registration</h3>
             <p class="driver-panel-copy">README flow: issue bearer token, register SSE endpoint in Claude Code, then load the driver skill instructions.</p>
@@ -178,6 +151,7 @@
             <#else>
                 <p class="telegram-empty">Enable the driver agent to render ready-to-run token and MCP registration commands.</p>
             </#if>
+            <p class="driver-panel-copy" style="margin-top:1.2em;font-size:.92em;opacity:.75">Authentication uses OAuth 2.0 client credentials: obtain a bearer token via the token endpoint using your client ID and secret, then pass it as an Authorization header when connecting to the MCP SSE endpoint.</p>
         </section>
     </div>
 </div></main>
