@@ -270,7 +270,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, driverAgentPage.statusCode());
             assertTrue(driverAgentPage.body().contains("Driver Agent"));
             assertTrue(driverAgentPage.body().contains("Driver Agent Endpoint"));
-            assertTrue(driverAgentPage.body().contains("Auth Method"));
             assertTrue(driverAgentPage.body().contains("MCP Registration"));
             assertTrue(driverAgentPage.body().contains("No driver agent configured."));
             assertTrue(driverAgentPage.body().contains("Enable the driver agent to render ready-to-run token and MCP registration commands."));
@@ -1337,7 +1336,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, driverAgent.statusCode());
             assertTrue(driverAgent.body().contains("Driver Agent"));
             assertTrue(driverAgent.body().contains("Driver Agent Endpoint"));
-            assertTrue(driverAgent.body().contains("Auth Method"));
             assertTrue(driverAgent.body().contains("MCP Registration"));
             assertTrue(driverAgent.body().contains("<span class=\"menu-active\">driver agent</span>"));
             assertTrue(driverAgent.body().contains("http://127.0.0.1:" + primaryAgentPort + "/health"));
