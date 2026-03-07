@@ -5,12 +5,11 @@
     assetsPath=assetsPath
     assetsVersion=assetsVersion
     iconType="image/png"
-    iconHref=(assetsPath + "/img/logo.png")
+    iconHref=(assetsPath + "/img/logo_v2_small_trans.png")
 >
-<header class="topbar">
+<aside class="sidebar">
     <a href="/" class="brand">
-        <img src="${assetsPath}/img/logo.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
-        <span class="brand-name">${title}</span>
+        <img src="${assetsPath}/img/logo_v2_small_trans.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
     </a>
     <input type="checkbox" id="menu-toggle-telegram" class="menu-toggle" aria-hidden="true">
     <label for="menu-toggle-telegram" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
@@ -31,8 +30,9 @@
             </form>
         </#if>
     </nav>
-</header>
+</aside>
 
+<div class="page-body">
 <main class="main-section"><div class="content telegram-content">
     <h2 class="queue-title">Telegram</h2>
     <p class="telegram-subtitle">Approve discovered chat requests and send a manual notification to approved chats. A chat appears here only after it has sent at least one message to your bot.</p>
@@ -274,4 +274,5 @@
         <a href="${githubPath}" class="footer-link">View on GitHub</a>
     </div>
 </footer>
+</div>
 </@layout.page>
