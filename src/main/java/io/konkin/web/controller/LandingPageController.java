@@ -47,6 +47,7 @@ import io.konkin.web.service.LandingPageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -85,7 +86,8 @@ public class LandingPageController {
 
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
-    private final PasswordFileManager passwordFileManager;
+    private final Path passwordFilePath;
+    private volatile PasswordFileManager passwordFileManager;
     private final boolean telegramEnabled;
     private TelegramWebController telegramWebController;
     private final ApprovalRequestRepository requestRepo;
@@ -103,6 +105,7 @@ public class LandingPageController {
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
+            Path passwordFilePath,
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
@@ -114,7 +117,7 @@ public class LandingPageController {
             KonkinConfig config,
             LandingPageMapper mapper
     ) {
-        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
+        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
                 channelRepo, historyRepo, depLoader, config, mapper, null, null);
     }
@@ -122,6 +125,7 @@ public class LandingPageController {
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
+            Path passwordFilePath,
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
@@ -134,7 +138,7 @@ public class LandingPageController {
             LandingPageMapper mapper,
             Map<Coin, WalletSupervisor> walletSupervisors
     ) {
-        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
+        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
                 channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, null);
     }
@@ -142,6 +146,7 @@ public class LandingPageController {
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
+            Path passwordFilePath,
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
@@ -155,16 +160,13 @@ public class LandingPageController {
             Map<Coin, WalletSupervisor> walletSupervisors,
             VoteService voteService
     ) {
-        if (passwordProtectionEnabled && passwordFileManager == null) {
-            throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
-        }
-
         if (config == null) {
             throw new IllegalArgumentException("config is required");
         }
 
         this.landingPageService = landingPageService;
         this.passwordProtectionEnabled = passwordProtectionEnabled;
+        this.passwordFilePath = passwordFilePath;
         this.passwordFileManager = passwordFileManager;
         this.telegramEnabled = telegramEnabled;
         this.telegramWebController = telegramWebController;
@@ -326,11 +328,46 @@ public class LandingPageController {
         ));
     }
 
+    // ── Setup wizard ──────────────────────────────────────────────────────
+
+    public boolean isWizardMode() {
+        return passwordProtectionEnabled && passwordFileManager == null;
+    }
+
+    public void handleSetupPage(Context ctx) {
+        if (!isWizardMode()) {
+            ctx.redirect("/");
+            return;
+        }
+        showSetup(ctx, "create", null);
+    }
+
+    public void handleSetupCreate(Context ctx) {
+        if (!isWizardMode()) {
+            ctx.redirect("/");
+            return;
+        }
+
+        PasswordFileManager.CreateResult result = PasswordFileManager.createNew(passwordFilePath);
+        this.passwordFileManager = result.manager();
+        showSetup(ctx, "reveal", result.cleartextPassword());
+    }
+
+    private void showSetup(Context ctx, String step, String password) {
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderSetup(step, password));
+    }
+
     // ── Login / logout ─────────────────────────────────────────────────────
 
     public void handleLoginPage(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
+            return;
+        }
+
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
             return;
         }
 
@@ -345,6 +382,11 @@ public class LandingPageController {
     public void handleLoginSubmit(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
+            return;
+        }
+
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
             return;
         }
 
@@ -403,6 +445,10 @@ public class LandingPageController {
     }
 
     private void showLogin(Context ctx, boolean invalidPassword) {
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
+            return;
+        }
         ctx.status(invalidPassword ? 401 : 200);
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderLogin(invalidPassword));

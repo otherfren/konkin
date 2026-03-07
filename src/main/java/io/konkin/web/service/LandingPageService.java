@@ -37,6 +37,7 @@ public class LandingPageService {
 
     private static final String MAIN_TEMPLATE_NAME = "landing.ftl";
     private static final String LOGIN_TEMPLATE_NAME = "landing-login.ftl";
+    private static final String SETUP_TEMPLATE_NAME = "landing-setup.ftl";
     private static final String AUDIT_LOG_TEMPLATE_NAME = "landing-log.ftl";
     private static final String TELEGRAM_TEMPLATE_NAME = "landing-telegram.ftl";
     private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
@@ -210,6 +211,16 @@ public class LandingPageService {
         );
 
         return renderTemplate(LOGIN_TEMPLATE_NAME, model);
+    }
+
+    public String renderSetup(String wizardStep, String password) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("title", "KONKIN Setup");
+        model.put("wizardStep", wizardStep);
+        model.put("password", password != null ? password : "");
+        return renderTemplate(SETUP_TEMPLATE_NAME, model);
     }
 
     public void clearTemplateCache() {

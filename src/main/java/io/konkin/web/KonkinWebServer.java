@@ -235,8 +235,13 @@ public class KonkinWebServer {
             landingStaticDirectory = Path.of(config.landingStaticDirectory()).toAbsolutePath().normalize();
 
             PasswordFileManager landingPasswordFileManager = null;
-            if (config.landingPasswordProtectionEnabled()) {
-                landingPasswordFileManager = PasswordFileManager.bootstrap(Path.of(config.landingPasswordFile()));
+            Path landingPasswordFilePath = config.landingPasswordProtectionEnabled()
+                    ? Path.of(config.landingPasswordFile()) : null;
+            if (config.landingPasswordProtectionEnabled() && PasswordFileManager.exists(landingPasswordFilePath)) {
+                landingPasswordFileManager = PasswordFileManager.bootstrap(landingPasswordFilePath);
+            } else if (config.landingPasswordProtectionEnabled()) {
+                log.info("web-ui password file not found at {} — setup wizard will be shown on first visit",
+                        landingPasswordFilePath.toAbsolutePath());
             }
 
             landingPageService = new LandingPageService(
@@ -261,6 +266,7 @@ public class KonkinWebServer {
             landingPageController = new LandingPageController(
                     landingPageService,
                     config.landingPasswordProtectionEnabled(),
+                    landingPasswordFilePath,
                     landingPasswordFileManager,
                     config.telegramEnabled(),
                     telegramWebController,
@@ -400,6 +406,8 @@ public class KonkinWebServer {
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
+            app.get("/setup", webUiPageControllerFinal::handleSetupPage);
+            app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);

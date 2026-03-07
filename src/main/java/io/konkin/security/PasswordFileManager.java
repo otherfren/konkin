@@ -70,6 +70,36 @@ public class PasswordFileManager {
         return new PasswordFileManager(passwordFile, credentials);
     }
 
+    public static boolean exists(Path passwordFile) {
+        return Files.exists(passwordFile);
+    }
+
+    public static CreateResult createNew(Path passwordFile) {
+        try {
+            Path parent = passwordFile.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+
+            String cleartextPassword = generatePassword(GENERATED_PASSWORD_LENGTH);
+            byte[] salt = randomBytes(SALT_LENGTH);
+            byte[] hash = hash(cleartextPassword.toCharArray(), salt, ITERATIONS, KEY_LENGTH_BITS);
+
+            writePasswordFile(passwordFile, salt, hash);
+            setOwnerOnlyPermissionsIfPossible(passwordFile);
+
+            Credentials credentials = new Credentials(ALGORITHM, ITERATIONS, salt, hash);
+            PasswordFileManager manager = new PasswordFileManager(passwordFile, credentials);
+            log.info("web-ui password hash file created at {}", passwordFile.toAbsolutePath());
+            return new CreateResult(manager, cleartextPassword);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to create web-ui password file: " + passwordFile, e);
+        }
+    }
+
+    public record CreateResult(PasswordFileManager manager, String cleartextPassword) {
+    }
+
     public boolean verifyPassword(String candidate) {
         if (candidate == null || candidate.isEmpty()) {
             return false;
