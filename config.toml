@@ -17,7 +17,7 @@ pool-size = 5
 enabled = true
 
 [web-ui.password-protection]
-enabled = false
+enabled = true
 # rotate keys by deleting the referenced file
 password-file = "./secrets/web-ui.password"
 
