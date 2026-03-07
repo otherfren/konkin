@@ -1204,6 +1204,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path configFile = tempDir.resolve("config-auth-defs-rest-and-secondary-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
+        Files.createDirectories(restApiSecretFile.getParent());
+        Files.writeString(restApiSecretFile, "api-key=test-api-key-auth-defs", StandardCharsets.UTF_8);
+
         KonkinConfig config = KonkinConfig.load(configFile.toString());
         KonkinWebServer server = new KonkinWebServer(config, "test-version");
         server.start();

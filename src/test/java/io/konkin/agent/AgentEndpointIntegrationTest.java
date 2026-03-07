@@ -900,6 +900,8 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         Files.writeString(bitcoinWalletSecretFile, walletSecretContent,
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.writeString(restApiSecretFile, "api-key=test-api-key-primary",
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         String configToml = """
                 config-version = 1
@@ -1005,6 +1007,8 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(bitcoinDaemonSecretFile, "rpcuser=alice\nrpcpassword=secret\n",
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         Files.writeString(bitcoinWalletSecretFile, "wallet=main\nwallet-passphrase=pass\n",
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.writeString(restApiSecretFile, "api-key=test-api-key-send",
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
         String configToml = """

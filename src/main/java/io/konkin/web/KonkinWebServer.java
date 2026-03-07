@@ -261,7 +261,7 @@ public class KonkinWebServer {
             landingPageService.setRestApiKeyMissing(config.restApiEnabled() && activeApiKeyRef.get() == null);
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
-            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore);
+            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),

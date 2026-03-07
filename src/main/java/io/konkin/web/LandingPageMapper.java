@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -63,15 +64,21 @@ public class LandingPageMapper {
     private final KonkinConfig config;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final KvStore kvStore;
+    private final AtomicReference<String> activeApiKey;
 
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors) {
-        this(config, walletSupervisors, null);
+        this(config, walletSupervisors, null, null);
     }
 
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore) {
+        this(config, walletSupervisors, kvStore, null);
+    }
+
+    public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore, AtomicReference<String> activeApiKey) {
         this.config = config;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.kvStore = kvStore;
+        this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
     }
 
     // ── Approval page data (queue + log-queue shared row mapping) ───────────
@@ -273,7 +280,8 @@ public class LandingPageMapper {
 
         Map<String, Object> restApi = new LinkedHashMap<>();
         boolean restApiEnabled = config.restApiEnabled();
-        restApi.put("enabled", restApiEnabled);
+        boolean restApiOperational = restApiEnabled && activeApiKey.get() != null;
+        restApi.put("enabled", restApiOperational);
         restApi.put("healthPath", "/api/v1/health");
         restApi.put("apiKeyHeader", "X-API-Key");
         restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
@@ -669,7 +677,7 @@ public class LandingPageMapper {
         if (config.restApiEnabled()) {
             Map<String, Object> restApi = new LinkedHashMap<>();
             restApi.put("name", "rest-api");
-            restApi.put("enabled", true);
+            restApi.put("enabled", activeApiKey.get() != null);
             channels.add(Map.copyOf(restApi));
         }
 
@@ -702,14 +710,22 @@ public class LandingPageMapper {
         Map<String, Object> coin = new LinkedHashMap<>();
         CoinAuthConfig auth = coinConfig.auth();
 
+        boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+
         Map<String, Object> channels = new LinkedHashMap<>();
         channels.put("webUi", auth.webUi());
-        channels.put("restApi", auth.restApi());
+        channels.put("restApi", restApiOperational);
         channels.put("telegram", auth.telegram());
 
         List<String> warnings = new ArrayList<>();
         if (auth.webUi() && !config.landingEnabled()) {
             warnings.add("web-ui channel is configured, but web-ui is globally disabled.");
+        }
+        if (auth.restApi() && !config.restApiEnabled()) {
+            warnings.add("rest-api channel is configured, but rest-api is globally disabled.");
+        }
+        if (auth.restApi() && config.restApiEnabled() && activeApiKey.get() == null) {
+            warnings.add("rest-api channel is configured, but no API key has been created yet.");
         }
         if (auth.telegram() && !config.telegramEnabled()) {
             warnings.add("telegram channel is configured, but telegram is globally disabled.");
