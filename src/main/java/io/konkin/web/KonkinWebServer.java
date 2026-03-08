@@ -467,6 +467,7 @@ public class KonkinWebServer {
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
             app.get("/wallets/{coin}", webUiPageControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
+            app.post("/wallets/reconnect", webUiPageControllerFinal::handleWalletReconnect);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
             app.post("/auth_channels/web-ui/rotate-password", webUiPageControllerFinal::handlePasswordRotate);

@@ -107,6 +107,16 @@ public class WalletSupervisor {
         return snapshot;
     }
 
+    public void reconnect() {
+        if (!running) {
+            return;
+        }
+        ScheduledExecutorService s = scheduler;
+        if (s != null && !s.isShutdown()) {
+            s.schedule(this::heartbeat, 0, TimeUnit.SECONDS);
+        }
+    }
+
     public <T> T execute(Function<CoinWallet, T> action) {
         if (!running) {
             throw new WalletConnectionException("Wallet supervisor is not running");

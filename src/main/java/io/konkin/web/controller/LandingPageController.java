@@ -333,6 +333,32 @@ public class LandingPageController {
         ctx.redirect("/wallets/" + coinId);
     }
 
+    public void handleWalletReconnect(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String coinId = defaultIfBlank(ctx.formParam("coin"), "").trim().toLowerCase(Locale.ROOT);
+        if (coinId.isEmpty()) {
+            ctx.status(400);
+            ctx.contentType("text/plain; charset=UTF-8");
+            ctx.result("Missing required form parameter: coin");
+            return;
+        }
+
+        Coin coin = resolveCoin(coinId);
+        WalletSupervisor supervisor = coin != null ? walletSupervisors.get(coin) : null;
+        if (supervisor != null) {
+            supervisor.reconnect();
+            log.info("Triggered reconnect for wallet {}", coinId);
+        } else {
+            log.warn("Reconnect requested but no wallet supervisor available for {}", coinId);
+        }
+
+        ctx.redirect("/wallets/" + coinId);
+    }
+
     public void handleAuthChannelsPage(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);

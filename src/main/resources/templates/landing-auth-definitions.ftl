@@ -38,6 +38,10 @@
                 <#if (coin.enabled!false)>
                     <#if (coin.disconnected!false)>
                         <span class="auth-chip auth-chip-warn">disconnected</span>
+                        <form method="post" action="/wallets/reconnect" class="reconnect-form">
+                            <input type="hidden" name="coin" value="${(coin.coin!'')}">
+                            <button type="submit" class="reconnect-btn">reconnect</button>
+                        </form>
                     <#else>
                         <span class="auth-chip auth-chip-on">enabled</span>
                     </#if>

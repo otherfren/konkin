@@ -2099,6 +2099,29 @@ p {
     opacity: 0.85;
 }
 
+.reconnect-form {
+    display: inline;
+    margin: 0;
+    padding: 0;
+}
+
+.reconnect-btn {
+    padding: 6px 16px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--yellow);
+    background: var(--yellow-bg);
+    border: 1px solid var(--yellow-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.reconnect-btn:hover {
+    background: var(--yellow-border);
+}
+
 /* ── incoming transactions ── */
 .incoming-tx-panel {
     margin-top: 18px;
