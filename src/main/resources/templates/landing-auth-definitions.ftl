@@ -44,20 +44,7 @@
 <div class="page-body">
 <main class="main-section"><div class="content auth-definitions-content">
     <h2 class="queue-title">Wallets</h2>
-    <p class="auth-definitions-subtitle">Overview of configured wallets and auth channels.</p>
-
-    <#assign configuredAuthChannels = (wallets.configuredAuthChannels![])>
-
-    <section class="auth-overview-panel" aria-labelledby="auth-overview-title">
-        <h3 id="auth-overview-title" class="auth-section-title">Auth channel configured</h3>
-        <div class="auth-chip-row">
-            <#list configuredAuthChannels as channel>
-                <span class="auth-chip <#if (channel.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                    ${(channel.name!'-')}: <strong>${(channel.enabled!false)?string('enabled', 'disabled')}</strong>
-                </span>
-            </#list>
-        </div>
-    </section>
+    <p class="auth-definitions-subtitle">Overview of configured wallets.</p>
 
     <#assign coins = (wallets.coins![])>
     <#list coins as coin>

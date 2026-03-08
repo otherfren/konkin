@@ -46,6 +46,19 @@
     <h2 class="queue-title">Auth Channels</h2>
     <p class="auth-channels-subtitle">Runtime overview of web-ui, rest-api, telegram users, and auth-agent channels.</p>
 
+    <#assign configuredAuthChannels = (authChannels.configuredAuthChannels![])>
+
+    <section class="auth-overview-panel" aria-labelledby="auth-overview-title">
+        <h3 id="auth-overview-title" class="auth-section-title">Auth channel configured</h3>
+        <div class="auth-chip-row">
+            <#list configuredAuthChannels as channel>
+                <span class="auth-chip <#if (channel.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
+                    ${(channel.name!'-')}: <strong>${(channel.enabled!false)?string('enabled', 'disabled')}</strong>
+                </span>
+            </#list>
+        </div>
+    </section>
+
     <#assign telegramEnabled = (authChannels.telegramEnabled!false)>
     <#assign telegramUsers = (authChannels.telegramUsers![])>
     <#assign authAgents = (authChannels.authAgents![])>

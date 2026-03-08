@@ -293,6 +293,7 @@ public class LandingPageMapper {
     ) {
         Map<String, Object> root = new LinkedHashMap<>();
 
+        root.put("configuredAuthChannels", buildConfiguredAuthChannels());
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers(discoveredRequests, secret, configuredTelegramChatIds));
         root.put("authAgents", buildAuthAgentChannels());
