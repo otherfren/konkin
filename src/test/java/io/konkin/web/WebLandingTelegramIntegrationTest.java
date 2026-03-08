@@ -1386,7 +1386,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path sourceTemplates = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path templateDir = tempDir.resolve("templates");
         Files.createDirectories(templateDir);
-        for (String templateName : List.of("layout.ftl", "landing.ftl", "landing-log.ftl", "landing-login.ftl")) {
+        for (String templateName : List.of("layout.ftl", "macros.ftl", "landing.ftl", "landing-log.ftl", "landing-login.ftl")) {
             Files.copy(sourceTemplates.resolve(templateName), templateDir.resolve(templateName));
         }
 

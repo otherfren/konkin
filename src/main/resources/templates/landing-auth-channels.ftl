@@ -1,4 +1,5 @@
 <#import "layout.ftl" as layout>
+<#import "macros.ftl" as m>
 
 <@layout.page
     title=title
@@ -7,40 +8,7 @@
     iconType="image/png"
     iconHref=(assetsPath + "/img/logo_v2_small_trans.png")
 >
-<aside class="sidebar">
-    <a href="/" class="brand">
-        <img src="${assetsPath}/img/logo_v2_small_trans.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
-    </a>
-    <input type="checkbox" id="menu-toggle-auth-channels" class="menu-toggle" aria-hidden="true">
-    <label for="menu-toggle-auth-channels" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
-        <span></span><span></span><span></span>
-    </label>
-    <nav class="menu" aria-label="Main">
-        <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
-        <#if activePage == "history"><span class="menu-active">history</span><#else><a href="${auditLogPath}">history</a></#if>
-        <#assign walletPages = enabledCoins?map(c -> "wallet_" + c)>
-        <#assign isWalletSubActive = walletPages?seq_contains(activePage)>
-        <#if activePage == "wallets"><span class="menu-active">wallets</span><#else><a href="${walletsPath}"<#if isWalletSubActive> class="menu-group-active"</#if>>wallets</a></#if>
-        <#list enabledCoins as ec>
-            <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
-        </#list>
-        <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
-        <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
-        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
-        <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
-        <#if activePage == "auth_channel_api_keys"><span class="menu-active menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}" class="menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
-        <#if telegramPageAvailable>
-            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram</span><#else><a href="${telegramPath}" class="menu-sub">telegram</a></#if>
-        </#if>
-        <#if showLogout>
-            <form method="post" action="/logout" class="logout-form">
-                <button type="submit" class="logout-btn">logout</button>
-            </form>
-        </#if>
-        <span class="app-version">${appVersion}</span>
-    </nav>
-</aside>
+<@m.sidebar menuToggleId="menu-toggle-auth-channels" />
 
 <div class="page-body">
 <main class="main-section"><div class="content auth-channels-content">
@@ -258,57 +226,9 @@
     </#if>
 </div></main>
 
-<script>
-(() => {
-    const secretValues = document.querySelectorAll('.auth-secret-value[data-secret-value]');
+<@m.secretToggleScript />
+<@m.agentSelectScript />
 
-    for (const valueEl of secretValues) {
-        const container = valueEl.closest('.auth-channel-secret-wrap, .auth-mcp-item, .auth-secret');
-        const toggle = container ? container.querySelector('.auth-secret-toggle') : null;
-        if (!toggle) {
-            continue;
-        }
-
-        toggle.addEventListener('click', () => {
-            const masked = valueEl.dataset.masked !== 'false';
-            if (masked) {
-                valueEl.textContent = valueEl.dataset.secretValue || '-';
-                valueEl.dataset.masked = 'false';
-                toggle.setAttribute('aria-label', 'Hide Telegram identifier');
-                toggle.setAttribute('title', 'Hide identifier');
-                toggle.classList.add('is-revealed');
-            } else {
-                valueEl.textContent = '***';
-                valueEl.dataset.masked = 'true';
-                toggle.setAttribute('aria-label', 'Reveal Telegram identifier');
-                toggle.setAttribute('title', 'Reveal identifier');
-                toggle.classList.remove('is-revealed');
-            }
-        });
-    }
-})();
-</script>
-
-<script>
-(() => {
-    const selects = document.querySelectorAll('.auth-agent-mcp-select');
-    for (const sel of selects) {
-        sel.addEventListener('change', () => {
-            const regIndex = sel.dataset.regIndex;
-            const blocks = document.querySelectorAll('.auth-agent-mcp-commands[data-reg-index="' + regIndex + '"]');
-            for (const block of blocks) {
-                block.style.display = block.getAttribute('data-agent-id') === sel.value ? '' : 'none';
-            }
-        });
-    }
-})();
-</script>
-
-<footer class="site-footer">
-    <div class="site-footer-inner">
-        <span class="site-footer-copy">KONKIN control panel</span>
-        <a href="${githubPath}" class="footer-link">View on GitHub</a>
-    </div>
-</footer>
+<@m.footer />
 </div>
 </@layout.page>

@@ -1,4 +1,5 @@
 <#import "layout.ftl" as layout>
+<#import "macros.ftl" as m>
 
 <@layout.page
     title=title
@@ -7,34 +8,7 @@
     iconType="image/png"
     iconHref=(assetsPath + "/img/logo_v2_small_trans.png")
 >
-<aside class="sidebar">
-    <a href="/" class="brand">
-        <img src="${assetsPath}/img/logo_v2_small_trans.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
-    </a>
-    <input type="checkbox" id="menu-toggle-coins" class="menu-toggle" aria-hidden="true">
-    <label for="menu-toggle-coins" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
-        <span></span><span></span><span></span>
-    </label>
-    <nav class="menu" aria-label="Main">
-        <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
-        <#if activePage == "history"><span class="menu-active">history</span><#else><a href="${auditLogPath}">history</a></#if>
-        <#if activePage == "wallets"><span class="menu-active">wallets</span><#else><a href="${walletsPath}">wallets</a></#if>
-        <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
-        <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
-        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
-        <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
-        <#if telegramPageAvailable>
-            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram</span><#else><a href="${telegramPath}" class="menu-sub">telegram</a></#if>
-        </#if>
-        <#if showLogout>
-            <form method="post" action="/logout" class="logout-form">
-                <button type="submit" class="logout-btn">logout</button>
-            </form>
-        </#if>
-        <span class="app-version">${appVersion}</span>
-    </nav>
-</aside>
+<@m.sidebar menuToggleId="menu-toggle-coins" />
 
 <div class="page-body">
 <main class="main-section"><div class="content coins-content">
@@ -135,11 +109,6 @@
 })();
 </script>
 
-<footer class="site-footer">
-    <div class="site-footer-inner">
-        <span class="site-footer-copy">KONKIN control panel</span>
-        <a href="${githubPath}" class="footer-link">View on GitHub</a>
-    </div>
-</footer>
+<@m.footer />
 </div>
 </@layout.page>
