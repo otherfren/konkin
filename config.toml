@@ -69,7 +69,7 @@ auto-deny-timeout = "3m"
 enabled = true
 
 [coins.litecoin]
-enabled = true
+enabled = false
 #example values for future litecoin auth config
 
 [coins.litecoin.auth]

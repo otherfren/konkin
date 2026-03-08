@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /**
  * Renders landing-related pages from FreeMarker templates.
@@ -58,6 +59,7 @@ public class LandingPageService {
     private final boolean telegramEnabled;
     private volatile boolean restApiKeyMissing;
     private volatile BooleanSupplier driverAgentWarnSupplier = () -> false;
+    private volatile Supplier<Map<String, Boolean>> walletDisconnectedSupplier = Map::of;
     private volatile List<String> enabledCoins = List.of();
 
     public LandingPageService(
@@ -129,6 +131,10 @@ public class LandingPageService {
         model.put("activePage", activePage);
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("telegramNotice", telegramNotice == null ? "" : telegramNotice);
         model.put("telegramNoticeError", telegramNoticeError);
         model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
@@ -178,6 +184,10 @@ public class LandingPageService {
         model.put("activePage", "wallets");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("wallets", walletsData == null ? Map.of() : walletsData);
 
         return renderTemplate(WALLETS_TEMPLATE_NAME, model);
@@ -203,6 +213,10 @@ public class LandingPageService {
         model.put("activePage", "wallet_" + coinId);
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("walletData", walletData == null ? Map.of() : walletData);
 
         return renderTemplate(WALLET_TEMPLATE_NAME, model);
@@ -228,6 +242,10 @@ public class LandingPageService {
         model.put("activePage", "auth_channels");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
@@ -253,6 +271,10 @@ public class LandingPageService {
         model.put("activePage", "auth_channel_webui");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("webUi", webUiData == null ? Map.of() : webUiData);
         model.put("revealedPassword", revealedPassword != null ? revealedPassword : "");
 
@@ -279,6 +301,10 @@ public class LandingPageService {
         model.put("activePage", "driver_agent");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("driverAgent", driverAgentData == null ? Map.of() : driverAgentData);
 
         return renderTemplate(DRIVER_AGENT_TEMPLATE_NAME, model);
@@ -332,6 +358,10 @@ public class LandingPageService {
         model.put("activePage", "auth_channel_api_keys");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("restApiEnabled", restApiEnabled);
         model.put("hasApiKey", hasApiKey);
         model.put("revealedApiKey", revealedApiKey != null ? revealedApiKey : "");
@@ -354,6 +384,10 @@ public class LandingPageService {
 
     public void setEnabledCoins(List<String> coins) {
         this.enabledCoins = coins == null ? List.of() : List.copyOf(coins);
+    }
+
+    public void setWalletDisconnectedSupplier(Supplier<Map<String, Boolean>> supplier) {
+        this.walletDisconnectedSupplier = supplier != null ? supplier : Map::of;
     }
 
     public void markStaticAssetsChanged() {

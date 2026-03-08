@@ -26,9 +26,10 @@
         <#if activePage == "driver_agent"><span class="menu-active">driver agent<#if (driverAgentWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${driverAgentPath}">driver agent<#if (driverAgentWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#assign walletPages = enabledCoins?map(c -> "wallet_" + c)>
         <#assign isWalletSubActive = walletPages?seq_contains(activePage)>
-        <#if activePage == "wallets"><span class="menu-active">wallets</span><#else><a href="${walletsPath}"<#if isWalletSubActive> class="menu-group-active"</#if>>wallets</a></#if>
+        <#if activePage == "wallets"><span class="menu-active">wallets<#if (walletsWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${walletsPath}"<#if isWalletSubActive> class="menu-group-active"</#if>>wallets<#if (walletsWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#list enabledCoins as ec>
-            <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
+            <#assign coinDisconnected = (disconnectedWallets[ec])!false>
+            <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}<#if coinDisconnected> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}<#if coinDisconnected> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#list>
         <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
         <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>

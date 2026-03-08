@@ -41,6 +41,7 @@ import io.konkin.crypto.Coin;
 import io.konkin.crypto.TransactionExecutionService;
 import io.konkin.crypto.WalletConnectionConfig;
 import io.konkin.crypto.WalletSecretLoader;
+import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
@@ -283,6 +284,28 @@ public class KonkinWebServer {
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
             landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
+            List<String> enabledCoinIds = mapper.getEnabledCoinIds();
+            landingPageService.setWalletDisconnectedSupplier(() -> {
+                Map<String, Boolean> result = new LinkedHashMap<>();
+                for (Map.Entry<Coin, WalletSupervisor> entry : walletSupervisors.entrySet()) {
+                    boolean disconnected = entry.getValue().snapshot().status() != WalletStatus.AVAILABLE;
+                    String coinId = switch (entry.getKey()) {
+                        case BTC -> "bitcoin";
+                        case LTC -> "litecoin";
+                        case XMR -> "monero";
+                        case ETH -> "ethereum";
+                        case SOL -> "solana";
+                        case ZANO -> "zano";
+                        case TRX -> "tron";
+                        case ARRR -> "pirate";
+                    };
+                    result.put(coinId, disconnected);
+                }
+                for (String coinId : enabledCoinIds) {
+                    result.putIfAbsent(coinId, true);
+                }
+                return result;
+            });
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
