@@ -1,5 +1,6 @@
 package io.konkin.agent;
 
+import io.konkin.db.AgentTokenStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

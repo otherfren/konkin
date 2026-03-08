@@ -16,6 +16,7 @@
 
 package io.konkin.agent;
 
+import io.konkin.db.AgentTokenStore;
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
 import io.javalin.http.UnauthorizedResponse;

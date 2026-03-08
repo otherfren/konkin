@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package io.konkin.agent;
+package io.konkin.db;
 
-import io.konkin.db.JdbiFactory;
 import org.jdbi.v3.core.Jdbi;
 
 import javax.sql.DataSource;

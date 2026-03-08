@@ -16,6 +16,7 @@
 
 package io.konkin.agent;
 
+import io.konkin.db.AgentTokenStore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.Filter;
 import jakarta.servlet.FilterChain;

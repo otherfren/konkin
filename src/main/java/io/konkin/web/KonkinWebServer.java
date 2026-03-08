@@ -32,7 +32,7 @@ import io.konkin.api.HealthController;
 import io.konkin.api.KvStoreController;
 import io.konkin.api.RequestChannelController;
 import io.konkin.api.StateTransitionController;
-import io.konkin.agent.AgentTokenStore;
+import io.konkin.db.AgentTokenStore;
 import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
