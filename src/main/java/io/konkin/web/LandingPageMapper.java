@@ -665,8 +665,17 @@ public class LandingPageMapper {
         coins.add(buildWalletOverviewEntry("monero", config.monero(),
                 "coins.monero", "coins.monero.secret-files.monero-daemon-config-file",
                 "coins.monero.secret-files.monero-wallet-rpc-config-file"));
+        coins.sort((a, b) -> Integer.compare(coinSortOrder(a), coinSortOrder(b)));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
+    }
+
+    private static int coinSortOrder(Map<String, Object> coin) {
+        boolean enabled = Boolean.TRUE.equals(coin.get("enabled"));
+        boolean disconnected = Boolean.TRUE.equals(coin.get("disconnected"));
+        if (enabled && !disconnected) return 0;
+        if (enabled) return 1;
+        return 2;
     }
 
     private Map<String, Object> buildWalletOverviewEntry(
