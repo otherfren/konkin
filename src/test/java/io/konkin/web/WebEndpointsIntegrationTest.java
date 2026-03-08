@@ -262,12 +262,15 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannelsPage = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannelsPage.statusCode());
             assertTrue(authChannelsPage.body().contains("Auth Channels"));
-            assertTrue(authChannelsPage.body().contains("REST API Channel"));
             assertTrue(authChannelsPage.body().contains("Auth Agent Bot Channels"));
 
             HttpResponse<String> authChannelWebUiPage = get(runningServer, "/auth_channels/web-ui", Map.of());
             assertEquals(200, authChannelWebUiPage.statusCode());
             assertTrue(authChannelWebUiPage.body().contains("Web UI Channel"));
+
+            HttpResponse<String> authChannelApiKeysPage = get(runningServer, "/auth_channels/api_keys", Map.of());
+            assertEquals(200, authChannelApiKeysPage.statusCode());
+            assertTrue(authChannelApiKeysPage.body().contains("REST API Channel"));
 
             HttpResponse<String> driverAgentPage = get(runningServer, "/driver_agent", Map.of());
             assertEquals(200, driverAgentPage.statusCode());
@@ -1310,7 +1313,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannels = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannels.statusCode());
             assertTrue(authChannels.body().contains("Auth Channels"));
-            assertTrue(authChannels.body().contains("REST API Channel"));
             assertTrue(authChannels.body().contains("Telegram Connected Users"));
             assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));
             assertFalse(authChannels.body().contains("Driver Agent Endpoint"));

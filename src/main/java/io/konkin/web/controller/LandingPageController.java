@@ -261,7 +261,7 @@ public class LandingPageController {
             confirmData = new TelegramWebController.TelegramConfirmData(confirmMode, confirmChatId);
         }
 
-        renderLandingForPage(ctx, "telegram", notice, error, draft, "", false, null, confirmData);
+        renderLandingForPage(ctx, "auth_channel_telegram", notice, error, draft, "", false, null, confirmData);
     }
 
     public void handleWalletsPage(Context ctx) {
@@ -355,7 +355,33 @@ public class LandingPageController {
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderAuthChannelWebUi(
                 passwordProtectionEnabled,
-                mapper.buildWebUiChannelModel()
+                mapper.buildWebUiChannelModel(),
+                ""
+        ));
+    }
+
+    public void handlePasswordRotate(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        if (!passwordProtectionEnabled || passwordFilePath == null) {
+            ctx.redirect("/auth_channels/web-ui");
+            return;
+        }
+
+        PasswordFileManager.CreateResult result = PasswordFileManager.createNew(passwordFilePath);
+        this.passwordFileManager = result.manager();
+        activeSessions.clear();
+        issueSessionCookie(ctx);
+        log.info("Web-UI password rotated via auth channel page, file: {}", passwordFilePath.toAbsolutePath());
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthChannelWebUi(
+                passwordProtectionEnabled,
+                mapper.buildWebUiChannelModel(),
+                result.cleartextPassword()
         ));
     }
 
@@ -416,7 +442,8 @@ public class LandingPageController {
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderApiKeys(
                 passwordProtectionEnabled,
-                restApiEnabled, hasKey, "", secretFile));
+                restApiEnabled, hasKey, "", secretFile,
+                mapper.buildRestApiChannelModel()));
     }
 
     public void handleApiKeysRotate(Context ctx) {
@@ -426,7 +453,7 @@ public class LandingPageController {
         }
 
         if (!config.restApiEnabled() || restApiSecretFilePath == null) {
-            ctx.redirect("/api_keys");
+            ctx.redirect("/auth_channels/api_keys");
             return;
         }
 
@@ -440,7 +467,8 @@ public class LandingPageController {
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderApiKeys(
                 passwordProtectionEnabled,
-                true, true, newKey, secretFile));
+                true, true, newKey, secretFile,
+                mapper.buildRestApiChannelModel()));
     }
 
     private static String generateApiKey() {
@@ -524,16 +552,7 @@ public class LandingPageController {
             return;
         }
 
-        String sessionToken = newSessionToken();
-        activeSessions.put(sessionToken, Instant.now().plus(SESSION_TTL));
-
-        Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
-        sessionCookie.setPath("/");
-        sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(isSecureRequest(ctx));
-        sessionCookie.setMaxAge((int) SESSION_TTL.toSeconds());
-        sessionCookie.setSameSite(SameSite.STRICT);
-        ctx.cookie(sessionCookie);
+        issueSessionCookie(ctx);
         ctx.redirect("/");
     }
 
@@ -580,6 +599,19 @@ public class LandingPageController {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private void issueSessionCookie(Context ctx) {
+        String sessionToken = newSessionToken();
+        activeSessions.put(sessionToken, Instant.now().plus(SESSION_TTL));
+
+        Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
+        sessionCookie.setPath("/");
+        sessionCookie.setHttpOnly(true);
+        sessionCookie.setSecure(isSecureRequest(ctx));
+        sessionCookie.setMaxAge((int) SESSION_TTL.toSeconds());
+        sessionCookie.setSameSite(SameSite.STRICT);
+        ctx.cookie(sessionCookie);
     }
 
     // [M-6] Rate limiting helpers — mirrors AgentOAuthHandler pattern
@@ -656,7 +688,7 @@ public class LandingPageController {
     ) {
         if (!passwordProtectionEnabled || hasValidSession(ctx)) {
             // Only load data needed for the active page to avoid unnecessary DB queries
-            TelegramPageData telegramPageData = "telegram".equals(activePage)
+            TelegramPageData telegramPageData = "auth_channel_telegram".equals(activePage)
                     ? loadTelegramPageData()
                     : new TelegramPageData(List.of(), List.of());
 
@@ -684,7 +716,7 @@ public class LandingPageController {
                 telegramConfirmMode = confirmMode;
                 telegramConfirmChatId = defaultIfBlank(telegramConfirmData.chatId(), "").trim();
                 telegramConfirmChatIdShort = "reset".equals(confirmMode) ? "-" : abbreviateId(telegramConfirmChatId);
-                telegramConfirmActionPath = "reset".equals(confirmMode) ? "/telegram/reset" : "/telegram/unapprove";
+                telegramConfirmActionPath = "reset".equals(confirmMode) ? "/auth_channels/telegram/reset" : "/auth_channels/telegram/unapprove";
             }
 
             ctx.contentType("text/html; charset=UTF-8");

@@ -272,14 +272,7 @@ public class LandingPageMapper {
         return Map.copyOf(webUi);
     }
 
-    public Map<String, Object> buildAuthChannelsModel(
-            List<TelegramService.ChatRequest> discoveredRequests,
-            TelegramSecretService.TelegramSecret secret,
-            List<String> configuredTelegramChatIds,
-            boolean telegramEnabled
-    ) {
-        Map<String, Object> root = new LinkedHashMap<>();
-
+    public Map<String, Object> buildRestApiChannelModel() {
         Map<String, Object> restApi = new LinkedHashMap<>();
         boolean restApiEnabled = config.restApiEnabled();
         boolean restApiOperational = restApiEnabled && activeApiKey.get() != null;
@@ -289,7 +282,16 @@ public class LandingPageMapper {
         restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
         restApi.put("apiKeyProtectionEnabled", restApiEnabled);
         restApi.put("secretFile", restApiEnabled ? safe(config.restApiSecretFile()) : "-");
-        root.put("restApi", Map.copyOf(restApi));
+        return Map.copyOf(restApi);
+    }
+
+    public Map<String, Object> buildAuthChannelsModel(
+            List<TelegramService.ChatRequest> discoveredRequests,
+            TelegramSecretService.TelegramSecret secret,
+            List<String> configuredTelegramChatIds,
+            boolean telegramEnabled
+    ) {
+        Map<String, Object> root = new LinkedHashMap<>();
 
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers(discoveredRequests, secret, configuredTelegramChatIds));

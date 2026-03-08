@@ -25,13 +25,13 @@
             <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
         </#list>
         <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#assign authChannelSubPages = ["auth_channel_webui"]>
+        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
         <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
         <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
         <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
-        <#if activePage == "api_keys"><span class="menu-active">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
+        <#if activePage == "auth_channel_api_keys"><span class="menu-active menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}" class="menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#if telegramPageAvailable>
-            <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
+            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram</span><#else><a href="${telegramPath}" class="menu-sub">telegram</a></#if>
         </#if>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
@@ -63,6 +63,28 @@
             </div>
         </div>
     </section>
+
+    <#if (webUi.passwordProtectionEnabled!false)>
+        <section class="auth-channel-card" aria-labelledby="password-rotate-title">
+            <div class="auth-card-header">
+                <h3 id="password-rotate-title" class="auth-coin-name">Password Rotation</h3>
+            </div>
+            <#if revealedPassword?has_content>
+                <p class="api-keys-info">Your new password has been generated. Copy it now &mdash; the cleartext password will not be shown again.</p>
+                <div class="setup-password-row">
+                    <code class="setup-password-display" id="rotated-password-value">${revealedPassword}</code>
+                    <button class="setup-copy-button" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rotated-password-value').textContent).then(function(){var b=this;b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}.bind(this))">Copy</button>
+                </div>
+                <p class="api-keys-info">All other sessions have been invalidated. Use the new password to log in.</p>
+                <a href="/auth_channels/web-ui" class="api-keys-back-link">&larr; Back to Web UI</a>
+            <#else>
+                <p class="api-keys-warn">Rotating the password will invalidate all active sessions. The new cleartext password will only be shown once.</p>
+                <form method="post" action="/auth_channels/web-ui/rotate-password">
+                    <button class="login-button" type="submit">Rotate Password</button>
+                </form>
+            </#if>
+        </section>
+    </#if>
 </div></main>
 
 <footer class="site-footer">

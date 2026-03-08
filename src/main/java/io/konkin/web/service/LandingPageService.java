@@ -109,12 +109,12 @@ public class LandingPageService {
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -141,7 +141,7 @@ public class LandingPageService {
         String selectedTemplate;
         if ("history".equals(activePage)) {
             selectedTemplate = AUDIT_LOG_TEMPLATE_NAME;
-        } else if ("telegram".equals(activePage)) {
+        } else if ("auth_channel_telegram".equals(activePage)) {
             selectedTemplate = TELEGRAM_TEMPLATE_NAME;
         } else {
             selectedTemplate = MAIN_TEMPLATE_NAME;
@@ -156,12 +156,12 @@ public class LandingPageService {
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -179,12 +179,12 @@ public class LandingPageService {
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
@@ -202,11 +202,11 @@ public class LandingPageService {
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
@@ -219,17 +219,17 @@ public class LandingPageService {
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
     }
 
-    public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData) {
+    public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData, String revealedPassword) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
@@ -238,6 +238,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("webUi", webUiData == null ? Map.of() : webUiData);
+        model.put("revealedPassword", revealedPassword != null ? revealedPassword : "");
 
         return renderTemplate(AUTH_CHANNEL_WEBUI_TEMPLATE_NAME, model);
     }
@@ -248,11 +249,11 @@ public class LandingPageService {
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
@@ -291,29 +292,31 @@ public class LandingPageService {
             boolean restApiEnabled,
             boolean hasApiKey,
             String revealedApiKey,
-            String secretFilePath
+            String secretFilePath,
+            Map<String, Object> restApiChannelData
     ) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
         model.put("queuePath", "/");
         model.put("auditLogPath", "/history");
-        model.put("telegramPath", "/telegram");
+        model.put("telegramPath", "/auth_channels/telegram");
         model.put("walletsPath", "/wallets");
         model.put("driverAgentPath", "/driver_agent");
         model.put("authChannelsPath", "/auth_channels");
-        model.put("apiKeysPath", "/api_keys");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("showLogout", showLogout);
-        model.put("activePage", "api_keys");
+        model.put("activePage", "auth_channel_api_keys");
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("restApiEnabled", restApiEnabled);
         model.put("hasApiKey", hasApiKey);
         model.put("revealedApiKey", revealedApiKey != null ? revealedApiKey : "");
         model.put("secretFilePath", secretFilePath != null ? secretFilePath : "");
+        model.put("restApi", restApiChannelData == null ? Map.of() : restApiChannelData);
         return renderTemplate(API_KEYS_TEMPLATE_NAME, model);
     }
 

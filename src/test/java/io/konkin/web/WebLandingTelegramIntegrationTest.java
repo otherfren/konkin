@@ -100,20 +100,20 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals("/", loginPost.headers().firstValue("location").orElse(""));
 
         assertFalse(root.body().contains("Telegram Broadcast"));
-        assertFalse(root.body().contains("href=\"/telegram\""));
+        assertFalse(root.body().contains("href=\"/auth_channels/telegram\""));
         assertFalse(root.body().contains(">github<"));
         assertTrue(root.body().contains("View on GitHub"));
 
-        HttpResponse<String> telegramPage = get(server, "/telegram", Map.of());
+        HttpResponse<String> telegramPage = get(server, "/auth_channels/telegram", Map.of());
         assertEquals(404, telegramPage.statusCode());
 
-        HttpResponse<String> telegramSubmit = postForm(server, "/telegram/send", "telegram_message=hello", Map.of());
+        HttpResponse<String> telegramSubmit = postForm(server, "/auth_channels/telegram/send", "telegram_message=hello", Map.of());
         assertEquals(404, telegramSubmit.statusCode());
 
-        HttpResponse<String> telegramUnapprove = postForm(server, "/telegram/unapprove", "chat_id=-100123456789&confirm=yes", Map.of());
+        HttpResponse<String> telegramUnapprove = postForm(server, "/auth_channels/telegram/unapprove", "chat_id=-100123456789&confirm=yes", Map.of());
         assertEquals(404, telegramUnapprove.statusCode());
 
-        HttpResponse<String> telegramReset = postForm(server, "/telegram/reset", "confirm=yes", Map.of());
+        HttpResponse<String> telegramReset = postForm(server, "/auth_channels/telegram/reset", "confirm=yes", Map.of());
         assertEquals(404, telegramReset.statusCode());
 
         HttpResponse<String> staticAsset = get(server, "/assets/img/bitcoin.svg", Map.of());
@@ -487,21 +487,21 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             HttpResponse<String> root = get(runningServer, "/", Map.of());
             assertEquals(200, root.statusCode());
-            assertTrue(root.body().contains("href=\"/telegram\""));
+            assertTrue(root.body().contains("href=\"/auth_channels/telegram\""));
             assertFalse(root.body().contains("Telegram Broadcast"));
             assertFalse(root.body().contains(">github<"));
             assertTrue(root.body().contains("View on GitHub"));
 
-            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
             assertEquals(200, telegramPage.statusCode());
             assertTrue(telegramPage.body().contains("Telegram Broadcast"));
-            assertTrue(telegramPage.body().contains("action=\"/telegram/send\""));
+            assertTrue(telegramPage.body().contains("action=\"/auth_channels/telegram/send\""));
             assertFalse(telegramPage.body().contains(">github<"));
             assertTrue(telegramPage.body().contains("View on GitHub"));
 
             HttpResponse<String> telegramSubmit = postForm(
                     runningServer,
-                    "/telegram/send",
+                    "/auth_channels/telegram/send",
                     "telegram_message=Hello+Konkin",
                     Map.of()
             );
@@ -685,13 +685,13 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
 
-            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
             assertEquals(200, telegramPage.statusCode());
             assertTrue(telegramPage.body().contains(discoveredChatId));
 
             HttpResponse<String> telegramSubmit = postForm(
                     runningServer,
-                    "/telegram/send",
+                    "/auth_channels/telegram/send",
                     "telegram_message=No+Auto+Approve",
                     Map.of()
             );
@@ -855,13 +855,13 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             try (RunningServer runningServer = new RunningServer(firstServer, URI.create("http://127.0.0.1:" + firstPort))) {
                 waitForHealth(firstPort);
 
-                HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+                HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
                 assertEquals(200, telegramPage.statusCode());
                 assertTrue(telegramPage.body().contains(discoveredChatId));
 
                 HttpResponse<String> telegramSubmit = postForm(
                         runningServer,
-                        "/telegram/send",
+                        "/auth_channels/telegram/send",
                         "telegram_message=First+Run",
                         Map.of()
                 );
@@ -886,13 +886,13 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             try (RunningServer runningServer = new RunningServer(secondServer, URI.create("http://127.0.0.1:" + secondPort))) {
                 waitForHealth(secondPort);
 
-                HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+                HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
                 assertEquals(200, telegramPage.statusCode());
                 assertTrue(telegramPage.body().contains(discoveredChatId));
 
                 HttpResponse<String> telegramSubmit = postForm(
                         runningServer,
-                        "/telegram/send",
+                        "/auth_channels/telegram/send",
                         "telegram_message=Second+Run",
                         Map.of()
                 );
@@ -996,21 +996,21 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
 
-            HttpResponse<String> telegramPage = get(runningServer, "/telegram", Map.of());
+            HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
             assertEquals(200, telegramPage.statusCode());
             assertTrue(telegramPage.body().contains(discoveredChatId));
             assertTrue(telegramPage.body().contains("Konkin Ops"));
 
             HttpResponse<String> approve = postForm(
                     runningServer,
-                    "/telegram/approve",
+                    "/auth_channels/telegram/approve",
                     "chat_id=" + discoveredChatId + "&chat_type=group&chat_title=Konkin+Ops&chat_username=konkin_ops",
                     Map.of()
             );
             assertEquals(200, approve.statusCode());
             assertTrue(approve.body().contains("Approved Telegram chat"));
             assertTrue(approve.body().contains("Konkin Ops"));
-            assertTrue(approve.body().contains("/telegram/unapprove"));
+            assertTrue(approve.body().contains("/auth_channels/telegram/unapprove"));
 
             String secret = Files.readString(secretFile, StandardCharsets.UTF_8);
             assertTrue(secret.contains("chat-ids=" + discoveredChatId));
@@ -1112,7 +1112,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             HttpResponse<String> pendingConfirm = postForm(
                     runningServer,
-                    "/telegram/unapprove",
+                    "/auth_channels/telegram/unapprove",
                     "chat_id=" + approvedChatId,
                     Map.of()
             );
@@ -1126,7 +1126,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
             HttpResponse<String> confirmed = postForm(
                     runningServer,
-                    "/telegram/unapprove",
+                    "/auth_channels/telegram/unapprove",
                     "chat_id=" + approvedChatId + "&confirm=yes",
                     Map.of()
             );
@@ -1230,7 +1230,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
 
-            HttpResponse<String> pendingConfirm = postForm(runningServer, "/telegram/reset", "", Map.of());
+            HttpResponse<String> pendingConfirm = postForm(runningServer, "/auth_channels/telegram/reset", "", Map.of());
             assertEquals(200, pendingConfirm.statusCode());
             assertTrue(pendingConfirm.body().contains("Please confirm reset of all approved Telegram chats."));
             assertTrue(pendingConfirm.body().contains("confirm reset"));
@@ -1238,7 +1238,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
             String secretBeforeConfirm = Files.readString(secretFile, StandardCharsets.UTF_8);
             assertTrue(secretBeforeConfirm.contains("chat-ids=" + approvedChatIdOne + "," + approvedChatIdTwo));
 
-            HttpResponse<String> confirmed = postForm(runningServer, "/telegram/reset", "confirm=yes", Map.of());
+            HttpResponse<String> confirmed = postForm(runningServer, "/auth_channels/telegram/reset", "confirm=yes", Map.of());
             assertEquals(200, confirmed.statusCode());
             assertTrue(confirmed.body().contains("Reset persisted approved Telegram chats."));
 

@@ -25,13 +25,13 @@
             <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
         </#list>
         <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#assign authChannelSubPages = ["auth_channel_webui"]>
+        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
         <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
         <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
         <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
-        <#if activePage == "api_keys"><span class="menu-active">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
+        <#if activePage == "auth_channel_api_keys"><span class="menu-active menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}" class="menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#if telegramPageAvailable>
-            <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
+            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram</span><#else><a href="${telegramPath}" class="menu-sub">telegram</a></#if>
         </#if>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
@@ -106,7 +106,7 @@
                             <td>${chat.chatTitle}</td>
                             <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
-                                <form method="post" action="/telegram/approve" class="telegram-inline-form">
+                                <form method="post" action="/auth_channels/telegram/approve" class="telegram-inline-form">
                                     <input type="hidden" name="chat_id" value="${chat.chatId}">
                                     <input type="hidden" name="chat_type" value="${chat.chatType}">
                                     <input type="hidden" name="chat_title" value="${chat.chatTitle}">
@@ -144,7 +144,7 @@
                             <td>${chat.chatType}</td>
                             <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
-                                <form method="post" action="/telegram/unapprove" class="telegram-inline-form telegram-decision-form" data-telegram-decision="unapprove">
+                                <form method="post" action="/auth_channels/telegram/unapprove" class="telegram-inline-form telegram-decision-form" data-telegram-decision="unapprove">
                                     <input type="hidden" name="chat_id" value="${chat.chatId}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">unapprove</button>
                                 </form>
@@ -155,7 +155,7 @@
             </table>
 
             <div class="queue-confirm-actions" style="margin-top:12px;">
-                <form method="post" action="/telegram/reset" class="telegram-inline-form telegram-decision-form" data-telegram-decision="reset">
+                <form method="post" action="/auth_channels/telegram/reset" class="telegram-inline-form telegram-decision-form" data-telegram-decision="reset">
                     <button type="submit" class="queue-action-btn queue-action-deny">reset approved list</button>
                 </form>
             </div>
@@ -165,7 +165,7 @@
     <section class="telegram-panel" aria-labelledby="telegram-send-title">
         <h3 id="telegram-send-title" class="telegram-title">Telegram Broadcast</h3>
         <p class="telegram-empty">This is a test broadcast to currently approved chats, so you can verify bot delivery.</p>
-        <form method="post" action="/telegram/send" class="telegram-form">
+        <form method="post" action="/auth_channels/telegram/send" class="telegram-form">
             <label for="telegram_message" class="telegram-label">Message</label>
             <textarea
                 id="telegram_message"

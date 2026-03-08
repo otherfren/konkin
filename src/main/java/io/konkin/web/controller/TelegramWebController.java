@@ -198,7 +198,7 @@ public class TelegramWebController {
     private void renderTelegramPage(Context ctx, String notice, boolean error, String draft, TelegramConfirmData confirmData) {
         if (landingPageController != null) {
             landingPageController.renderLandingForPage(
-                    ctx, "telegram", notice, error, draft,
+                    ctx, "auth_channel_telegram", notice, error, draft,
                     "", false, null, confirmData
             );
         } else {
