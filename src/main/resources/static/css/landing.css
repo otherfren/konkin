@@ -1655,7 +1655,6 @@ p {
     color: var(--muted);
     font-size: 0.78rem;
     letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .footer-link {
