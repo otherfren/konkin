@@ -37,7 +37,7 @@
         <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
         <#if activePage == "auth_channel_api_keys"><span class="menu-active menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}" class="menu-sub">api keys<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#if telegramPageAvailable>
-            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram</span><#else><a href="${telegramPath}" class="menu-sub">telegram</a></#if>
+            <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${telegramPath}" class="menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#if>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">

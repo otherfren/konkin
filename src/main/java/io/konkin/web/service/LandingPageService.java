@@ -59,6 +59,7 @@ public class LandingPageService {
     private final boolean telegramEnabled;
     private volatile boolean restApiKeyMissing;
     private volatile BooleanSupplier driverAgentWarnSupplier = () -> false;
+    private volatile BooleanSupplier telegramWarnSupplier = () -> false;
     private volatile Supplier<Map<String, Boolean>> walletDisconnectedSupplier = Map::of;
     private volatile List<String> enabledCoins = List.of();
 
@@ -125,6 +126,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -178,6 +180,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -207,6 +210,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -235,6 +239,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -264,6 +269,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -294,6 +300,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -351,6 +358,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -380,6 +388,10 @@ public class LandingPageService {
 
     public void setDriverAgentWarn(BooleanSupplier warnSupplier) {
         this.driverAgentWarnSupplier = warnSupplier != null ? warnSupplier : () -> false;
+    }
+
+    public void setTelegramWarn(BooleanSupplier warnSupplier) {
+        this.telegramWarnSupplier = warnSupplier != null ? warnSupplier : () -> false;
     }
 
     public void setEnabledCoins(List<String> coins) {

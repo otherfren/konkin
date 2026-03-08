@@ -281,6 +281,14 @@ public class KonkinWebServer {
                 return false;
             });
 
+            TelegramSecretService telegramSecretServiceRef = telegramSecretService;
+            landingPageService.setTelegramWarn(() -> {
+                if (telegramSecretServiceRef == null) {
+                    return false;
+                }
+                return telegramSecretServiceRef.readSecret().chatIds().isEmpty();
+            });
+
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
             landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());

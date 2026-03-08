@@ -252,6 +252,20 @@ public class TelegramWebController {
             requestRows.add(Map.copyOf(row));
         }
 
+        for (Map.Entry<String, TelegramSecretService.ChatMeta> entry : metadataByChatId.entrySet()) {
+            String chatId = entry.getKey();
+            if (approvedSet.contains(chatId) || discoveredByChatId.containsKey(chatId)) {
+                continue;
+            }
+            TelegramSecretService.ChatMeta meta = entry.getValue();
+            Map<String, String> row = new LinkedHashMap<>();
+            row.put("chatId", chatId);
+            row.put("chatType", firstNonBlank(meta.chatType(), "unknown"));
+            row.put("chatTitle", firstNonBlank(meta.chatTitle(), "(no title)"));
+            row.put("chatUsername", firstNonBlank(meta.chatUsername(), ""));
+            requestRows.add(Map.copyOf(row));
+        }
+
         List<Map<String, String>> approvedRows = new ArrayList<>();
         for (String chatId : approvedChatIds) {
             TelegramSecretService.ChatMeta persisted = metadataByChatId.get(chatId);
