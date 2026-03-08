@@ -22,13 +22,17 @@
     <section class="auth-card" aria-labelledby="driver-agent-title">
         <div class="auth-card-header">
             <h3 id="driver-agent-title" class="auth-coin-name">Driver Agent Endpoint</h3>
-            <span class="auth-chip <#if (driverAgentEndpoint.configured!false) && (driverAgentEndpoint.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                <#if (driverAgentEndpoint.configured!false)>
-                    ${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}
-                <#else>
-                    not configured
-                </#if>
-            </span>
+            <span class="auth-chip <#if (driverAgentEndpoint.configured!false) && (driverAgentEndpoint.enabled!false) && !(driverAgentWarn!false)>auth-chip-on<#else>auth-chip-off</#if>">
+                    <#if (driverAgentEndpoint.configured!false)>
+                        <#if (driverAgentWarn!false)>
+                            not connected
+                        <#else>
+                            ${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}
+                        </#if>
+                    <#else>
+                        not configured
+                    </#if>
+                </span>
         </div>
 
         <#if !(driverAgentEndpoint.configured!false)>
@@ -53,8 +57,8 @@
                     <td class="mono">${driverAgentEndpoint.name!'-'}</td>
                     <td class="mono">${driverAgentEndpoint.type!'-'}</td>
                     <td>
-                        <span class="auth-channel-status <#if (driverAgentEndpoint.enabled!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
-                            ${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}
+                        <span class="auth-channel-status <#if (driverAgentEndpoint.enabled!false) && !(driverAgentWarn!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
+                            <#if (driverAgentWarn!false)>not connected<#else>${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}</#if>
                         </span>
                     </td>
                     <td class="mono">${driverAgentEndpoint.bind!'-'}</td>

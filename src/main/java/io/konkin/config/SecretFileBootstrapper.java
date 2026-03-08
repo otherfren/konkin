@@ -27,6 +27,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,8 +48,8 @@ final class SecretFileBootstrapper {
     private static final Path DB_SECRET_FILE = Path.of("./secrets/db.secret");
     private static final String DB_SECRET_KEY = "db-password";
 
-    static void bootstrap(KonkinConfig config) {
-        bootstrapSecretFiles(config);
+    static Set<String> bootstrap(KonkinConfig config) {
+        return bootstrapSecretFiles(config);
     }
 
     /**
@@ -100,17 +101,23 @@ final class SecretFileBootstrapper {
         return generatedPassword;
     }
 
-    private static void bootstrapSecretFiles(KonkinConfig config) {
+    private static Set<String> bootstrapSecretFiles(KonkinConfig config) {
         // REST API secret is no longer auto-created here; managed via web UI wizard
 
+        Set<String> freshlyCreated = new HashSet<>();
+
         if (config.primaryAgent() != null && config.primaryAgent().enabled()) {
-            ensureAgentSecretFileExists(Path.of(config.primaryAgent().secretFile()), PRIMARY_AGENT_CLIENT_ID, "driver");
+            if (ensureAgentSecretFileExists(Path.of(config.primaryAgent().secretFile()), PRIMARY_AGENT_CLIENT_ID, "driver")) {
+                freshlyCreated.add(PRIMARY_AGENT_CLIENT_ID);
+            }
         }
 
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
             AgentConfig agentConfig = entry.getValue();
             if (agentConfig.enabled()) {
-                ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "auth");
+                if (ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "auth")) {
+                    freshlyCreated.add(entry.getKey());
+                }
             }
         }
 
@@ -139,6 +146,7 @@ final class SecretFileBootstrapper {
                     defaultMoneroWalletRpcSecretContent()
             );
         }
+        return freshlyCreated;
     }
 
     private static void ensureSecretFileExists(Path secretFile, String keyName, String content) {
@@ -159,9 +167,12 @@ final class SecretFileBootstrapper {
         }
     }
 
-    private static void ensureAgentSecretFileExists(Path secretFile, String clientId, String agentRole) {
+    /**
+     * @return {@code true} if the secret file was freshly created (did not exist before)
+     */
+    private static boolean ensureAgentSecretFileExists(Path secretFile, String clientId, String agentRole) {
         if (Files.exists(secretFile)) {
-            return;
+            return false;
         }
 
         try {
@@ -176,6 +187,7 @@ final class SecretFileBootstrapper {
             setOwnerOnlyPermissionsIfPossible(secretFile);
             log.warn("Created missing {} agent secret file at {}", agentRole, secretFile.toAbsolutePath());
             printAgentSecretBanner(secretFile, clientId, agentRole, clientSecret);
+            return true;
         } catch (IOException e) {
             throw new IllegalStateException("Failed to create agent secret file: " + secretFile, e);
         }

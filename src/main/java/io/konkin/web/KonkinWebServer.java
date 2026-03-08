@@ -110,6 +110,7 @@ public class KonkinWebServer {
     private RequestDependencyLoader depLoader;
     private TelegramApprovalNotifier telegramNotifier;
     private VoteService voteService;
+    private AgentTokenStore agentTokenStore;
 
     public void start() {
         running = false;
@@ -259,6 +260,25 @@ public class KonkinWebServer {
                     config.telegramEnabled() && config.landingEnabled()
             );
             landingPageService.setRestApiKeyMissing(config.restApiEnabled() && activeApiKeyRef.get() == null);
+            landingPageService.setDriverAgentWarn(() -> {
+                AgentConfig pa = config.primaryAgent();
+                if (pa == null || !pa.enabled()) {
+                    return true;
+                }
+                List<McpAgentServer> driverEndpoints = agentEndpoints.stream()
+                        .filter(e -> "driver".equals(e.agentType()))
+                        .toList();
+                if (driverEndpoints.isEmpty()) {
+                    return false;
+                }
+                if (driverEndpoints.stream().noneMatch(McpAgentServer::isRunning)) {
+                    return true;
+                }
+                if (agentTokenStore != null && !agentTokenStore.hasTokens("konkin-primary")) {
+                    return true;
+                }
+                return false;
+            });
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
@@ -550,6 +570,11 @@ public class KonkinWebServer {
             return;
         }
         AgentTokenStore tokenStore = new AgentTokenStore(dataSource);
+        this.agentTokenStore = tokenStore;
+        for (String agentName : config.freshlyCreatedAgentSecrets()) {
+            log.info("Agent secret file was (re-)created for '{}' — revoking former tokens from database", agentName);
+            tokenStore.revokeByAgent(agentName);
+        }
         agentEndpoints.clear();
 
         AgentConfig primaryAgent = config.primaryAgent();

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BooleanSupplier;
 
 /**
  * Renders landing-related pages from FreeMarker templates.
@@ -56,6 +57,7 @@ public class LandingPageService {
     private final AtomicLong staticAssetsVersion;
     private final boolean telegramEnabled;
     private volatile boolean restApiKeyMissing;
+    private volatile BooleanSupplier driverAgentWarnSupplier = () -> false;
     private volatile List<String> enabledCoins = List.of();
 
     public LandingPageService(
@@ -120,6 +122,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -168,6 +171,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -192,6 +196,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -215,6 +220,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -239,6 +245,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -264,6 +271,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -316,6 +324,7 @@ public class LandingPageService {
         model.put("authChannelsPath", "/auth_channels");
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -337,6 +346,10 @@ public class LandingPageService {
 
     public void setRestApiKeyMissing(boolean missing) {
         this.restApiKeyMissing = missing;
+    }
+
+    public void setDriverAgentWarn(BooleanSupplier warnSupplier) {
+        this.driverAgentWarnSupplier = warnSupplier != null ? warnSupplier : () -> false;
     }
 
     public void setEnabledCoins(List<String> coins) {

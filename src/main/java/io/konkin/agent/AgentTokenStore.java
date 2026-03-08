@@ -57,8 +57,14 @@ public class AgentTokenStore {
     private static final String SELECT_TOKEN_HASHES_FOR_AGENT =
             "SELECT token_hash FROM agent_tokens WHERE agent_name = :agentName ORDER BY created_at ASC";
 
+    private static final String COUNT_TOKENS_FOR_AGENT =
+            "SELECT COUNT(*) FROM agent_tokens WHERE agent_name = :agentName";
+
     private static final String DELETE_TOKEN_HASH =
             "DELETE FROM agent_tokens WHERE token_hash = :tokenHash";
+
+    private static final String DELETE_BY_AGENT =
+            "DELETE FROM agent_tokens WHERE agent_name = :agentName";
 
     private static final String DELETE_ALL =
             "DELETE FROM agent_tokens";
@@ -101,6 +107,21 @@ public class AgentTokenStore {
                         .mapTo(String.class)
                         .findOne()
         );
+    }
+
+    public boolean hasTokens(String agentName) {
+        return jdbi.withHandle(h ->
+                h.createQuery(COUNT_TOKENS_FOR_AGENT)
+                        .bind("agentName", agentName)
+                        .mapTo(Long.class)
+                        .one() > 0
+        );
+    }
+
+    public void revokeByAgent(String agentName) {
+        jdbi.useHandle(h -> h.createUpdate(DELETE_BY_AGENT)
+                .bind("agentName", agentName)
+                .execute());
     }
 
     public void revokeAll() {

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Loads and holds all configuration from config.toml.
@@ -71,6 +72,7 @@ public class KonkinConfig {
     private final CoinConfig litecoin;
     private final CoinConfig monero;
     private final CoinConfig testDummyCoin;
+    private Set<String> freshlyCreatedAgentSecrets = Set.of();
 
     KonkinConfig(
             int configVersion, String host, int port, String logLevel, String logFile, int logRotateMaxSizeMb,
@@ -141,7 +143,7 @@ public class KonkinConfig {
 
             KonkinConfig config = KonkinConfigLoader.load(toml);
             KonkinConfigValidator.validate(config);
-            SecretFileBootstrapper.bootstrap(config);
+            config.freshlyCreatedAgentSecrets = SecretFileBootstrapper.bootstrap(config);
 
             log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
             log.info("Logging config — level={}, file={}, rotateMaxSizeMb={}",
@@ -230,4 +232,11 @@ public class KonkinConfig {
     public CoinConfig litecoin() { return litecoin; }
     public CoinConfig monero() { return monero; }
     public CoinConfig testDummyCoin() { return testDummyCoin; }
+
+    /**
+     * Returns agent names whose secret files were freshly created during bootstrap.
+     * These agents' former tokens should be revoked from the database since the
+     * old client credentials are no longer valid.
+     */
+    public Set<String> freshlyCreatedAgentSecrets() { return freshlyCreatedAgentSecrets; }
 }

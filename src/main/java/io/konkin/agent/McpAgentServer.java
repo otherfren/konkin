@@ -254,4 +254,8 @@ public class McpAgentServer {
     public int port() {
         return config.port();
     }
+
+    public boolean isRunning() {
+        return jettyServer != null && jettyServer.isRunning();
+    }
 }
