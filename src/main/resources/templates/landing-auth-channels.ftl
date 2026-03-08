@@ -25,7 +25,10 @@
             <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
         </#list>
         <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}">auth channels</a></#if>
+        <#assign authChannelSubPages = ["auth_channel_webui"]>
+        <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
+        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
+        <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
         <#if activePage == "api_keys"><span class="menu-active">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#if telegramPageAvailable>
             <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
@@ -43,32 +46,12 @@
     <h2 class="queue-title">Auth Channels</h2>
     <p class="auth-channels-subtitle">Runtime overview of web-ui, rest-api, telegram users, and auth-agent channels.</p>
 
-    <#assign webUi = (authChannels.webUi!{})>
     <#assign restApi = (authChannels.restApi!{})>
     <#assign telegramEnabled = (authChannels.telegramEnabled!false)>
     <#assign telegramUsers = (authChannels.telegramUsers![])>
     <#assign authAgents = (authChannels.authAgents![])>
 
     <div class="auth-channels-grid">
-        <section class="auth-channel-card" aria-labelledby="auth-channel-web-ui-title">
-            <div class="auth-card-header">
-                <h3 id="auth-channel-web-ui-title" class="auth-coin-name">Web UI Channel</h3>
-                <span class="auth-chip <#if (webUi.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                    ${(webUi.enabled!false)?string('enabled', 'disabled')}
-                </span>
-            </div>
-            <div class="auth-kv-grid">
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">password login</span>
-                    <span class="mono auth-kv-value">${(webUi.passwordProtectionEnabled!false)?string('enabled', 'disabled')}</span>
-                </div>
-                <div class="auth-kv-item">
-                    <span class="auth-kv-label">password file</span>
-                    <span class="mono auth-kv-value">${webUi.passwordFile!'-'}</span>
-                </div>
-            </div>
-        </section>
-
         <section class="auth-channel-card" aria-labelledby="auth-channel-rest-api-title">
             <div class="auth-card-header">
                 <h3 id="auth-channel-rest-api-title" class="auth-coin-name">REST API Channel</h3>

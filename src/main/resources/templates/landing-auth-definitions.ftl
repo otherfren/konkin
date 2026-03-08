@@ -25,7 +25,10 @@
             <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}</span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}</a></#if>
         </#list>
         <#if activePage == "driver_agent"><span class="menu-active">driver agent</span><#else><a href="${driverAgentPath}">driver agent</a></#if>
-        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}">auth channels</a></#if>
+        <#assign authChannelSubPages = ["auth_channel_webui"]>
+        <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
+        <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
+        <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
         <#if activePage == "api_keys"><span class="menu-active">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${apiKeysPath}">api<#if restApiKeyMissing> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#if telegramPageAvailable>
             <#if activePage == "telegram"><span class="menu-active">telegram</span><#else><a href="${telegramPath}">telegram</a></#if>
@@ -57,34 +60,43 @@
     </section>
 
     <#assign coins = (wallets.coins![])>
-    <#if coins?size == 0>
-        <section class="auth-card auth-card-empty">
-            <p class="telegram-empty">No wallet configuration available.</p>
-        </section>
-    <#else>
-        <#list coins as coin>
-            <#assign channels = (coin.channels!{})>
-            <section class="auth-card" aria-labelledby="auth-coin-${coin?index}">
-                <div class="auth-card-header">
-                    <h3 id="auth-coin-${coin?index}" class="auth-coin-name auth-coin-title">
-                        <#if (coin.coinIconName!'')?has_content>
-                            <img
-                                class="coin-icon auth-coin-icon"
-                                src="${assetsPath}/img/${coin.coinIconName}.svg?v=${assetsVersion}"
-                                alt="${coin.coin!'coin'} icon"
-                                title="${coin.coin!'-'}"
-                            >
-                        </#if>
+    <#list coins as coin>
+        <#assign channels = (coin.channels!{})>
+        <section class="auth-card<#if !(coin.enabled!false)> auth-card-disabled</#if>" aria-labelledby="auth-coin-${coin?index}">
+            <div class="auth-card-header">
+                <h3 id="auth-coin-${coin?index}" class="auth-coin-name auth-coin-title">
+                    <#if (coin.coinIconName!'')?has_content>
+                        <img
+                            class="coin-icon auth-coin-icon"
+                            src="${assetsPath}/img/${coin.coinIconName}.svg?v=${assetsVersion}"
+                            alt="${coin.coin!'coin'} icon"
+                            title="${coin.coin!'-'}"
+                        >
+                    </#if>
+                    <#if (coin.enabled!false)>
                         <a href="/wallets/${coin.coin!''}" class="auth-coin-link">${(coin.coin!'-')?upper_case}</a>
-                    </h3>
+                    <#else>
+                        <span>${(coin.coin!'-')?upper_case}</span>
+                    </#if>
+                </h3>
+                <#if (coin.enabled!false)>
                     <#if (coin.disconnected!false)>
                         <span class="auth-chip auth-chip-warn">disconnected</span>
                     <#else>
-                        <span class="auth-chip auth-chip-on">
-                            coin: enabled
-                        </span>
+                        <span class="auth-chip auth-chip-on">enabled</span>
                     </#if>
-                </div>
+                <#else>
+                    <span class="auth-chip auth-chip-off">disabled</span>
+                </#if>
+            </div>
+            <section class="auth-meta-item auth-compact-block" aria-label="Config">
+                <h4 class="auth-meta-label">config.toml</h4>
+                <span class="mono auth-meta-value auth-inline-meta"><code>[${coin.configSection!''}]</code> &mdash; enabled = ${(coin.enabled!false)?string('true', 'false')}</span>
+                <h4 class="auth-meta-label">Secret files</h4>
+                <span class="mono auth-meta-value auth-inline-meta">${coin.daemonConfigKey!''} = ${coin.daemonSecretFile!'-'}</span>
+                <span class="mono auth-meta-value auth-inline-meta">${coin.walletConfigKey!''} = ${coin.walletSecretFile!'-'}</span>
+            </section>
+            <#if (coin.enabled!false)>
                 <section class="auth-meta-item auth-compact-block" aria-label="Status">
                     <span class="mono auth-meta-value auth-inline-meta">${coin.connectionStatus!'unknown'} · last life-sign: ${coin.lastLifeSign!'unknown'}</span>
                 </section>
@@ -93,9 +105,9 @@
                     <span class="auth-channel-badge <#if (channels.restApi!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">rest-api <strong>${(channels.restApi!false)?string('on', 'off')}</strong></span>
                     <span class="auth-channel-badge <#if (channels.telegram!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">telegram <strong>${(channels.telegram!false)?string('on', 'off')}</strong></span>
                 </div>
-            </section>
-        </#list>
-    </#if>
+            </#if>
+        </section>
+    </#list>
 </div></main>
 
 <footer class="site-footer">

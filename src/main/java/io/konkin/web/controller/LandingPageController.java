@@ -346,6 +346,19 @@ public class LandingPageController {
         ));
     }
 
+    public void handleAuthChannelWebUiPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthChannelWebUi(
+                passwordProtectionEnabled,
+                mapper.buildWebUiChannelModel()
+        ));
+    }
+
     public void handleDriverAgentPage(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);

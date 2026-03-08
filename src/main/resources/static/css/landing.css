@@ -1295,6 +1295,10 @@ p {
     background: var(--bg-panel);
 }
 
+.auth-card-disabled {
+    opacity: 0.55;
+}
+
 .auth-card-empty {
     border-color: var(--line);
     background: var(--bg-soft);

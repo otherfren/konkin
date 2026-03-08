@@ -264,6 +264,14 @@ public class LandingPageMapper {
 
     // ── Auth channels model ────────────────────────────────────────────────
 
+    public Map<String, Object> buildWebUiChannelModel() {
+        Map<String, Object> webUi = new LinkedHashMap<>();
+        webUi.put("enabled", config.landingEnabled());
+        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
+        webUi.put("passwordFile", safe(config.landingPasswordFile()));
+        return Map.copyOf(webUi);
+    }
+
     public Map<String, Object> buildAuthChannelsModel(
             List<TelegramService.ChatRequest> discoveredRequests,
             TelegramSecretService.TelegramSecret secret,
@@ -271,12 +279,6 @@ public class LandingPageMapper {
             boolean telegramEnabled
     ) {
         Map<String, Object> root = new LinkedHashMap<>();
-
-        Map<String, Object> webUi = new LinkedHashMap<>();
-        webUi.put("enabled", config.landingEnabled());
-        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
-        webUi.put("passwordFile", safe(config.landingPasswordFile()));
-        root.put("webUi", Map.copyOf(webUi));
 
         Map<String, Object> restApi = new LinkedHashMap<>();
         boolean restApiEnabled = config.restApiEnabled();
@@ -651,17 +653,59 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        if (config.bitcoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
-        }
-        if (config.litecoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
-        }
-        if (config.monero().enabled()) {
-            coins.add(buildCoinAuthDefinition("monero", config.monero()));
-        }
+        coins.add(buildWalletOverviewEntry("bitcoin", config.bitcoin(),
+                "coins.bitcoin", "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
+                "coins.bitcoin.secret-files.bitcoin-wallet-config-file"));
+        coins.add(buildWalletOverviewEntry("litecoin", config.litecoin(),
+                "coins.litecoin", "coins.litecoin.secret-files.litecoin-daemon-config-file",
+                "coins.litecoin.secret-files.litecoin-wallet-config-file"));
+        coins.add(buildWalletOverviewEntry("monero", config.monero(),
+                "coins.monero", "coins.monero.secret-files.monero-daemon-config-file",
+                "coins.monero.secret-files.monero-wallet-rpc-config-file"));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildWalletOverviewEntry(
+            String coinId, CoinConfig coinConfig, String configSection,
+            String daemonConfigKey, String walletConfigKey) {
+        Map<String, Object> coin = new LinkedHashMap<>();
+        coin.put("coin", coinId);
+        coin.put("coinIconName", coinIconName(coinId));
+        coin.put("enabled", coinConfig.enabled());
+        coin.put("configSection", configSection);
+        coin.put("daemonConfigKey", daemonConfigKey);
+        coin.put("walletConfigKey", walletConfigKey);
+        coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
+        coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
+
+        if (coinConfig.enabled()) {
+            CoinAuthConfig auth = coinConfig.auth();
+            boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+            Map<String, Object> channels = new LinkedHashMap<>();
+            channels.put("webUi", auth.webUi());
+            channels.put("restApi", restApiOperational);
+            channels.put("telegram", auth.telegram());
+            coin.put("channels", Map.copyOf(channels));
+
+            WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
+            if (walletSupervisor != null) {
+                WalletSnapshot snap = walletSupervisor.snapshot();
+                coin.put("connectionStatus", snap.status().name().toLowerCase());
+                coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
+                coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
+            } else {
+                coin.put("connectionStatus", "not connected");
+                coin.put("lastLifeSign", "n/a");
+                coin.put("disconnected", true);
+            }
+        } else {
+            coin.put("channels", Map.of());
+            coin.put("connectionStatus", "disabled");
+            coin.put("lastLifeSign", "n/a");
+            coin.put("disconnected", true);
+        }
+        return Map.copyOf(coin);
     }
 
     public List<String> getEnabledCoinIds() {

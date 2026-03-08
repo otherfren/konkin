@@ -11,8 +11,8 @@
     <a href="/" class="brand">
         <img src="${assetsPath}/img/logo_v2_small_trans.png?v=${assetsVersion}" alt="KONKIN logo" class="brand-logo">
     </a>
-    <input type="checkbox" id="menu-toggle-api-keys" class="menu-toggle" aria-hidden="true">
-    <label for="menu-toggle-api-keys" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
+    <input type="checkbox" id="menu-toggle-auth-channel-webui" class="menu-toggle" aria-hidden="true">
+    <label for="menu-toggle-auth-channel-webui" class="menu-toggle-btn" aria-label="Toggle navigation" title="menu">
         <span></span><span></span><span></span>
     </label>
     <nav class="menu" aria-label="Main">
@@ -42,32 +42,34 @@
 </aside>
 
 <div class="page-body">
-<main class="main-section"><div class="content">
-    <h2 class="queue-title">REST API Key</h2>
+<main class="main-section"><div class="content auth-channels-content">
+    <h2 class="queue-title">Web UI Channel</h2>
 
-    <#if !restApiEnabled>
-        <p class="api-keys-info">The REST API is disabled. Enable it in <code>config.toml</code> under <code>[rest-api]</code> with <code>enabled = true</code>.</p>
-    <#elseif revealedApiKey?has_content>
-        <p class="api-keys-info">Your API key has been generated. Copy it now &mdash; the cleartext key will not be shown again.</p>
-        <p class="api-keys-info">Key hash stored in <code>${secretFilePath}</code>.</p>
-        <div class="setup-password-row">
-            <code class="setup-password-display" id="api-key-value">${revealedApiKey}</code>
-            <button class="setup-copy-button" type="button" onclick="navigator.clipboard.writeText(document.getElementById('api-key-value').textContent).then(function(){var b=this;b.textContent='Copied';setTimeout(function(){b.textContent='Copy'},1500)}.bind(this))">Copy</button>
+    <section class="auth-channel-card" aria-labelledby="auth-channel-web-ui-title">
+        <div class="auth-card-header">
+            <h3 id="auth-channel-web-ui-title" class="auth-coin-name">Web UI Channel</h3>
+            <span class="auth-chip <#if (webUi.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
+                ${(webUi.enabled!false)?string('enabled', 'disabled')}
+            </span>
         </div>
-        <a href="${apiKeysPath}" class="api-keys-back-link">&larr; Back to API</a>
-    <#elseif !hasApiKey>
-        <p class="api-keys-info">No API key has been configured yet. The key will be stored in <code>${secretFilePath}</code>.</p>
-        <p class="api-keys-warn">The cleartext key will only be shown once after creation. Make sure to copy it.</p>
-        <form method="post" action="/api_keys/rotate">
-            <button class="login-button" type="submit">Create API Key</button>
-        </form>
-    <#else>
-        <p class="api-keys-info">An API key is configured. Secret file: <code>${secretFilePath}</code>.</p>
-        <p class="api-keys-warn">Rotating the key will invalidate the current one. The new cleartext key will only be shown once.</p>
-        <form method="post" action="/api_keys/rotate">
-            <button class="login-button" type="submit">Rotate API Key</button>
-        </form>
-    </#if>
+        <div class="auth-kv-grid">
+            <div class="auth-kv-item">
+                <span class="auth-kv-label">password login</span>
+                <span class="mono auth-kv-value">${(webUi.passwordProtectionEnabled!false)?string('enabled', 'disabled')}</span>
+            </div>
+            <div class="auth-kv-item">
+                <span class="auth-kv-label">password file</span>
+                <span class="mono auth-kv-value">${webUi.passwordFile!'-'}</span>
+            </div>
+        </div>
+    </section>
 </div></main>
+
+<footer class="site-footer">
+    <div class="site-footer-inner">
+        <span class="site-footer-copy">KONKIN control panel</span>
+        <a href="${githubPath}" class="footer-link">View on GitHub</a>
+    </div>
+</footer>
 </div>
 </@layout.page>

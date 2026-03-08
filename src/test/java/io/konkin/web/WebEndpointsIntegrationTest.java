@@ -250,21 +250,24 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
 
-            // No coins configured — /wallets renders the empty overview page
+            // No coins configured — /wallets renders overview with all coins (including disabled)
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("Wallets"));
-            assertFalse(authDefinitions.body().contains("LITECOIN"));
-            assertFalse(authDefinitions.body().contains("MONERO"));
-            assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
-            assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
+            assertTrue(authDefinitions.body().contains("BITCOIN"));
+            assertTrue(authDefinitions.body().contains("LITECOIN"));
+            assertTrue(authDefinitions.body().contains("MONERO"));
+            assertTrue(authDefinitions.body().contains("disabled"));
 
             HttpResponse<String> authChannelsPage = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannelsPage.statusCode());
             assertTrue(authChannelsPage.body().contains("Auth Channels"));
-            assertTrue(authChannelsPage.body().contains("Web UI Channel"));
             assertTrue(authChannelsPage.body().contains("REST API Channel"));
             assertTrue(authChannelsPage.body().contains("Auth Agent Bot Channels"));
+
+            HttpResponse<String> authChannelWebUiPage = get(runningServer, "/auth_channels/web-ui", Map.of());
+            assertEquals(200, authChannelWebUiPage.statusCode());
+            assertTrue(authChannelWebUiPage.body().contains("Web UI Channel"));
 
             HttpResponse<String> driverAgentPage = get(runningServer, "/driver_agent", Map.of());
             assertEquals(200, driverAgentPage.statusCode());
@@ -1307,7 +1310,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannels = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannels.statusCode());
             assertTrue(authChannels.body().contains("Auth Channels"));
-            assertTrue(authChannels.body().contains("Web UI Channel"));
             assertTrue(authChannels.body().contains("REST API Channel"));
             assertTrue(authChannels.body().contains("Telegram Connected Users"));
             assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));

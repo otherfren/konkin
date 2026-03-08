@@ -43,6 +43,7 @@ public class LandingPageService {
     private static final String WALLETS_TEMPLATE_NAME = "landing-auth-definitions.ftl";
     private static final String WALLET_TEMPLATE_NAME = "landing-wallet.ftl";
     private static final String AUTH_CHANNELS_TEMPLATE_NAME = "landing-auth-channels.ftl";
+    private static final String AUTH_CHANNEL_WEBUI_TEMPLATE_NAME = "landing-auth-channel-webui.ftl";
     private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
     private static final String API_KEYS_TEMPLATE_NAME = "landing-api-keys.ftl";
 
@@ -216,6 +217,29 @@ public class LandingPageService {
         model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
+    }
+
+    public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/history");
+        model.put("telegramPath", "/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("showLogout", showLogout);
+        model.put("activePage", "auth_channel_webui");
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
+        model.put("webUi", webUiData == null ? Map.of() : webUiData);
+
+        return renderTemplate(AUTH_CHANNEL_WEBUI_TEMPLATE_NAME, model);
     }
 
     public String renderDriverAgent(boolean showLogout, Map<String, Object> driverAgentData) {

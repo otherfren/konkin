@@ -425,6 +425,7 @@ public class KonkinWebServer {
             app.get("/wallets/{coin}", webUiPageControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
+            app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
             app.get("/setup", webUiPageControllerFinal::handleSetupPage);
             app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
