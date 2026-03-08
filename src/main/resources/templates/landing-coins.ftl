@@ -32,6 +32,7 @@
                 <button type="submit" class="logout-btn">logout</button>
             </form>
         </#if>
+        <span class="app-version">${appVersion}</span>
     </nav>
 </aside>
 

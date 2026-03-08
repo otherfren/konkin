@@ -183,6 +183,16 @@ span.menu-sub {
     border-color: var(--accent);
 }
 
+.app-version {
+    display: block;
+    padding: 6px 8px;
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 0.04em;
+    opacity: 0.6;
+}
+
 /* ── page body ── */
 .page-body {
     margin-left: var(--sidebar-w);

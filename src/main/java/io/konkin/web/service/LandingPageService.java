@@ -23,11 +23,13 @@ import freemarker.template.TemplateException;
 import freemarker.template.TemplateExceptionHandler;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -46,6 +48,8 @@ public class LandingPageService {
     private static final String AUTH_CHANNEL_WEBUI_TEMPLATE_NAME = "landing-auth-channel-webui.ftl";
     private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
     private static final String API_KEYS_TEMPLATE_NAME = "landing-api-keys.ftl";
+
+    private static final String APP_VERSION = loadAppVersion();
 
     private final Configuration freemarker;
     private final String staticHostedPath;
@@ -117,6 +121,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", activePage);
         model.put("telegramPageAvailable", telegramEnabled);
@@ -164,6 +169,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "wallets");
         model.put("telegramPageAvailable", telegramEnabled);
@@ -187,6 +193,7 @@ public class LandingPageService {
         model.put("apiKeysPath", "/auth_channels/api_keys");
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "wallet_" + coinId);
         model.put("telegramPageAvailable", telegramEnabled);
@@ -210,6 +217,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "auth_channels");
         model.put("telegramPageAvailable", telegramEnabled);
@@ -233,6 +241,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "auth_channel_webui");
         model.put("telegramPageAvailable", telegramEnabled);
@@ -257,6 +266,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "driver_agent");
         model.put("telegramPageAvailable", telegramEnabled);
@@ -308,6 +318,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
         model.put("activePage", "auth_channel_api_keys");
         model.put("telegramPageAvailable", telegramEnabled);
@@ -334,6 +345,25 @@ public class LandingPageService {
 
     public void markStaticAssetsChanged() {
         staticAssetsVersion.incrementAndGet();
+    }
+
+    private static String loadAppVersion() {
+        try (InputStream is = LandingPageService.class.getResourceAsStream("/version.properties")) {
+            if (is != null) {
+                Properties props = new Properties();
+                props.load(is);
+                String v = props.getProperty("app.version");
+                if (v != null && !v.isBlank() && !v.contains("${")) {
+                    return v;
+                }
+            }
+        } catch (IOException ignored) {
+        }
+        String version = LandingPageService.class.getPackage().getImplementationVersion();
+        if (version != null && !version.isBlank()) {
+            return version;
+        }
+        return "dev";
     }
 
     private String renderTemplate(String template, Map<String, Object> model) {
