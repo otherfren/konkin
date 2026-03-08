@@ -101,9 +101,7 @@ final class SecretFileBootstrapper {
     }
 
     private static void bootstrapSecretFiles(KonkinConfig config) {
-        if (config.restApiEnabled()) {
-            ensureRestApiSecretFileExists(Path.of(config.restApiSecretFile()));
-        }
+        // REST API secret is no longer auto-created here; managed via web UI wizard
 
         if (config.primaryAgent() != null && config.primaryAgent().enabled()) {
             ensureAgentSecretFileExists(Path.of(config.primaryAgent().secretFile()), PRIMARY_AGENT_CLIENT_ID, "driver");

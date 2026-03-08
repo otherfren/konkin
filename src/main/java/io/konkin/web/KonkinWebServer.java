@@ -75,6 +75,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class KonkinWebServer {
 
@@ -223,11 +224,18 @@ public class KonkinWebServer {
             telegramNotifier = new TelegramApprovalNotifier(telegramService, config);
 
             if (approvedChatIds.isEmpty()) {
-                log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /telegram.",
+                log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /auth_channels/telegram.",
                         secretFile.toAbsolutePath().normalize());
             } else {
                 log.info("Telegram initialized with {} explicitly approved chat id(s): {}", approvedChatIds.size(), String.join(",", approvedChatIds));
             }
+        }
+
+        AtomicReference<String> activeApiKeyRef = new AtomicReference<>();
+        Path restApiSecretPath = config.restApiEnabled() ? Path.of(config.restApiSecretFile()) : null;
+
+        if (config.restApiEnabled() && restApiSecretPath != null && Files.exists(restApiSecretPath)) {
+            activeApiKeyRef.set(readRestApiKey(restApiSecretPath));
         }
 
         if (config.landingEnabled()) {
@@ -235,8 +243,13 @@ public class KonkinWebServer {
             landingStaticDirectory = Path.of(config.landingStaticDirectory()).toAbsolutePath().normalize();
 
             PasswordFileManager landingPasswordFileManager = null;
-            if (config.landingPasswordProtectionEnabled()) {
-                landingPasswordFileManager = PasswordFileManager.bootstrap(Path.of(config.landingPasswordFile()));
+            Path landingPasswordFilePath = config.landingPasswordProtectionEnabled()
+                    ? Path.of(config.landingPasswordFile()) : null;
+            if (config.landingPasswordProtectionEnabled() && PasswordFileManager.exists(landingPasswordFilePath)) {
+                landingPasswordFileManager = PasswordFileManager.bootstrap(landingPasswordFilePath);
+            } else if (config.landingPasswordProtectionEnabled()) {
+                log.info("web-ui password file not found at {} — setup wizard will be shown on first visit",
+                        landingPasswordFilePath.toAbsolutePath());
             }
 
             landingPageService = new LandingPageService(
@@ -245,9 +258,11 @@ public class KonkinWebServer {
                     config.landingAutoReloadEnabled(),
                     config.telegramEnabled() && config.landingEnabled()
             );
+            landingPageService.setRestApiKeyMissing(config.restApiEnabled() && activeApiKeyRef.get() == null);
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
-            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore);
+            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
+            landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
 
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
@@ -261,6 +276,7 @@ public class KonkinWebServer {
             landingPageController = new LandingPageController(
                     landingPageService,
                     config.landingPasswordProtectionEnabled(),
+                    landingPasswordFilePath,
                     landingPasswordFileManager,
                     config.telegramEnabled(),
                     telegramWebController,
@@ -272,7 +288,9 @@ public class KonkinWebServer {
                     config,
                     mapper,
                     walletSupervisors,
-                    voteService
+                    voteService,
+                    restApiSecretPath,
+                    activeApiKeyRef
             );
 
             telegramWebController.setLandingPageController(landingPageController);
@@ -311,8 +329,10 @@ public class KonkinWebServer {
         });
 
         if (config.restApiEnabled()) {
-            Path restApiSecretFile = Path.of(config.restApiSecretFile());
-            String expectedApiKey = readRestApiKey(restApiSecretFile);
+            if (activeApiKeyRef.get() == null) {
+                log.info("REST API secret file not found at {} — API key can be created via /auth_channels/api_keys",
+                        restApiSecretPath.toAbsolutePath());
+            }
             app.before(ctx -> {
                 String path = ctx.path();
                 boolean apiRequest = "/api/v1".equals(path) || path.startsWith("/api/v1/");
@@ -320,8 +340,13 @@ public class KonkinWebServer {
                     return;
                 }
 
+                String expectedKey = activeApiKeyRef.get();
+                if (expectedKey == null) {
+                    throw new io.javalin.http.ServiceUnavailableResponse();
+                }
+
                 String providedApiKey = ctx.header("X-API-Key");
-                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedApiKey)) {
+                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedKey)) {
                     throw new UnauthorizedResponse();
                 }
             });
@@ -397,9 +422,16 @@ public class KonkinWebServer {
             app.get("/history/export", webUiPageControllerFinal::handleHistoryExport);
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
             app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
+            app.get("/wallets/{coin}", webUiPageControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
+            app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
+            app.post("/auth_channels/web-ui/rotate-password", webUiPageControllerFinal::handlePasswordRotate);
             app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
+            app.get("/setup", webUiPageControllerFinal::handleSetupPage);
+            app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
+            app.get("/auth_channels/api_keys", webUiPageControllerFinal::handleApiKeysPage);
+            app.post("/auth_channels/api_keys/rotate", webUiPageControllerFinal::handleApiKeysRotate);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);
@@ -407,11 +439,11 @@ public class KonkinWebServer {
             app.post("/queue/deny", webUiPageControllerFinal::handleQueueDeny);
 
             if (config.telegramEnabled()) {
-                app.get("/telegram", webUiPageControllerFinal::handleTelegramPage);
-                app.post("/telegram/approve", telegramWebController::handleApprove);
-                app.post("/telegram/unapprove", telegramWebController::handleUnapprove);
-                app.post("/telegram/reset", telegramWebController::handleReset);
-                app.post("/telegram/send", telegramWebController::handleSend);
+                app.get("/auth_channels/telegram", webUiPageControllerFinal::handleTelegramPage);
+                app.post("/auth_channels/telegram/approve", telegramWebController::handleApprove);
+                app.post("/auth_channels/telegram/unapprove", telegramWebController::handleUnapprove);
+                app.post("/auth_channels/telegram/reset", telegramWebController::handleReset);
+                app.post("/auth_channels/telegram/send", telegramWebController::handleSend);
             }
 
             landingResourceWatcher = new LandingResourceWatcher(
@@ -476,17 +508,17 @@ public class KonkinWebServer {
             log.info("  /auth_channels       — auth channels overview (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             log.info("  /driver_agent        — driver agent overview (passwordLoginProtected={})", config.landingPasswordProtectionEnabled());
             if (config.telegramEnabled()) {
-                log.info("  /telegram            — telegram onboarding and manual send page");
-                log.info("  /telegram/approve    — approve discovered telegram chat request");
-                log.info("  /telegram/unapprove  — unapprove a telegram chat");
-                log.info("  /telegram/reset      — reset approved telegram chats");
-                log.info("  /telegram/send       — telegram send endpoint");
+                log.info("  /auth_channels/telegram           — telegram onboarding and manual send page");
+                log.info("  /auth_channels/telegram/approve   — approve discovered telegram chat request");
+                log.info("  /auth_channels/telegram/unapprove — unapprove a telegram chat");
+                log.info("  /auth_channels/telegram/reset     — reset approved telegram chats");
+                log.info("  /auth_channels/telegram/send      — telegram send endpoint");
             } else {
-                log.info("  /telegram            — disabled via config");
-                log.info("  /telegram/approve    — disabled via config");
-                log.info("  /telegram/unapprove  — disabled via config");
-                log.info("  /telegram/reset      — disabled via config");
-                log.info("  /telegram/send       — disabled via config");
+                log.info("  /auth_channels/telegram           — disabled via config");
+                log.info("  /auth_channels/telegram/approve   — disabled via config");
+                log.info("  /auth_channels/telegram/unapprove — disabled via config");
+                log.info("  /auth_channels/telegram/reset     — disabled via config");
+                log.info("  /auth_channels/telegram/send      — disabled via config");
             }
 
             log.info("  {}/*             — static assets from {}",
@@ -504,11 +536,11 @@ public class KonkinWebServer {
             log.info("  /wallets             — disabled via config");
             log.info("  /auth_channels       — disabled via config");
             log.info("  /driver_agent        — disabled via config");
-            log.info("  /telegram            — disabled via config (landing disabled)");
-            log.info("  /telegram/approve    — disabled via config (landing disabled)");
-            log.info("  /telegram/unapprove  — disabled via config (landing disabled)");
-            log.info("  /telegram/reset      — disabled via config (landing disabled)");
-            log.info("  /telegram/send       — disabled via config (landing disabled)");
+            log.info("  /auth_channels/telegram           — disabled via config (landing disabled)");
+            log.info("  /auth_channels/telegram/approve   — disabled via config (landing disabled)");
+            log.info("  /auth_channels/telegram/unapprove — disabled via config (landing disabled)");
+            log.info("  /auth_channels/telegram/reset     — disabled via config (landing disabled)");
+            log.info("  /auth_channels/telegram/send      — disabled via config (landing disabled)");
         }
     }
 

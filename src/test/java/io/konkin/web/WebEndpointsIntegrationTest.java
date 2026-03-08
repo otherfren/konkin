@@ -250,21 +250,27 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, root.statusCode());
             assertTrue(root.body().contains("KONKIN"));
 
+            // No coins configured — /wallets renders overview with all coins (including disabled)
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("Wallets"));
-            // litecoin/monero not configured (enabled=false) in this test config, so they should not appear
-            assertFalse(authDefinitions.body().contains("LITECOIN"));
-            assertFalse(authDefinitions.body().contains("MONERO"));
-            assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
-            assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
+            assertTrue(authDefinitions.body().contains("BITCOIN"));
+            assertTrue(authDefinitions.body().contains("LITECOIN"));
+            assertTrue(authDefinitions.body().contains("MONERO"));
+            assertTrue(authDefinitions.body().contains("disabled"));
 
             HttpResponse<String> authChannelsPage = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannelsPage.statusCode());
             assertTrue(authChannelsPage.body().contains("Auth Channels"));
-            assertTrue(authChannelsPage.body().contains("Web UI Channel"));
-            assertTrue(authChannelsPage.body().contains("REST API Channel"));
             assertTrue(authChannelsPage.body().contains("Auth Agent Bot Channels"));
+
+            HttpResponse<String> authChannelWebUiPage = get(runningServer, "/auth_channels/web-ui", Map.of());
+            assertEquals(200, authChannelWebUiPage.statusCode());
+            assertTrue(authChannelWebUiPage.body().contains("Web UI Channel"));
+
+            HttpResponse<String> authChannelApiKeysPage = get(runningServer, "/auth_channels/api_keys", Map.of());
+            assertEquals(200, authChannelApiKeysPage.statusCode());
+            assertTrue(authChannelApiKeysPage.body().contains("REST API Channel"));
 
             HttpResponse<String> driverAgentPage = get(runningServer, "/driver_agent", Map.of());
             assertEquals(200, driverAgentPage.statusCode());
@@ -1003,11 +1009,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("Auth channel configured"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-a"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-b"));
             assertTrue(authDefinitions.body().contains("2-of-N"));
             assertTrue(authDefinitions.body().contains("Veto channels"));
             assertTrue(authDefinitions.body().contains("telegram"));
@@ -1102,7 +1105,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
             assertTrue(authDefinitions.body().contains("7d 2h"));
             assertTrue(authDefinitions.body().contains("sum in window &gt;"));
@@ -1204,20 +1207,20 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path configFile = tempDir.resolve("config-auth-defs-rest-and-secondary-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
+        Files.createDirectories(restApiSecretFile.getParent());
+        Files.writeString(restApiSecretFile, "api-key=test-api-key-auth-defs", StandardCharsets.UTF_8);
+
         KonkinConfig config = KonkinConfig.load(configFile.toString());
         KonkinWebServer server = new KonkinWebServer(config, "test-version");
         server.start();
 
         try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
             waitForHealth(port);
-            HttpResponse<String> authDefinitions = get(runningServer, "/wallets", Map.of());
+            HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("Auth channel configured"));
-            assertTrue(authDefinitions.body().contains("web-ui: <strong>enabled</strong>"));
-            assertTrue(authDefinitions.body().contains("rest-api: <strong>enabled</strong>"));
-            assertTrue(authDefinitions.body().contains("telegram: <strong>disabled</strong>"));
-            assertTrue(authDefinitions.body().contains("verification-agent:agent-enabled"));
-            assertFalse(authDefinitions.body().contains("verification-agent:agent-disabled"));
+            assertTrue(authDefinitions.body().contains("web-ui <strong>on</strong>"));
+            assertTrue(authDefinitions.body().contains("rest-api <strong>on</strong>"));
+            assertTrue(authDefinitions.body().contains("telegram <strong>off</strong>"));
         }
     }
 
@@ -1310,8 +1313,6 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannels = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannels.statusCode());
             assertTrue(authChannels.body().contains("Auth Channels"));
-            assertTrue(authChannels.body().contains("Web UI Channel"));
-            assertTrue(authChannels.body().contains("REST API Channel"));
             assertTrue(authChannels.body().contains("Telegram Connected Users"));
             assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));
             assertFalse(authChannels.body().contains("Driver Agent Endpoint"));
@@ -1470,7 +1471,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void restApiSecretFileIsGeneratedWithApiKeyWhenMissing() throws Exception {
+    void restApiSecretFileIsNotAutoGeneratedWhenMissing() throws Exception {
         int port = freePort();
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api-generated.secret");
 
@@ -1491,15 +1492,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         KonkinConfig.load(configFile.toString());
 
-        assertTrue(Files.exists(restApiSecretFile));
-
-        Properties secretProps = new Properties();
-        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
-            secretProps.load(reader);
-        }
-
-        String apiKey = secretProps.getProperty("api-key", "").trim();
-        assertTrue(!apiKey.isEmpty());
+        assertFalse(Files.exists(restApiSecretFile));
     }
 
     @Test
@@ -1532,17 +1525,15 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 tomlPath(restApiSecretFile)
         );
 
+        String correctApiKey = "test-api-key-for-protected-routes";
+        Files.createDirectories(restApiSecretFile.getParent());
+        Files.writeString(restApiSecretFile, "api-key=" + correctApiKey + System.lineSeparator(),
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
         Path configFile = tempDir.resolve("config-rest-api-protected-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-
-        Properties secretProps = new Properties();
-        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
-            secretProps.load(reader);
-        }
-        String correctApiKey = secretProps.getProperty("api-key", "").trim();
-        assertTrue(!correctApiKey.isEmpty());
 
         DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
@@ -1589,17 +1580,15 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 tomlPath(restApiSecretFile)
         );
 
+        String correctApiKey = "test-api-key-for-allowed-routes";
+        Files.createDirectories(restApiSecretFile.getParent());
+        Files.writeString(restApiSecretFile, "api-key=" + correctApiKey + System.lineSeparator(),
+                StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
         Path configFile = tempDir.resolve("config-rest-api-allowed-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
-
-        Properties secretProps = new Properties();
-        try (var reader = Files.newBufferedReader(restApiSecretFile, StandardCharsets.UTF_8)) {
-            secretProps.load(reader);
-        }
-        String correctApiKey = secretProps.getProperty("api-key", "").trim();
-        assertTrue(!correctApiKey.isEmpty());
 
         DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
         KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());

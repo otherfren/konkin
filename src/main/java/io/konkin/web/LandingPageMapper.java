@@ -44,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -63,15 +64,21 @@ public class LandingPageMapper {
     private final KonkinConfig config;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final KvStore kvStore;
+    private final AtomicReference<String> activeApiKey;
 
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors) {
-        this(config, walletSupervisors, null);
+        this(config, walletSupervisors, null, null);
     }
 
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore) {
+        this(config, walletSupervisors, kvStore, null);
+    }
+
+    public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore, AtomicReference<String> activeApiKey) {
         this.config = config;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.kvStore = kvStore;
+        this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
     }
 
     // ── Approval page data (queue + log-queue shared row mapping) ───────────
@@ -257,6 +264,27 @@ public class LandingPageMapper {
 
     // ── Auth channels model ────────────────────────────────────────────────
 
+    public Map<String, Object> buildWebUiChannelModel() {
+        Map<String, Object> webUi = new LinkedHashMap<>();
+        webUi.put("enabled", config.landingEnabled());
+        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
+        webUi.put("passwordFile", safe(config.landingPasswordFile()));
+        return Map.copyOf(webUi);
+    }
+
+    public Map<String, Object> buildRestApiChannelModel() {
+        Map<String, Object> restApi = new LinkedHashMap<>();
+        boolean restApiEnabled = config.restApiEnabled();
+        boolean restApiOperational = restApiEnabled && activeApiKey.get() != null;
+        restApi.put("enabled", restApiOperational);
+        restApi.put("healthPath", "/api/v1/health");
+        restApi.put("apiKeyHeader", "X-API-Key");
+        restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
+        restApi.put("apiKeyProtectionEnabled", restApiEnabled);
+        restApi.put("secretFile", restApiEnabled ? safe(config.restApiSecretFile()) : "-");
+        return Map.copyOf(restApi);
+    }
+
     public Map<String, Object> buildAuthChannelsModel(
             List<TelegramService.ChatRequest> discoveredRequests,
             TelegramSecretService.TelegramSecret secret,
@@ -265,22 +293,7 @@ public class LandingPageMapper {
     ) {
         Map<String, Object> root = new LinkedHashMap<>();
 
-        Map<String, Object> webUi = new LinkedHashMap<>();
-        webUi.put("enabled", config.landingEnabled());
-        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
-        webUi.put("passwordFile", safe(config.landingPasswordFile()));
-        root.put("webUi", Map.copyOf(webUi));
-
-        Map<String, Object> restApi = new LinkedHashMap<>();
-        boolean restApiEnabled = config.restApiEnabled();
-        restApi.put("enabled", restApiEnabled);
-        restApi.put("healthPath", "/api/v1/health");
-        restApi.put("apiKeyHeader", "X-API-Key");
-        restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
-        restApi.put("apiKeyProtectionEnabled", restApiEnabled);
-        restApi.put("secretFile", restApiEnabled ? safe(config.restApiSecretFile()) : "-");
-        root.put("restApi", Map.copyOf(restApi));
-
+        root.put("configuredAuthChannels", buildConfiguredAuthChannels());
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers(discoveredRequests, secret, configuredTelegramChatIds));
         root.put("authAgents", buildAuthAgentChannels());
@@ -643,16 +656,82 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        if (config.bitcoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("bitcoin", config.bitcoin()));
-        }
-        if (config.litecoin().enabled()) {
-            coins.add(buildCoinAuthDefinition("litecoin", config.litecoin()));
-        }
-        if (config.monero().enabled()) {
-            coins.add(buildCoinAuthDefinition("monero", config.monero()));
-        }
+        coins.add(buildWalletOverviewEntry("bitcoin", config.bitcoin(),
+                "coins.bitcoin", "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
+                "coins.bitcoin.secret-files.bitcoin-wallet-config-file"));
+        coins.add(buildWalletOverviewEntry("litecoin", config.litecoin(),
+                "coins.litecoin", "coins.litecoin.secret-files.litecoin-daemon-config-file",
+                "coins.litecoin.secret-files.litecoin-wallet-config-file"));
+        coins.add(buildWalletOverviewEntry("monero", config.monero(),
+                "coins.monero", "coins.monero.secret-files.monero-daemon-config-file",
+                "coins.monero.secret-files.monero-wallet-rpc-config-file"));
         root.put("coins", List.copyOf(coins));
+        return Map.copyOf(root);
+    }
+
+    private Map<String, Object> buildWalletOverviewEntry(
+            String coinId, CoinConfig coinConfig, String configSection,
+            String daemonConfigKey, String walletConfigKey) {
+        Map<String, Object> coin = new LinkedHashMap<>();
+        coin.put("coin", coinId);
+        coin.put("coinIconName", coinIconName(coinId));
+        coin.put("enabled", coinConfig.enabled());
+        coin.put("configSection", configSection);
+        coin.put("daemonConfigKey", daemonConfigKey);
+        coin.put("walletConfigKey", walletConfigKey);
+        coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
+        coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
+
+        if (coinConfig.enabled()) {
+            CoinAuthConfig auth = coinConfig.auth();
+            boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+            Map<String, Object> channels = new LinkedHashMap<>();
+            channels.put("webUi", auth.webUi());
+            channels.put("restApi", restApiOperational);
+            channels.put("telegram", auth.telegram());
+            coin.put("channels", Map.copyOf(channels));
+
+            WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
+            if (walletSupervisor != null) {
+                WalletSnapshot snap = walletSupervisor.snapshot();
+                coin.put("connectionStatus", snap.status().name().toLowerCase());
+                coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
+                coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
+            } else {
+                coin.put("connectionStatus", "not connected");
+                coin.put("lastLifeSign", "n/a");
+                coin.put("disconnected", true);
+            }
+        } else {
+            coin.put("channels", Map.of());
+            coin.put("connectionStatus", "disabled");
+            coin.put("lastLifeSign", "n/a");
+            coin.put("disconnected", true);
+        }
+        return Map.copyOf(coin);
+    }
+
+    public List<String> getEnabledCoinIds() {
+        List<String> coins = new ArrayList<>();
+        if (config.bitcoin().enabled()) coins.add("bitcoin");
+        if (config.litecoin().enabled()) coins.add("litecoin");
+        if (config.monero().enabled()) coins.add("monero");
+        return List.copyOf(coins);
+    }
+
+    public Map<String, Object> buildSingleCoinWalletModel(String coinId) {
+        CoinConfig coinConfig = switch (coinId) {
+            case "bitcoin" -> config.bitcoin();
+            case "litecoin" -> config.litecoin();
+            case "monero" -> config.monero();
+            default -> null;
+        };
+        if (coinConfig == null || !coinConfig.enabled()) {
+            return null;
+        }
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("configuredAuthChannels", buildConfiguredAuthChannels());
+        root.put("coin", buildCoinAuthDefinition(coinId, coinConfig));
         return Map.copyOf(root);
     }
 
@@ -669,7 +748,7 @@ public class LandingPageMapper {
         if (config.restApiEnabled()) {
             Map<String, Object> restApi = new LinkedHashMap<>();
             restApi.put("name", "rest-api");
-            restApi.put("enabled", true);
+            restApi.put("enabled", activeApiKey.get() != null);
             channels.add(Map.copyOf(restApi));
         }
 
@@ -702,14 +781,22 @@ public class LandingPageMapper {
         Map<String, Object> coin = new LinkedHashMap<>();
         CoinAuthConfig auth = coinConfig.auth();
 
+        boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+
         Map<String, Object> channels = new LinkedHashMap<>();
         channels.put("webUi", auth.webUi());
-        channels.put("restApi", auth.restApi());
+        channels.put("restApi", restApiOperational);
         channels.put("telegram", auth.telegram());
 
         List<String> warnings = new ArrayList<>();
         if (auth.webUi() && !config.landingEnabled()) {
             warnings.add("web-ui channel is configured, but web-ui is globally disabled.");
+        }
+        if (auth.restApi() && !config.restApiEnabled()) {
+            warnings.add("rest-api channel is configured, but rest-api is globally disabled.");
+        }
+        if (auth.restApi() && config.restApiEnabled() && activeApiKey.get() == null) {
+            warnings.add("rest-api channel is configured, but no API key has been created yet.");
         }
         if (auth.telegram() && !config.telegramEnabled()) {
             warnings.add("telegram channel is configured, but telegram is globally disabled.");

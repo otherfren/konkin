@@ -47,6 +47,7 @@ import io.konkin.web.service.LandingPageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -62,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.konkin.web.UiFormattingUtils.*;
 import static io.konkin.web.WebUtils.*;
@@ -85,7 +87,8 @@ public class LandingPageController {
 
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
-    private final PasswordFileManager passwordFileManager;
+    private final Path passwordFilePath;
+    private volatile PasswordFileManager passwordFileManager;
     private final boolean telegramEnabled;
     private TelegramWebController telegramWebController;
     private final ApprovalRequestRepository requestRepo;
@@ -97,12 +100,15 @@ public class LandingPageController {
     private final LandingPageMapper mapper;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final VoteService voteService;
+    private final Path restApiSecretFilePath;
+    private final AtomicReference<String> activeApiKey;
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
+            Path passwordFilePath,
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
@@ -114,34 +120,16 @@ public class LandingPageController {
             KonkinConfig config,
             LandingPageMapper mapper
     ) {
-        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
+        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, null, null);
+                channelRepo, historyRepo, depLoader, config, mapper, null, null,
+                null, null);
     }
 
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
-            PasswordFileManager passwordFileManager,
-            boolean telegramEnabled,
-            TelegramWebController telegramWebController,
-            ApprovalRequestRepository requestRepo,
-            VoteRepository voteRepo,
-            ChannelRepository channelRepo,
-            HistoryRepository historyRepo,
-            RequestDependencyLoader depLoader,
-            KonkinConfig config,
-            LandingPageMapper mapper,
-            Map<Coin, WalletSupervisor> walletSupervisors
-    ) {
-        this(landingPageService, passwordProtectionEnabled, passwordFileManager,
-                telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, null);
-    }
-
-    public LandingPageController(
-            LandingPageService landingPageService,
-            boolean passwordProtectionEnabled,
+            Path passwordFilePath,
             PasswordFileManager passwordFileManager,
             boolean telegramEnabled,
             TelegramWebController telegramWebController,
@@ -155,16 +143,38 @@ public class LandingPageController {
             Map<Coin, WalletSupervisor> walletSupervisors,
             VoteService voteService
     ) {
-        if (passwordProtectionEnabled && passwordFileManager == null) {
-            throw new IllegalArgumentException("passwordFileManager is required when password protection is enabled");
-        }
+        this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
+                telegramEnabled, telegramWebController, requestRepo, voteRepo,
+                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, voteService,
+                null, null);
+    }
 
+    public LandingPageController(
+            LandingPageService landingPageService,
+            boolean passwordProtectionEnabled,
+            Path passwordFilePath,
+            PasswordFileManager passwordFileManager,
+            boolean telegramEnabled,
+            TelegramWebController telegramWebController,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            ChannelRepository channelRepo,
+            HistoryRepository historyRepo,
+            RequestDependencyLoader depLoader,
+            KonkinConfig config,
+            LandingPageMapper mapper,
+            Map<Coin, WalletSupervisor> walletSupervisors,
+            VoteService voteService,
+            Path restApiSecretFilePath,
+            AtomicReference<String> activeApiKey
+    ) {
         if (config == null) {
             throw new IllegalArgumentException("config is required");
         }
 
         this.landingPageService = landingPageService;
         this.passwordProtectionEnabled = passwordProtectionEnabled;
+        this.passwordFilePath = passwordFilePath;
         this.passwordFileManager = passwordFileManager;
         this.telegramEnabled = telegramEnabled;
         this.telegramWebController = telegramWebController;
@@ -177,6 +187,8 @@ public class LandingPageController {
         this.mapper = mapper;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.voteService = voteService;
+        this.restApiSecretFilePath = restApiSecretFilePath;
+        this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
     }
 
     public void setTelegramWebController(TelegramWebController telegramWebController) {
@@ -249,7 +261,7 @@ public class LandingPageController {
             confirmData = new TelegramWebController.TelegramConfirmData(confirmMode, confirmChatId);
         }
 
-        renderLandingForPage(ctx, "telegram", notice, error, draft, "", false, null, confirmData);
+        renderLandingForPage(ctx, "auth_channel_telegram", notice, error, draft, "", false, null, confirmData);
     }
 
     public void handleWalletsPage(Context ctx) {
@@ -262,6 +274,27 @@ public class LandingPageController {
         ctx.result(landingPageService.renderWallets(
                 passwordProtectionEnabled,
                 mapper.buildWalletsModel()
+        ));
+    }
+
+    public void handleWalletPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        String coinId = ctx.pathParam("coin").toLowerCase(Locale.ROOT);
+        Map<String, Object> walletData = mapper.buildSingleCoinWalletModel(coinId);
+        if (walletData == null) {
+            ctx.redirect("/wallets");
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderWallet(
+                passwordProtectionEnabled,
+                coinId,
+                walletData
         ));
     }
 
@@ -297,7 +330,7 @@ public class LandingPageController {
             log.warn("Failed to generate deposit address for {}: {}", coinId, e.getMessage());
         }
 
-        ctx.redirect("/wallets");
+        ctx.redirect("/wallets/" + coinId);
     }
 
     public void handleAuthChannelsPage(Context ctx) {
@@ -310,6 +343,45 @@ public class LandingPageController {
         ctx.result(landingPageService.renderAuthChannels(
                 passwordProtectionEnabled,
                 buildAuthChannelsModel()
+        ));
+    }
+
+    public void handleAuthChannelWebUiPage(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthChannelWebUi(
+                passwordProtectionEnabled,
+                mapper.buildWebUiChannelModel(),
+                ""
+        ));
+    }
+
+    public void handlePasswordRotate(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        if (!passwordProtectionEnabled || passwordFilePath == null) {
+            ctx.redirect("/auth_channels/web-ui");
+            return;
+        }
+
+        PasswordFileManager.CreateResult result = PasswordFileManager.createNew(passwordFilePath);
+        this.passwordFileManager = result.manager();
+        activeSessions.clear();
+        issueSessionCookie(ctx);
+        log.info("Web-UI password rotated via auth channel page, file: {}", passwordFilePath.toAbsolutePath());
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthChannelWebUi(
+                passwordProtectionEnabled,
+                mapper.buildWebUiChannelModel(),
+                result.cleartextPassword()
         ));
     }
 
@@ -326,11 +398,122 @@ public class LandingPageController {
         ));
     }
 
+    // ── Setup wizard ──────────────────────────────────────────────────────
+
+    public boolean isWizardMode() {
+        return passwordProtectionEnabled && passwordFileManager == null;
+    }
+
+    public void handleSetupPage(Context ctx) {
+        if (!isWizardMode()) {
+            ctx.redirect("/");
+            return;
+        }
+        showSetup(ctx, "create", null);
+    }
+
+    public void handleSetupCreate(Context ctx) {
+        if (!isWizardMode()) {
+            ctx.redirect("/");
+            return;
+        }
+
+        PasswordFileManager.CreateResult result = PasswordFileManager.createNew(passwordFilePath);
+        this.passwordFileManager = result.manager();
+        showSetup(ctx, "reveal", result.cleartextPassword());
+    }
+
+    private void showSetup(Context ctx, String step, String password) {
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderSetup(step, password));
+    }
+
+    // ── API key management ─────────────────────────────────────────────────
+
+    public void handleApiKeysPage(Context ctx) {
+        if (passwordProtectionEnabled && !isWizardMode() && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        boolean restApiEnabled = config.restApiEnabled();
+        boolean hasKey = activeApiKey.get() != null;
+        String secretFile = restApiSecretFilePath != null ? restApiSecretFilePath.toString() : "";
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderApiKeys(
+                passwordProtectionEnabled,
+                restApiEnabled, hasKey, "", secretFile,
+                mapper.buildRestApiChannelModel()));
+    }
+
+    public void handleApiKeysRotate(Context ctx) {
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        if (!config.restApiEnabled() || restApiSecretFilePath == null) {
+            ctx.redirect("/auth_channels/api_keys");
+            return;
+        }
+
+        String newKey = generateApiKey();
+        writeApiKeyFile(restApiSecretFilePath, newKey);
+        activeApiKey.set(newKey);
+        landingPageService.setRestApiKeyMissing(false);
+        log.info("REST API key rotated via web UI, secret file: {}", restApiSecretFilePath.toAbsolutePath());
+
+        String secretFile = restApiSecretFilePath.toString();
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderApiKeys(
+                passwordProtectionEnabled,
+                true, true, newKey, secretFile,
+                mapper.buildRestApiChannelModel()));
+    }
+
+    private static String generateApiKey() {
+        byte[] random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+    }
+
+    private static void writeApiKeyFile(Path secretFile, String apiKey) {
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                java.nio.file.Files.createDirectories(parent);
+            }
+            java.nio.file.Files.writeString(secretFile,
+                    "api-key=" + apiKey + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            setOwnerOnlyPermissions(secretFile);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Failed to write REST API secret file: " + secretFile, e);
+        }
+    }
+
+    private static void setOwnerOnlyPermissions(Path file) {
+        try {
+            java.nio.file.Files.setPosixFilePermissions(file, java.util.EnumSet.of(
+                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
+            ));
+        } catch (UnsupportedOperationException ignored) {
+        } catch (java.io.IOException e) {
+            log.warn("Failed to set owner-only permissions on secret file: {}", file, e);
+        }
+    }
+
     // ── Login / logout ─────────────────────────────────────────────────────
 
     public void handleLoginPage(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
+            return;
+        }
+
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
             return;
         }
 
@@ -345,6 +528,11 @@ public class LandingPageController {
     public void handleLoginSubmit(Context ctx) {
         if (!passwordProtectionEnabled) {
             ctx.redirect("/");
+            return;
+        }
+
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
             return;
         }
 
@@ -364,16 +552,7 @@ public class LandingPageController {
             return;
         }
 
-        String sessionToken = newSessionToken();
-        activeSessions.put(sessionToken, Instant.now().plus(SESSION_TTL));
-
-        Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
-        sessionCookie.setPath("/");
-        sessionCookie.setHttpOnly(true);
-        sessionCookie.setSecure(isSecureRequest(ctx));
-        sessionCookie.setMaxAge((int) SESSION_TTL.toSeconds());
-        sessionCookie.setSameSite(SameSite.STRICT);
-        ctx.cookie(sessionCookie);
+        issueSessionCookie(ctx);
         ctx.redirect("/");
     }
 
@@ -403,6 +582,10 @@ public class LandingPageController {
     }
 
     private void showLogin(Context ctx, boolean invalidPassword) {
+        if (isWizardMode()) {
+            ctx.redirect("/setup");
+            return;
+        }
         ctx.status(invalidPassword ? 401 : 200);
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderLogin(invalidPassword));
@@ -416,6 +599,19 @@ public class LandingPageController {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private void issueSessionCookie(Context ctx) {
+        String sessionToken = newSessionToken();
+        activeSessions.put(sessionToken, Instant.now().plus(SESSION_TTL));
+
+        Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
+        sessionCookie.setPath("/");
+        sessionCookie.setHttpOnly(true);
+        sessionCookie.setSecure(isSecureRequest(ctx));
+        sessionCookie.setMaxAge((int) SESSION_TTL.toSeconds());
+        sessionCookie.setSameSite(SameSite.STRICT);
+        ctx.cookie(sessionCookie);
     }
 
     // [M-6] Rate limiting helpers — mirrors AgentOAuthHandler pattern
@@ -492,7 +688,7 @@ public class LandingPageController {
     ) {
         if (!passwordProtectionEnabled || hasValidSession(ctx)) {
             // Only load data needed for the active page to avoid unnecessary DB queries
-            TelegramPageData telegramPageData = "telegram".equals(activePage)
+            TelegramPageData telegramPageData = "auth_channel_telegram".equals(activePage)
                     ? loadTelegramPageData()
                     : new TelegramPageData(List.of(), List.of());
 
@@ -520,7 +716,7 @@ public class LandingPageController {
                 telegramConfirmMode = confirmMode;
                 telegramConfirmChatId = defaultIfBlank(telegramConfirmData.chatId(), "").trim();
                 telegramConfirmChatIdShort = "reset".equals(confirmMode) ? "-" : abbreviateId(telegramConfirmChatId);
-                telegramConfirmActionPath = "reset".equals(confirmMode) ? "/telegram/reset" : "/telegram/unapprove";
+                telegramConfirmActionPath = "reset".equals(confirmMode) ? "/auth_channels/telegram/reset" : "/auth_channels/telegram/unapprove";
             }
 
             ctx.contentType("text/html; charset=UTF-8");
