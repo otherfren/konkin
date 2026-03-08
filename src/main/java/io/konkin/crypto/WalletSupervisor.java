@@ -113,7 +113,11 @@ public class WalletSupervisor {
         }
         ScheduledExecutorService s = scheduler;
         if (s != null && !s.isShutdown()) {
-            s.schedule(this::heartbeat, 0, TimeUnit.SECONDS);
+            try {
+                s.schedule(this::heartbeat, 0, TimeUnit.SECONDS).get(RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.debug("Reconnect heartbeat did not complete in time: {}", e.getMessage());
+            }
         }
     }
 
