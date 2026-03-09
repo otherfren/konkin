@@ -741,12 +741,7 @@ public class LandingPageMapper {
     }
 
     public Map<String, Object> buildSingleCoinWalletModel(String coinId) {
-        CoinConfig coinConfig = switch (coinId) {
-            case "bitcoin" -> config.bitcoin();
-            case "litecoin" -> config.litecoin();
-            case "monero" -> config.monero();
-            default -> null;
-        };
+        CoinConfig coinConfig = config.resolveCoinConfig(coinId);
         if (coinConfig == null || !coinConfig.enabled()) {
             return null;
         }

@@ -237,6 +237,21 @@ public class KonkinConfig {
     public CoinConfig litecoin() { return litecoin; }
     public CoinConfig monero() { return monero; }
     public CoinConfig testDummyCoin() { return testDummyCoin; }
+
+    /**
+     * Resolve a CoinConfig by coin name (case-insensitive).
+     * Returns null for unrecognized coin names.
+     */
+    public CoinConfig resolveCoinConfig(String coin) {
+        if (coin == null) return null;
+        return switch (coin.trim().toLowerCase()) {
+            case "bitcoin" -> bitcoin();
+            case "litecoin" -> litecoin();
+            case "monero" -> monero();
+            case "testdummycoin" -> testDummyCoin();
+            default -> null;
+        };
+    }
     public String configFilePath() { return configFilePath; }
 
     /**

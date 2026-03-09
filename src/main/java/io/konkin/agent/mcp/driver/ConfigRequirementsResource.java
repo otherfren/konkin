@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.driver;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceSpecification;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncResourceTemplateSpecification;
@@ -28,10 +25,9 @@ import io.modelcontextprotocol.spec.McpSchema.TextResourceContents;
 
 import java.util.List;
 
-public final class ConfigRequirementsResource {
+import static io.konkin.agent.mcp.driver.WalletToolSupport.toJson;
 
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+public final class ConfigRequirementsResource {
 
     private ConfigRequirementsResource() {
     }
@@ -84,11 +80,4 @@ public final class ConfigRequirementsResource {
         return null;
     }
 
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
-    }
 }

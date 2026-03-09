@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.driver;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
@@ -34,22 +31,17 @@ import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
+
+import static io.konkin.agent.mcp.driver.WalletToolSupport.*;
 
 public final class SweepWalletTool {
 
     private static final Logger log = LoggerFactory.getLogger(SweepWalletTool.class);
-
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
 
     private SweepWalletTool() {
     }
@@ -193,11 +185,6 @@ public final class SweepWalletTool {
         return new CallToolResult(List.of(new TextContent(toJson(accepted))), false, null, null);
     }
 
-    private static CallToolResult errorResult(String error, String message) {
-        String json = toJson(Map.of("error", error, "message", message));
-        return new CallToolResult(List.of(new TextContent(json)), true, null, null);
-    }
-
     private static boolean hasAnyEnabledCoin(KonkinConfig config) {
         return config.bitcoin().enabled() || config.monero().enabled();
     }
@@ -208,46 +195,5 @@ public final class SweepWalletTool {
             case "monero" -> config.monero();
             default -> null;
         };
-    }
-
-    private static String normalizeCoin(String coin) {
-        if (coin == null || coin.isBlank()) {
-            throw new IllegalArgumentException("coin is required");
-        }
-        return coin.trim().toLowerCase();
-    }
-
-    private static String requireNonBlank(String value, String message) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
-    }
-
-    private static String argString(Map<String, Object> args, String key) {
-        Object value = args == null ? null : args.get(key);
-        return value == null ? null : value.toString();
-    }
-
-    private static String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", e);
-        }
-    }
-
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
     }
 }

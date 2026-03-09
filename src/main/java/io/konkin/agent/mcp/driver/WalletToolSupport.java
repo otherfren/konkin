@@ -18,6 +18,7 @@ package io.konkin.agent.mcp.driver;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Coin;
@@ -30,24 +31,29 @@ import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Map;
 
-final class WalletToolSupport {
+public final class WalletToolSupport {
 
     private static final Logger log = LoggerFactory.getLogger(WalletToolSupport.class);
 
     private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+            .registerModule(new JavaTimeModule())
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private WalletToolSupport() {}
 
-    static CallToolResult errorResult(String error, String message) {
+    public static CallToolResult errorResult(String error, String message) {
         String json = toJson(Map.of("error", error, "message", message));
         return new CallToolResult(List.of(new TextContent(json)), true, null, null);
     }
 
-    static CallToolResult walletError(WalletException e) {
+    public static CallToolResult walletError(WalletException e) {
         if (e instanceof WalletConnectionException) {
             return errorResult("wallet_offline", e.getMessage());
         }
@@ -58,16 +64,16 @@ final class WalletToolSupport {
         return errorResult("wallet_error", e.getMessage());
     }
 
-    static CallToolResult unexpectedError(String toolName, Exception e) {
+    public static CallToolResult unexpectedError(String toolName, Exception e) {
         log.error("MCP tool {} unexpected error: {}", toolName, e.getMessage(), e);
         return errorResult("internal_error", "Unexpected error in " + toolName + ": " + e.getMessage());
     }
 
-    static CallToolResult jsonResult(Object value) {
+    public static CallToolResult jsonResult(Object value) {
         return new CallToolResult(List.of(new TextContent(toJson(value))), false, null, null);
     }
 
-    static CallToolResult validateCoinEnabled(KonkinConfig config, String coin) {
+    public static CallToolResult validateCoinEnabled(KonkinConfig config, String coin) {
         if (coin == null || coin.isBlank()) {
             return errorResult("invalid_input", "coin is required");
         }
@@ -82,7 +88,7 @@ final class WalletToolSupport {
         };
     }
 
-    static Coin resolveCoin(String coin) {
+    public static Coin resolveCoin(String coin) {
         return switch (coin.trim().toLowerCase()) {
             case "bitcoin" -> Coin.BTC;
             case "monero" -> Coin.XMR;
@@ -90,16 +96,78 @@ final class WalletToolSupport {
         };
     }
 
-    static WalletSupervisor lookupSupervisor(Map<Coin, WalletSupervisor> supervisors, Coin coin) {
+    public static WalletSupervisor lookupSupervisor(Map<Coin, WalletSupervisor> supervisors, Coin coin) {
         return supervisors.get(coin);
     }
 
-    static String argString(Map<String, Object> args, String key) {
+    public static String argString(Map<String, Object> args, String key) {
         Object value = args == null ? null : args.get(key);
         return value == null ? null : value.toString();
     }
 
-    static String toJson(Object value) {
+    public static String requireNonBlank(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.trim();
+    }
+
+    public static String optionalTrim(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    public static BigDecimal validateAmount(String amountNative) {
+        BigDecimal parsed;
+        try {
+            parsed = new BigDecimal(amountNative);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "amountNative '" + amountNative + "' is not a valid number. Provide a decimal value like '0.001'.");
+        }
+        if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                    "amountNative must be greater than zero, got: " + parsed.toPlainString());
+        }
+        return parsed;
+    }
+
+    public static void validateFeeCap(String feeCapNative) {
+        try {
+            BigDecimal parsed = new BigDecimal(feeCapNative);
+            if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException(
+                        "feeCapNative must be greater than zero, got: " + parsed.toPlainString());
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(
+                    "feeCapNative '" + feeCapNative + "' is not a valid number. Provide a decimal value like '0.0001'.");
+        }
+    }
+
+    public static String normalizeCoin(String coin) {
+        if (coin == null || coin.isBlank()) {
+            throw new IllegalArgumentException("coin is required");
+        }
+        return coin.trim().toLowerCase();
+    }
+
+    public static String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm is not available", e);
+        }
+    }
+
+    public static String toJson(Object value) {
         try {
             return JSON.writeValueAsString(value);
         } catch (JsonProcessingException e) {

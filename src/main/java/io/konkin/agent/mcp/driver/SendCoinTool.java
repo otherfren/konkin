@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.driver;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
@@ -35,9 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,12 +39,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static io.konkin.agent.mcp.driver.WalletToolSupport.*;
+
 public final class SendCoinTool {
 
     private static final Logger log = LoggerFactory.getLogger(SendCoinTool.class);
-
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
 
     private SendCoinTool() {
     }
@@ -223,11 +216,6 @@ public final class SendCoinTool {
         return new CallToolResult(List.of(new TextContent(toJson(accepted))), false, null, null);
     }
 
-    private static CallToolResult errorResult(String error, String message) {
-        String json = toJson(Map.of("error", error, "message", message));
-        return new CallToolResult(List.of(new TextContent(json)), true, null, null);
-    }
-
     private static boolean hasAnyEnabledCoin(KonkinConfig config) {
         return config.bitcoin().enabled()
                 || config.litecoin().enabled()
@@ -242,80 +230,5 @@ public final class SendCoinTool {
             case "testdummycoin" -> config.testDummyCoin();
             default -> null;
         };
-    }
-
-    private static String normalizeCoin(String coin) {
-        if (coin == null || coin.isBlank()) {
-            throw new IllegalArgumentException("coin is required");
-        }
-        return coin.trim().toLowerCase();
-    }
-
-    private static String requireNonBlank(String value, String message) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(message);
-        }
-        return value.trim();
-    }
-
-    private static BigDecimal validateAmount(String amountNative) {
-        BigDecimal parsed;
-        try {
-            parsed = new BigDecimal(amountNative);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "amountNative '" + amountNative + "' is not a valid number. Provide a decimal value like '0.001'.");
-        }
-        if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException(
-                    "amountNative must be greater than zero, got: " + parsed.toPlainString());
-        }
-        return parsed;
-    }
-
-    private static void validateFeeCap(String feeCapNative) {
-        try {
-            BigDecimal parsed = new BigDecimal(feeCapNative);
-            if (parsed.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException(
-                        "feeCapNative must be greater than zero, got: " + parsed.toPlainString());
-            }
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(
-                    "feeCapNative '" + feeCapNative + "' is not a valid number. Provide a decimal value like '0.0001'.");
-        }
-    }
-
-    private static String optionalTrim(String value) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private static String argString(Map<String, Object> args, String key) {
-        Object value = args == null ? null : args.get(key);
-        return value == null ? null : value.toString();
-    }
-
-    private static String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                sb.append(String.format("%02x", b));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 algorithm is not available", e);
-        }
-    }
-
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
     }
 }

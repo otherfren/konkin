@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.auth;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
@@ -39,12 +36,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static io.konkin.agent.mcp.driver.WalletToolSupport.*;
+
 public final class VoteOnApprovalTool {
 
     private static final Logger log = LoggerFactory.getLogger(VoteOnApprovalTool.class);
-
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
 
     private VoteOnApprovalTool() {
     }
@@ -121,14 +117,7 @@ public final class VoteOnApprovalTool {
 
     static List<String> resolveVetoChannels(String coin, KonkinConfig runtimeConfig) {
         if (coin == null || runtimeConfig == null) return List.of();
-        String normalized = coin.trim().toLowerCase();
-        CoinConfig coinConfig = switch (normalized) {
-            case "bitcoin" -> runtimeConfig.bitcoin();
-            case "litecoin" -> runtimeConfig.litecoin();
-            case "monero" -> runtimeConfig.monero();
-            case "testdummycoin" -> runtimeConfig.testDummyCoin();
-            default -> null;
-        };
+        CoinConfig coinConfig = runtimeConfig.resolveCoinConfig(coin);
         if (coinConfig == null || coinConfig.auth() == null || coinConfig.auth().vetoChannels() == null) {
             return List.of();
         }
@@ -137,15 +126,8 @@ public final class VoteOnApprovalTool {
 
     static boolean isAgentAssignedToCoin(String agentName, String coin, KonkinConfig runtimeConfig) {
         if (coin == null || runtimeConfig == null) return false;
-        String normalized = coin.trim().toLowerCase();
-        if (normalized.isEmpty()) return false;
-        return switch (normalized) {
-            case "bitcoin" -> isAgentAssigned(agentName, runtimeConfig.bitcoin());
-            case "litecoin" -> isAgentAssigned(agentName, runtimeConfig.litecoin());
-            case "monero" -> isAgentAssigned(agentName, runtimeConfig.monero());
-            case "testdummycoin" -> isAgentAssigned(agentName, runtimeConfig.testDummyCoin());
-            default -> false;
-        };
+        CoinConfig coinConfig = runtimeConfig.resolveCoinConfig(coin);
+        return isAgentAssigned(agentName, coinConfig);
     }
 
     private static boolean isAgentAssigned(String agentName, CoinConfig coinConfig) {
@@ -172,34 +154,5 @@ public final class VoteOnApprovalTool {
             throw new IllegalStateException("Failed to resolve approval channel for auth agent: " + agentName);
         }
         return reloaded.id();
-    }
-
-    private static CallToolResult errorResult(String error, String message) {
-        String json = toJson(Map.of("error", error, "message", message));
-        return new CallToolResult(List.of(new TextContent(json)), true, null, null);
-    }
-
-    private static String requireNonBlank(String value, String message) {
-        if (value == null || value.isBlank()) throw new IllegalArgumentException(message);
-        return value.trim();
-    }
-
-    private static String optionalTrim(String value) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    private static String argString(Map<String, Object> args, String key) {
-        Object value = args == null ? null : args.get(key);
-        return value == null ? null : value.toString();
-    }
-
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
     }
 }

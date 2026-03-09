@@ -135,8 +135,12 @@ final class KonkinConfigLoader {
         Map<String, AgentConfig> secondaryAgents = loadSecondaryAgentConfigs(toml, secretsDir);
 
         CoinConfig bitcoin = loadBitcoinConfig(toml, secretsDir);
-        CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main", secretsDir);
-        CoinConfig monero = loadMoneroConfig(toml, secretsDir);
+        CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main",
+                "litecoin-daemon-config-file", "litecoin-wallet-config-file",
+                "litecoin-daemon.conf", "litecoin-wallet.conf", secretsDir);
+        CoinConfig monero = loadCoinConfig(toml, "monero", "xmr-main",
+                "monero-daemon-config-file", "monero-wallet-rpc-config-file",
+                "monero-daemon.conf", "monero-wallet-rpc.conf", secretsDir);
         CoinConfig testDummyCoin = loadTestDummyCoinConfig(toml, debugEnabled, secretsDir);
 
         return new KonkinConfig(
@@ -297,37 +301,6 @@ final class KonkinConfigLoader {
         );
     }
 
-    private static CoinConfig loadMoneroConfig(FileConfig toml, String secretsDir) {
-        String coinPrefix = "coins.monero";
-        boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
-
-        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
-                coinPrefix + ".secret-files.monero-daemon-config-file",
-                secretsDir + "monero-daemon.conf"), secretsDir);
-        String walletRpcSecretFile = resolveSecretsDir(toml.getOrElse(
-                coinPrefix + ".secret-files.monero-wallet-rpc-config-file",
-                secretsDir + "monero-wallet-rpc.conf"), secretsDir);
-
-        boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
-        boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
-        boolean telegram = toml.getOrElse(coinPrefix + ".auth.telegram", false);
-        String mcp = toml.getOrElse(coinPrefix + ".auth.mcp", "xmr-main");
-        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, coinPrefix + ".auth", mcp);
-
-        List<ApprovalRule> autoAccept = readApprovalRules(toml, coinPrefix + ".auth.auto-accept");
-        List<ApprovalRule> autoDeny = readApprovalRules(toml, coinPrefix + ".auth.auto-deny");
-
-        int minApprovalsRequired = toml.getIntOrElse(coinPrefix + ".auth.min-approvals-required", 1);
-        List<String> vetoChannels = loadVetoChannels(toml, coinPrefix + ".auth");
-
-        return new CoinConfig(
-                enabled,
-                daemonSecretFile,
-                walletRpcSecretFile,
-                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
-        );
-    }
-
     private static CoinConfig loadTestDummyCoinConfig(FileConfig toml, boolean debugEnabled, String secretsDir) {
         if (!debugEnabled) {
             return new CoinConfig(
@@ -337,20 +310,27 @@ final class KonkinConfigLoader {
                     new CoinAuthConfig(List.of(), List.of(), false, false, false, "", List.of(), 1, List.of())
             );
         }
-        return loadCoinConfig(toml, "testdummycoin", "tdc-main", secretsDir);
+        return loadCoinConfig(toml, "testdummycoin", "tdc-main",
+                "testdummycoin-daemon-config-file", "testdummycoin-wallet-config-file",
+                "testdummycoin-daemon.conf", "testdummycoin-wallet.conf", secretsDir);
     }
 
-    private static CoinConfig loadCoinConfig(FileConfig toml, String coinId, String defaultMcp, String secretsDir) {
+    private static CoinConfig loadCoinConfig(
+            FileConfig toml, String coinId, String defaultMcp,
+            String daemonSecretKey, String walletSecretKey,
+            String defaultDaemonFile, String defaultWalletFile,
+            String secretsDir
+    ) {
         String coinPrefix = "coins." + coinId;
 
         boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
 
         String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
-                coinPrefix + ".secret-files." + coinId + "-daemon-config-file",
-                secretsDir + coinId + "-daemon.conf"), secretsDir);
+                coinPrefix + ".secret-files." + daemonSecretKey,
+                secretsDir + defaultDaemonFile), secretsDir);
         String walletSecretFile = resolveSecretsDir(toml.getOrElse(
-                coinPrefix + ".secret-files." + coinId + "-wallet-config-file",
-                secretsDir + coinId + "-wallet.conf"), secretsDir);
+                coinPrefix + ".secret-files." + walletSecretKey,
+                secretsDir + defaultWalletFile), secretsDir);
 
         boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
         boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);

@@ -22,7 +22,6 @@ import io.javalin.http.SameSite;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Coin;
-import io.konkin.crypto.DepositAddress;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
@@ -264,100 +263,8 @@ public class LandingPageController {
         renderLandingForPage(ctx, "auth_channel_telegram", notice, error, draft, "", false, null, confirmData);
     }
 
-    public void handleWalletsPage(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
+    // Wallet handlers extracted to WalletController
 
-        ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderWallets(
-                passwordProtectionEnabled,
-                mapper.buildWalletsModel()
-        ));
-    }
-
-    public void handleWalletPage(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        String coinId = ctx.pathParam("coin").toLowerCase(Locale.ROOT);
-        Map<String, Object> walletData = mapper.buildSingleCoinWalletModel(coinId);
-        if (walletData == null) {
-            ctx.redirect("/wallets");
-            return;
-        }
-
-        ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderWallet(
-                passwordProtectionEnabled,
-                coinId,
-                walletData
-        ));
-    }
-
-    public void handleGenerateDepositAddress(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        String coinId = defaultIfBlank(ctx.formParam("coin"), "").trim().toLowerCase(Locale.ROOT);
-        if (coinId.isEmpty()) {
-            ctx.status(400);
-            ctx.contentType("text/plain; charset=UTF-8");
-            ctx.result("Missing required form parameter: coin");
-            return;
-        }
-
-        Coin coin = resolveCoin(coinId);
-        WalletSupervisor supervisor = coin != null ? walletSupervisors.get(coin) : null;
-        if (supervisor == null) {
-            log.warn("Generate deposit address requested but no wallet supervisor available for {}", coinId);
-            ctx.redirect("/wallets");
-            return;
-        }
-
-        try {
-            DepositAddress depositAddress = supervisor.execute(wallet -> wallet.depositAddress());
-            String address = depositAddress.address();
-
-            mapper.persistDepositAddress(coinId, address);
-            log.info("Generated new {} deposit address and persisted to KvStore", coinId);
-        } catch (Exception e) {
-            log.warn("Failed to generate deposit address for {}: {}", coinId, e.getMessage());
-        }
-
-        ctx.redirect("/wallets/" + coinId);
-    }
-
-    public void handleWalletReconnect(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        String coinId = defaultIfBlank(ctx.formParam("coin"), "").trim().toLowerCase(Locale.ROOT);
-        if (coinId.isEmpty()) {
-            ctx.status(400);
-            ctx.contentType("text/plain; charset=UTF-8");
-            ctx.result("Missing required form parameter: coin");
-            return;
-        }
-
-        Coin coin = resolveCoin(coinId);
-        WalletSupervisor supervisor = coin != null ? walletSupervisors.get(coin) : null;
-        if (supervisor != null) {
-            supervisor.reconnect();
-            log.info("Triggered reconnect for wallet {}", coinId);
-        } else {
-            log.warn("Reconnect requested but no wallet supervisor available for {}", coinId);
-        }
-
-        ctx.redirect("/wallets/" + coinId);
-    }
 
     public void handleAuthChannelsPage(Context ctx) {
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
@@ -411,18 +318,7 @@ public class LandingPageController {
         ));
     }
 
-    public void handleDriverAgentPage(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderDriverAgent(
-                passwordProtectionEnabled,
-                mapper.buildDriverAgentModel()
-        ));
-    }
+    // Driver agent handler extracted to SettingsController
 
     // ── Setup wizard ──────────────────────────────────────────────────────
 
@@ -454,81 +350,7 @@ public class LandingPageController {
         ctx.result(landingPageService.renderSetup(step, password));
     }
 
-    // ── API key management ─────────────────────────────────────────────────
-
-    public void handleApiKeysPage(Context ctx) {
-        if (passwordProtectionEnabled && !isWizardMode() && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        boolean restApiEnabled = config.restApiEnabled();
-        boolean hasKey = activeApiKey.get() != null;
-        String secretFile = restApiSecretFilePath != null ? restApiSecretFilePath.toString() : "";
-        ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderApiKeys(
-                passwordProtectionEnabled,
-                restApiEnabled, hasKey, "", secretFile,
-                mapper.buildRestApiChannelModel()));
-    }
-
-    public void handleApiKeysRotate(Context ctx) {
-        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
-            showLogin(ctx, false);
-            return;
-        }
-
-        if (!config.restApiEnabled() || restApiSecretFilePath == null) {
-            ctx.redirect("/auth_channels/api_keys");
-            return;
-        }
-
-        String newKey = generateApiKey();
-        writeApiKeyFile(restApiSecretFilePath, newKey);
-        activeApiKey.set(newKey);
-        landingPageService.setRestApiKeyMissing(false);
-        log.info("REST API key rotated via web UI, secret file: {}", restApiSecretFilePath.toAbsolutePath());
-
-        String secretFile = restApiSecretFilePath.toString();
-        ctx.contentType("text/html; charset=UTF-8");
-        ctx.result(landingPageService.renderApiKeys(
-                passwordProtectionEnabled,
-                true, true, newKey, secretFile,
-                mapper.buildRestApiChannelModel()));
-    }
-
-    private static String generateApiKey() {
-        byte[] random = new byte[32];
-        new SecureRandom().nextBytes(random);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(random);
-    }
-
-    private static void writeApiKeyFile(Path secretFile, String apiKey) {
-        try {
-            Path parent = secretFile.getParent();
-            if (parent != null) {
-                java.nio.file.Files.createDirectories(parent);
-            }
-            java.nio.file.Files.writeString(secretFile,
-                    "api-key=" + apiKey + System.lineSeparator(),
-                    java.nio.charset.StandardCharsets.UTF_8);
-            setOwnerOnlyPermissions(secretFile);
-        } catch (java.io.IOException e) {
-            throw new IllegalStateException("Failed to write REST API secret file: " + secretFile, e);
-        }
-    }
-
-    private static void setOwnerOnlyPermissions(Path file) {
-        try {
-            java.nio.file.Files.setPosixFilePermissions(file, java.util.EnumSet.of(
-                    java.nio.file.attribute.PosixFilePermission.OWNER_READ,
-                    java.nio.file.attribute.PosixFilePermission.OWNER_WRITE
-            ));
-        } catch (UnsupportedOperationException ignored) {
-        } catch (java.io.IOException e) {
-            log.warn("Failed to set owner-only permissions on secret file: {}", file, e);
-        }
-    }
+    // API key handlers extracted to SettingsController
 
     // ── Login / logout ─────────────────────────────────────────────────────
 
@@ -608,7 +430,7 @@ public class LandingPageController {
         return activeSessions;
     }
 
-    private void showLogin(Context ctx, boolean invalidPassword) {
+    public void showLogin(Context ctx, boolean invalidPassword) {
         if (isWizardMode()) {
             ctx.redirect("/setup");
             return;
@@ -618,7 +440,7 @@ public class LandingPageController {
         ctx.result(landingPageService.renderLogin(invalidPassword));
     }
 
-    private boolean hasValidSession(Context ctx) {
+    public boolean hasValidSession(Context ctx) {
         return WebUtils.hasValidSession(ctx, activeSessions);
     }
 
@@ -1103,14 +925,7 @@ public class LandingPageController {
     }
 
     private CoinConfig resolveCoinConfig(String coin) {
-        if (coin == null) return null;
-        return switch (coin) {
-            case "bitcoin" -> config.bitcoin();
-            case "litecoin" -> config.litecoin();
-            case "monero" -> config.monero();
-            case "testdummycoin" -> config.testDummyCoin();
-            default -> null;
-        };
+        return config.resolveCoinConfig(coin);
     }
 
     // ── History export ──────────────────────────────────────────────────────
@@ -1244,15 +1059,6 @@ public class LandingPageController {
             case "pirate" -> "ARRR";
             case "zano" -> "ZANO";
             default -> coin.toUpperCase(Locale.ROOT);
-        };
-    }
-
-    private static Coin resolveCoin(String coinId) {
-        if (coinId == null) return null;
-        return switch (coinId.toLowerCase(Locale.ROOT)) {
-            case "bitcoin" -> Coin.BTC;
-            case "monero" -> Coin.XMR;
-            default -> null;
         };
     }
 

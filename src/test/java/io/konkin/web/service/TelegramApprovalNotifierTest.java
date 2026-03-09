@@ -18,6 +18,12 @@ class TelegramApprovalNotifierTest {
     private static final CoinAuthConfig AUTH_NO_TG = new CoinAuthConfig(
             List.of(), List.of(), true, false, false, null, List.of(), 1, List.of());
 
+    private static KonkinConfig mockConfig() {
+        KonkinConfig config = mock(KonkinConfig.class);
+        when(config.resolveCoinConfig(anyString())).thenCallRealMethod();
+        return config;
+    }
+
     private ApprovalRequestRow row(String coin) {
         return new ApprovalRequestRow(
                 "req-1", coin, "send", "sess-1", "nonce-1", "hash-1", "composite-1",
@@ -30,7 +36,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void notifiesWhenTelegramEnabled() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.bitcoin()).thenReturn(btc);
 
@@ -45,7 +51,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void skipsWhenTelegramDisabledForCoin() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", AUTH_NO_TG);
         when(config.bitcoin()).thenReturn(btc);
 
@@ -57,7 +63,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void skipsWhenCoinNotFound() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         TelegramService tgService = mock(TelegramService.class);
         var notifier = new TelegramApprovalNotifier(tgService, config);
         notifier.notifyIfTelegramEnabled(row("unknowncoin"));
@@ -66,7 +72,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void skipsWhenCoinNull() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         TelegramService tgService = mock(TelegramService.class);
         var notifier = new TelegramApprovalNotifier(tgService, config);
         notifier.notifyIfTelegramEnabled(row(null));
@@ -75,7 +81,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void handlesLitecoin() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig ltc = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.litecoin()).thenReturn(ltc);
 
@@ -90,7 +96,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void handlesMonero() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig xmr = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.monero()).thenReturn(xmr);
 
@@ -105,7 +111,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void handlesTestDummyCoin() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig test = new CoinConfig(true, null, null, AUTH_TG);
         when(config.testDummyCoin()).thenReturn(test);
 
@@ -120,7 +126,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void handlesSendFailure() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.bitcoin()).thenReturn(btc);
 
@@ -134,7 +140,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void handlesSendException() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.bitcoin()).thenReturn(btc);
 
@@ -148,7 +154,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void messageIncludesFeePolicyAndCap() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", AUTH_TG);
         when(config.bitcoin()).thenReturn(btc);
 
@@ -172,7 +178,7 @@ class TelegramApprovalNotifierTest {
     }
 
     @Test void nullAuthConfig() {
-        KonkinConfig config = mock(KonkinConfig.class);
+        KonkinConfig config = mockConfig();
         CoinConfig btc = new CoinConfig(true, "/d", "/w", null);
         when(config.bitcoin()).thenReturn(btc);
 

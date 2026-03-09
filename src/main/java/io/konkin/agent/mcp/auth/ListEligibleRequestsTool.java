@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.auth;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;
@@ -41,6 +38,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.konkin.agent.mcp.driver.WalletToolSupport.toJson;
+
 /**
  * MCP tool that lists all pending approval requests the auth agent is eligible to vote on.
  *
@@ -55,10 +54,6 @@ import java.util.stream.Collectors;
 public final class ListEligibleRequestsTool {
 
     private static final Logger log = LoggerFactory.getLogger(ListEligibleRequestsTool.class);
-
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
     private ListEligibleRequestsTool() {
     }
@@ -171,11 +166,4 @@ public final class ListEligibleRequestsTool {
         return normalized;
     }
 
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
-    }
 }

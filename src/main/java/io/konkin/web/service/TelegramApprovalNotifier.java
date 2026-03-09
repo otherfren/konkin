@@ -73,16 +73,7 @@ public class TelegramApprovalNotifier {
     }
 
     private CoinConfig resolveCoinConfig(String coin) {
-        if (coin == null) {
-            return null;
-        }
-        return switch (coin) {
-            case "bitcoin" -> config.bitcoin();
-            case "litecoin" -> config.litecoin();
-            case "monero" -> config.monero();
-            case "testdummycoin" -> config.testDummyCoin();
-            default -> null;
-        };
+        return config.resolveCoinConfig(coin);
     }
 
     private static String formatApprovalMessage(ApprovalRequestRow row) {

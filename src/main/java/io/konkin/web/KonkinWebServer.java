@@ -53,7 +53,9 @@ import io.konkin.db.VoteRepository;
 import io.konkin.db.VoteService;
 import io.konkin.security.PasswordFileManager;
 import io.konkin.web.controller.LandingPageController;
+import io.konkin.web.controller.SettingsController;
 import io.konkin.web.controller.TelegramWebController;
+import io.konkin.web.controller.WalletController;
 import io.konkin.web.service.HealthService;
 import io.konkin.web.service.LandingPageService;
 import io.konkin.web.service.ApprovalExpiryService;
@@ -172,6 +174,8 @@ public class KonkinWebServer {
         }
 
         LandingPageController landingPageController = null;
+        WalletController walletController = null;
+        SettingsController settingsController = null;
         LandingPageService landingPageService = null;
         Path landingTemplateDirectory = null;
         Path landingStaticDirectory = null;
@@ -351,6 +355,22 @@ public class KonkinWebServer {
 
             telegramWebController.setLandingPageController(landingPageController);
             telegramWebController.setActiveSessions(landingPageController.activeSessions());
+
+            LandingPageController lpc = landingPageController;
+            walletController = new WalletController(
+                    landingPageService, mapper, walletSupervisors,
+                    config.landingPasswordProtectionEnabled(),
+                    lpc::hasValidSession,
+                    ctx -> lpc.showLogin(ctx, false)
+            );
+
+            settingsController = new SettingsController(
+                    landingPageService, mapper, config,
+                    config.landingPasswordProtectionEnabled(),
+                    restApiSecretPath, activeApiKeyRef,
+                    lpc::hasValidSession,
+                    ctx -> lpc.showLogin(ctx, false)
+            );
         }
 
         Path staticDirectoryFinal = landingStaticDirectory;
@@ -469,6 +489,8 @@ public class KonkinWebServer {
         }
 
         LandingPageController webUiPageControllerFinal = landingPageController;
+        WalletController walletControllerFinal = walletController;
+        SettingsController settingsControllerFinal = settingsController;
         LandingPageService landingPageServiceFinal = landingPageService;
         Path landingTemplateDirectoryFinal = landingTemplateDirectory;
 
@@ -477,18 +499,18 @@ public class KonkinWebServer {
             app.get("/history", webUiPageControllerFinal::handleLog);
             app.get("/history/export", webUiPageControllerFinal::handleHistoryExport);
             app.get("/details", webUiPageControllerFinal::handleDetailsPage);
-            app.get("/wallets", webUiPageControllerFinal::handleWalletsPage);
-            app.get("/wallets/{coin}", webUiPageControllerFinal::handleWalletPage);
-            app.post("/wallets/generate-address", webUiPageControllerFinal::handleGenerateDepositAddress);
-            app.post("/wallets/reconnect", webUiPageControllerFinal::handleWalletReconnect);
+            app.get("/wallets", walletControllerFinal::handleWalletsPage);
+            app.get("/wallets/{coin}", walletControllerFinal::handleWalletPage);
+            app.post("/wallets/generate-address", walletControllerFinal::handleGenerateDepositAddress);
+            app.post("/wallets/reconnect", walletControllerFinal::handleWalletReconnect);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
             app.post("/auth_channels/web-ui/rotate-password", webUiPageControllerFinal::handlePasswordRotate);
-            app.get("/driver_agent", webUiPageControllerFinal::handleDriverAgentPage);
+            app.get("/driver_agent", settingsControllerFinal::handleDriverAgentPage);
             app.get("/setup", webUiPageControllerFinal::handleSetupPage);
             app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
-            app.get("/auth_channels/api_keys", webUiPageControllerFinal::handleApiKeysPage);
-            app.post("/auth_channels/api_keys/rotate", webUiPageControllerFinal::handleApiKeysRotate);
+            app.get("/auth_channels/api_keys", settingsControllerFinal::handleApiKeysPage);
+            app.post("/auth_channels/api_keys/rotate", settingsControllerFinal::handleApiKeysRotate);
             app.get("/login", webUiPageControllerFinal::handleLoginPage);
             app.post("/login", webUiPageControllerFinal::handleLoginSubmit);
             app.post("/logout", webUiPageControllerFinal::handleLogout);

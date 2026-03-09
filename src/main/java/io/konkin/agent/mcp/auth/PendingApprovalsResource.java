@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.auth;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -33,11 +30,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public final class PendingApprovalsResource {
+import static io.konkin.agent.mcp.driver.WalletToolSupport.toJson;
 
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+public final class PendingApprovalsResource {
 
     private PendingApprovalsResource() {
     }
@@ -103,11 +98,4 @@ public final class PendingApprovalsResource {
         return normalized;
     }
 
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
-    }
 }

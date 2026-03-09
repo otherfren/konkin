@@ -26,6 +26,7 @@ class VoteOnApprovalToolTest {
         when(config.litecoin()).thenReturn(ltc);
         when(config.monero()).thenReturn(xmr);
         when(config.testDummyCoin()).thenReturn(tdc);
+        when(config.resolveCoinConfig(anyString())).thenCallRealMethod();
         return config;
     }
 

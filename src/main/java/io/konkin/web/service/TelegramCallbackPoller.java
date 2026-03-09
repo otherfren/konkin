@@ -339,16 +339,7 @@ public class TelegramCallbackPoller {
     }
 
     private CoinConfig resolveCoinConfig(String coin) {
-        if (coin == null) {
-            return null;
-        }
-        return switch (coin) {
-            case "bitcoin" -> config.bitcoin();
-            case "litecoin" -> config.litecoin();
-            case "monero" -> config.monero();
-            case "testdummycoin" -> config.testDummyCoin();
-            default -> null;
-        };
+        return config.resolveCoinConfig(coin);
     }
 
     private void editMessageWithOutcome(JsonNode message, String chatId, ApprovalRequestRow row, String resolvedState) {

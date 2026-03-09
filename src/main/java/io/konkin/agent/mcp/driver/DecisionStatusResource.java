@@ -16,9 +16,6 @@
 
 package io.konkin.agent.mcp.driver;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.konkin.agent.mcp.entity.McpDataContracts.DecisionStatusResponse;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.RequestDependencyLoader;
@@ -34,11 +31,9 @@ import io.modelcontextprotocol.spec.McpSchema.TextResourceContents;
 import java.util.List;
 import java.util.Set;
 
-public final class DecisionStatusResource {
+import static io.konkin.agent.mcp.driver.WalletToolSupport.toJson;
 
-    private static final ObjectMapper JSON = new ObjectMapper()
-            .registerModule(new JavaTimeModule())
-            .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+public final class DecisionStatusResource {
 
     private static final Set<String> TERMINAL_STATES = Set.of(
             "DENIED", "TIMED_OUT", "CANCELLED", "COMPLETED", "FAILED", "REJECTED", "EXPIRED"
@@ -134,11 +129,4 @@ public final class DecisionStatusResource {
         return null;
     }
 
-    private static String toJson(Object value) {
-        try {
-            return JSON.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize to JSON", e);
-        }
-    }
 }
