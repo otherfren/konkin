@@ -130,6 +130,18 @@ public class LandingPageMapper {
             mapped.put("reason", safe(row.reason()));
             mapped.put("deciders", deciders.isEmpty() ? "-" : String.join(", ", deciders));
             mapped.put("detailsJson", toPrettyJson(buildDetailsObject(row, dependencies)));
+
+            // Check if the web-ui channel has already voted on this request
+            String webUiVoteDecision = "";
+            for (VoteDetail vote : dependencies.votes()) {
+                if ("web-ui".equals(vote.channelId())) {
+                    webUiVoteDecision = vote.decision() != null ? vote.decision() : "unknown";
+                    break;
+                }
+            }
+            mapped.put("votedByWebUi", !webUiVoteDecision.isEmpty());
+            mapped.put("webUiVoteDecision", webUiVoteDecision);
+
             rows.add(Map.copyOf(mapped));
         }
 

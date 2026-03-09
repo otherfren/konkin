@@ -21,7 +21,7 @@
         <span></span><span></span><span></span>
     </label>
     <nav class="menu" aria-label="Main">
-        <#if activePage == "queue"><span class="menu-active">queue</span><#else><a href="${queuePath}">queue</a></#if>
+        <#if activePage == "queue"><span class="menu-active">queue<#if (queueCount!0) &gt; 0> <span class="menu-badge">${queueCount}</span></#if></span><#else><a href="${queuePath}">queue<#if (queueCount!0) &gt; 0> <span class="menu-badge">${queueCount}</span></#if></a></#if>
         <#if activePage == "history"><span class="menu-active">history</span><#else><a href="${auditLogPath}">history</a></#if>
         <#if activePage == "driver_agent"><span class="menu-active">driver agent<#if (driverAgentWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${driverAgentPath}">driver agent<#if (driverAgentWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         <#assign walletPages = enabledCoins?map(c -> "wallet_" + c)>

@@ -120,7 +120,7 @@
                     </tr>
                 <#else>
                     <#list queueRows as row>
-                        <tr>
+                        <tr<#if row.votedByWebUi!false> class="queue-row-voted" title="You voted: ${row.webUiVoteDecision!''}"</#if>>
                             <td class="queue-id-cell">
                                 <span class="mono queue-id-short">${row.idShort!'-'}</span>
                                 <#if (row.id!'-') != '-'>
@@ -152,22 +152,30 @@
                             <td class="mono queue-nowrap queue-small-text">${row.requestedAt!'-'}</td>
                             <td class="mono queue-nowrap queue-small-text">${row.expiresIn!'-'}</td>
                             <td class="action-cell">
-                                <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve"
-                                      data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
-                                      data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
-                                      data-reason="${(row.reason!'')}">
-                                    <input type="hidden" name="request_id" value="${(row.id!'')}">
-                                    <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
-                                </form>
+                                <#if row.votedByWebUi!false>
+                                    <button type="button" class="queue-action-btn queue-action-approve" disabled title="You already voted: ${row.webUiVoteDecision!''}">approve</button>
+                                <#else>
+                                    <form method="post" action="/queue/approve" class="queue-decision-form" data-decision="approve"
+                                          data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
+                                          data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
+                                          data-reason="${(row.reason!'')}">
+                                        <input type="hidden" name="request_id" value="${(row.id!'')}">
+                                        <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
+                                    </form>
+                                </#if>
                             </td>
                             <td class="action-cell">
-                                <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny"
-                                      data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
-                                      data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
-                                      data-reason="${(row.reason!'')}">
-                                    <input type="hidden" name="request_id" value="${(row.id!'')}">
-                                    <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
-                                </form>
+                                <#if row.votedByWebUi!false>
+                                    <button type="button" class="queue-action-btn queue-action-deny" disabled title="You already voted: ${row.webUiVoteDecision!''}">deny</button>
+                                <#else>
+                                    <form method="post" action="/queue/deny" class="queue-decision-form" data-decision="deny"
+                                          data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
+                                          data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
+                                          data-reason="${(row.reason!'')}">
+                                        <input type="hidden" name="request_id" value="${(row.id!'')}">
+                                        <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
+                                    </form>
+                                </#if>
                             </td>
                             <td class="action-cell details-cell">
                                 <a

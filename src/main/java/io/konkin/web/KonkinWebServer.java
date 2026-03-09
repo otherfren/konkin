@@ -315,6 +315,10 @@ public class KonkinWebServer {
                 return result;
             });
 
+            if (requestRepo != null) {
+                landingPageService.setQueueCount(requestRepo::countOpenRequests);
+            }
+
             telegramWebController = new TelegramWebController(
                     config.telegramChatIds(),
                     telegramService,

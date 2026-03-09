@@ -103,6 +103,20 @@ body {
     font-size: 0.75rem;
 }
 
+.menu-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-size: 0.7rem;
+    font-weight: bold;
+    min-width: 1.2em;
+    padding: 0 0.3em;
+    border-radius: 3px;
+    text-align: center;
+    line-height: 1.4;
+    vertical-align: middle;
+}
+
 a.menu-group-active {
     color: var(--accent);
 }
@@ -461,6 +475,17 @@ p {
 .queue-action-cancel {
     border-color: var(--line-light);
     color: var(--text);
+}
+
+.queue-row-voted {
+    opacity: 0.55;
+}
+
+.queue-action-approve:disabled,
+.queue-action-deny:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .queue-action-cancel:hover {

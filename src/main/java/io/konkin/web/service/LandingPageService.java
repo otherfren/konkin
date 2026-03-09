@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -60,6 +61,7 @@ public class LandingPageService {
     private volatile boolean restApiKeyMissing;
     private volatile BooleanSupplier driverAgentWarnSupplier = () -> false;
     private volatile BooleanSupplier telegramWarnSupplier = () -> false;
+    private volatile IntSupplier queueCountSupplier = () -> 0;
     private volatile Supplier<Map<String, Boolean>> walletDisconnectedSupplier = Map::of;
     private volatile List<String> enabledCoins = List.of();
 
@@ -127,6 +129,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -181,6 +184,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -211,6 +215,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
         model.put("showLogout", showLogout);
@@ -240,6 +245,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -270,6 +276,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -301,6 +308,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -359,6 +367,7 @@ public class LandingPageService {
         model.put("restApiKeyMissing", restApiKeyMissing);
         model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
         model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
         model.put("githubPath", "https://github.com/otherfren/konkin");
         model.put("title", "KONKIN.io");
         model.put("appVersion", APP_VERSION);
@@ -392,6 +401,10 @@ public class LandingPageService {
 
     public void setTelegramWarn(BooleanSupplier warnSupplier) {
         this.telegramWarnSupplier = warnSupplier != null ? warnSupplier : () -> false;
+    }
+
+    public void setQueueCount(IntSupplier queueCountSupplier) {
+        this.queueCountSupplier = queueCountSupplier != null ? queueCountSupplier : () -> 0;
     }
 
     public void setEnabledCoins(List<String> coins) {
