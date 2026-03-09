@@ -235,6 +235,86 @@ public abstract class WebIntegrationTestSupport {
         return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
     }
 
+    protected static HttpResponse<String> postJson(RunningServer server, String path, String json, Map<String, String> headers)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(server.baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json));
+        headers.forEach(builder::header);
+        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected static HttpResponse<String> putJson(RunningServer server, String path, String json, Map<String, String> headers)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(server.baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(5))
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString(json));
+        headers.forEach(builder::header);
+        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected static HttpResponse<String> putBody(RunningServer server, String path, String body, Map<String, String> headers)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(server.baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(5))
+                .PUT(HttpRequest.BodyPublishers.ofString(body));
+        headers.forEach(builder::header);
+        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected static HttpResponse<String> delete(RunningServer server, String path, Map<String, String> headers)
+            throws IOException, InterruptedException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(server.baseUri.resolve(path))
+                .timeout(Duration.ofSeconds(5))
+                .DELETE();
+        headers.forEach(builder::header);
+        return HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    protected static RunningServer startServerWithRestApi(Path workDir, String dbName) throws Exception {
+        int port = freePort();
+
+        Path restApiSecretFile = workDir.resolve("rest-api-%d.password".formatted(System.nanoTime()));
+        Files.writeString(restApiSecretFile, "api-key=test-api-key", StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        String dbUrl = "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
+
+        String configToml = """
+                config-version = 1
+                [server]
+                host = "127.0.0.1"
+                port = %d
+                [database]
+                url = "%s"
+                user = "konkin"
+                password = "konkin"
+                pool-size = 5
+                [rest-api]
+                enabled = true
+                secret-file = "%s"
+                """.formatted(port, dbUrl, tomlPath(restApiSecretFile));
+
+        Path configFile = workDir.resolve("config-rest-api-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource(dbName));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try {
+            waitForHealth(port);
+        } catch (Exception e) {
+            server.stop();
+            dbManager.shutdown();
+            throw e;
+        }
+
+        return new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager);
+    }
+
     protected static String firstCookiePair(String setCookieHeader) {
         int separator = setCookieHeader.indexOf(';');
         return separator >= 0 ? setCookieHeader.substring(0, separator) : setCookieHeader;
@@ -362,6 +442,7 @@ public abstract class WebIntegrationTestSupport {
             h.execute("DELETE FROM approval_requests");
             h.execute("DELETE FROM approval_channels");
             h.execute("DELETE FROM agent_tokens");
+            h.execute("DELETE FROM kv_store");
         });
     }
 
