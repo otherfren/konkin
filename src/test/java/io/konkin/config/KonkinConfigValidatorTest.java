@@ -23,7 +23,7 @@ class KonkinConfigValidatorTest {
                               AgentConfig primaryAgent, Map<String, AgentConfig> secondaryAgents,
                               CoinConfig bitcoin, CoinConfig litecoin, CoinConfig monero, CoinConfig testDummyCoin) {
         return new KonkinConfig(
-                1, "localhost", 8080, "INFO", "log.txt", 10,
+                1, "localhost", 8080, "./secrets/", "INFO", "log.txt", 10,
                 "jdbc:h2:mem:test", "sa", "", 5,
                 landingEnabled, landingPwdProtection, landingPwdFile,
                 "/tmp/templates", "/tmp/static", "/static",
@@ -48,7 +48,7 @@ class KonkinConfigValidatorTest {
 
     @Test void logRotateZeroThrows() {
         KonkinConfig config = new KonkinConfig(
-                1, "localhost", 8080, "INFO", "log.txt", 0,
+                1, "localhost", 8080, "./secrets/", "INFO", "log.txt", 0,
                 "jdbc:h2:mem:test", "sa", "", 5,
                 false, false, null,
                 "/tmp/templates", "/tmp/static", "/static",
@@ -82,7 +82,7 @@ class KonkinConfigValidatorTest {
 
     @Test void landingEnabledBadHostedPathThrows() {
         KonkinConfig config = new KonkinConfig(
-                1, "localhost", 8080, "INFO", "log.txt", 10,
+                1, "localhost", 8080, "./secrets/", "INFO", "log.txt", 10,
                 "jdbc:h2:mem:test", "sa", "", 5,
                 true, false, null,
                 "/tmp/templates", "/tmp/static", "noslash",

@@ -42,10 +42,7 @@ final class SecretFileBootstrapper {
     private SecretFileBootstrapper() {
     }
 
-    /**
-     * [M-3] Path for the auto-generated database password secret file.
-     */
-    private static final Path DB_SECRET_FILE = Path.of("./secrets/db.secret");
+    private static final String DB_SECRET_FILENAME = "db.secret";
     private static final String DB_SECRET_KEY = "db-password";
 
     static Set<String> bootstrap(KonkinConfig config) {
@@ -56,7 +53,8 @@ final class SecretFileBootstrapper {
      * [M-3] Ensures a random DB password file exists, generates one on first boot.
      * Returns the password from the file, or null if the config doesn't use default sa/sa credentials.
      */
-    static String ensureDbPassword(String configuredPassword) {
+    static String ensureDbPassword(String configuredPassword, String secretsDir) {
+        Path DB_SECRET_FILE = Path.of(secretsDir, DB_SECRET_FILENAME);
         // Only auto-generate if the user left the default insecure password
         if (!"sa".equals(configuredPassword)) {
             return configuredPassword;

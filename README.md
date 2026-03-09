@@ -6,8 +6,9 @@
 
 MCP crypto wallet wrapper for AI agents.
 
-- Send crypto via natural language while keeping secret keys hidden from your agents.
-- Supports 2FA via Telegram and other agents.
+- Interact with blockchains via natural language.
+- Keep secret keys hidden from your agents.
+- Supports 2FA via Telegram/other auth agents.
 
 ## Quick Start
 
@@ -15,10 +16,12 @@ MCP crypto wallet wrapper for AI agents.
 
 ```bash
 mvn clean install
-java -jar target/konkin-server-0.1.0-SNAPSHOT.jar config.toml
+java -jar target/konkin-server-1.0.0.jar config.toml
 ```
 
-On first run, secrets are auto-generated under `./secrets/` and credentials are printed to stdout. **Copy them** — cleartext secrets are only shown once.
+On first run, secrets are auto-generated under `./secrets/` and credentials are printed to stdout. **Copy them** — cleartext secrets are only shown once BUT you can rotate them afterward in the web-ui.
+
+You can change the folder for auto-generated secret files via `server.secrets-dir` in config.toml (defaults to `./secrets`).
 
 ## Configure
 
@@ -38,15 +41,18 @@ Edit `config.toml` in the working directory. Defaults work out of the box (H2 da
 2. Get a bearer token:
    ```bash
    curl -s -X POST "http://127.0.0.1:9550/oauth/token" \
-     -d "grant_type=client_credentials&client_id=konkin-primary&client_secret=YOUR_SECRET"
+   -d "grant_type=client_credentials" \
+   -d "client_id=konkin-primary" \
+   -d "client_secret=YOUR_SECRET"
    ```
    Tokens don't expire. Max 2 active per agent; a 3rd evicts the oldest.
 
 3. Register with Claude Code:
    ```bash
    claude mcp add --transport sse \
-     -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-     -s project konkin "http://127.0.0.1:9550/sse"
+   -H "Authorization: Bearer YOUR_BEARER_TOKEN" \
+   -s project \
+   konkin "http://127.0.0.1:9550/sse"
    ```
 
 For other agents, refer to their MCP documentation.

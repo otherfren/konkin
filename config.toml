@@ -3,6 +3,7 @@ config-version = 1
 [server]
 host = "127.0.0.1"
 port = 7070
+secrets-dir = "./secrets"
 log-level = "info"
 log-file = "./logs/konkin.log"
 log-rotate-max-size-mb = 10

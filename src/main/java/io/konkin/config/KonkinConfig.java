@@ -36,6 +36,7 @@ public class KonkinConfig {
     private final int configVersion;
     private final String host;
     private final int port;
+    private final String secretsDir;
     private final String logLevel;
     private final String logFile;
     private final int logRotateMaxSizeMb;
@@ -75,7 +76,7 @@ public class KonkinConfig {
     private Set<String> freshlyCreatedAgentSecrets = Set.of();
 
     KonkinConfig(
-            int configVersion, String host, int port, String logLevel, String logFile, int logRotateMaxSizeMb,
+            int configVersion, String host, int port, String secretsDir, String logLevel, String logFile, int logRotateMaxSizeMb,
             String dbUrl, String dbUser, String dbPassword, int dbPoolSize,
             boolean landingEnabled, boolean landingPasswordProtectionEnabled, String landingPasswordFile,
             String landingTemplateDirectory, String landingStaticDirectory, String landingStaticHostedPath,
@@ -89,6 +90,7 @@ public class KonkinConfig {
         this.configVersion = configVersion;
         this.host = host;
         this.port = port;
+        this.secretsDir = secretsDir;
         this.logLevel = logLevel;
         this.logFile = logFile;
         this.logRotateMaxSizeMb = logRotateMaxSizeMb;
@@ -145,7 +147,7 @@ public class KonkinConfig {
             KonkinConfigValidator.validate(config);
             config.freshlyCreatedAgentSecrets = SecretFileBootstrapper.bootstrap(config);
 
-            log.info("Configuration loaded — host={}, port={}, db={}", config.host, config.port, config.dbUrl);
+            log.info("Configuration loaded — host={}, port={}, secretsDir={}, db={}", config.host, config.port, config.secretsDir, config.dbUrl);
             log.info("Logging config — level={}, file={}, rotateMaxSizeMb={}",
                     config.logLevel,
                     config.logFile,
@@ -193,6 +195,7 @@ public class KonkinConfig {
     public int configVersion() { return configVersion; }
     public String host() { return host; }
     public int port() { return port; }
+    public String secretsDir() { return secretsDir; }
     public String logLevel() { return logLevel; }
     public String logFile() { return logFile; }
     public int logRotateMaxSizeMb() { return logRotateMaxSizeMb; }
