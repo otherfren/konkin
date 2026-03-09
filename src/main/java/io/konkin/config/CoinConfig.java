@@ -20,6 +20,13 @@ public record CoinConfig(
         boolean enabled,
         String daemonConfigSecretFile,
         String walletConfigSecretFile,
+        String signingAddress,
         CoinAuthConfig auth
 ) {
+    /**
+     * Backward-compatible constructor that defaults signingAddress to empty string.
+     */
+    public CoinConfig(boolean enabled, String daemonConfigSecretFile, String walletConfigSecretFile, CoinAuthConfig auth) {
+        this(enabled, daemonConfigSecretFile, walletConfigSecretFile, "", auth);
+    }
 }

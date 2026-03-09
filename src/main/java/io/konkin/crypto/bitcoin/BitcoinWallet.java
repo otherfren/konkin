@@ -32,6 +32,7 @@ import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,10 +42,12 @@ public final class BitcoinWallet extends CoinWallet {
 
     private final BitcoinClient client;
     private final Network network;
+    private volatile String signingAddress;
 
     public BitcoinWallet(WalletConnectionConfig config) {
         super(Coin.BTC, config);
         this.network = resolveNetwork(config);
+        this.signingAddress = config.extras().get(BitcoinExtras.SIGNING_ADDRESS);
         URI rpcUri = URI.create(config.rpcUrl());
         String walletName = config.extras().get(BitcoinExtras.WALLET_NAME);
         if (walletName != null && !walletName.isBlank()) {
@@ -187,14 +190,41 @@ public final class BitcoinWallet extends CoinWallet {
     @Override
     public SignedMessage signMessage(String message) {
         try {
-            // signmessage requires a legacy (p2pkh) address
-            String addr = client.send("getnewaddress", String.class, "", "legacy");
+            String addr = getOrCreateSigningAddress();
             String signature = client.send("signmessage", String.class, addr, message);
             return new SignedMessage(Coin.BTC, addr, message, signature);
         } catch (JsonRpcStatusException e) {
             throw new WalletOperationException("BTC signMessage failed: " + e.getMessage(), e);
         } catch (IOException e) {
             throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+        }
+    }
+
+    private String getOrCreateSigningAddress() throws JsonRpcStatusException, IOException {
+        if (signingAddress != null && !signingAddress.isBlank()) {
+            return signingAddress;
+        }
+        // signmessage requires a legacy (p2pkh) address
+        String addr = client.send("getnewaddress", String.class, "signing", "legacy");
+        signingAddress = addr;
+        persistSigningAddress(addr);
+        log.info("Generated and persisted Bitcoin signing address: {}", addr);
+        return addr;
+    }
+
+    private void persistSigningAddress(String addr) {
+        String configFile = config().extras().get(BitcoinExtras.CONFIG_FILE_PATH);
+        if (configFile == null || configFile.isBlank()) {
+            log.warn("No config file path available — signing address will not persist across restarts");
+            return;
+        }
+        try (var toml = com.electronwill.nightconfig.core.file.FileConfig.of(Path.of(configFile))) {
+            toml.load();
+            toml.set("coins.bitcoin.signing-address", addr);
+            toml.save();
+            log.info("Persisted signing address to config.toml");
+        } catch (Exception e) {
+            log.warn("Failed to persist signing address to {}: {}", configFile, e.getMessage());
         }
     }
 

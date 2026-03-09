@@ -148,6 +148,7 @@ public class KonkinWebServer {
                         config.bitcoin().daemonConfigSecretFile(),
                         config.bitcoin().walletConfigSecretFile()
                 );
+                btcConfig = withBitcoinExtras(btcConfig, config);
                 WalletSupervisor btcSupervisor = new WalletSupervisor(btcConfig, new io.konkin.crypto.bitcoin.BitcoinWalletFactory());
                 btcSupervisor.start();
                 walletSupervisors.put(Coin.BTC, btcSupervisor);
@@ -790,6 +791,22 @@ public class KonkinWebServer {
     /**
      * Constant-time string comparison to prevent timing side-channel attacks on secret values.
      */
+    private static WalletConnectionConfig withBitcoinExtras(WalletConnectionConfig base, KonkinConfig config) {
+        String signingAddress = config.bitcoin().signingAddress();
+        String configFilePath = config.configFilePath();
+        if ((signingAddress == null || signingAddress.isBlank()) && configFilePath == null) {
+            return base;
+        }
+        var extras = new java.util.LinkedHashMap<>(base.extras());
+        if (signingAddress != null && !signingAddress.isBlank()) {
+            extras.put(io.konkin.crypto.bitcoin.BitcoinExtras.SIGNING_ADDRESS, signingAddress);
+        }
+        if (configFilePath != null) {
+            extras.put(io.konkin.crypto.bitcoin.BitcoinExtras.CONFIG_FILE_PATH, configFilePath);
+        }
+        return new WalletConnectionConfig(base.coin(), base.rpcUrl(), base.username(), base.password(), extras);
+    }
+
     private static boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) {
             return false;

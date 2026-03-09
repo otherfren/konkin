@@ -1,167 +1,153 @@
 config-version = 1
 
-[server]
-host = "127.0.0.1"
-port = 7070
-secrets-dir = "./secrets"
-log-level = "info"
-log-file = "./logs/konkin.log"
-log-rotate-max-size-mb = 10
-
-[database]
-url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
-user = "sa"
-password = "sa"
-pool-size = 5
-
 [web-ui]
-enabled = true
+	enabled = true
 
-[web-ui.password-protection]
-enabled = true
-# rotate keys by deleting the referenced file
-password-file = "./secrets/web-ui.password"
+	[web-ui.template]
+		directory = "./src/main/resources/templates"
 
-[web-ui.template]
-directory = "./src/main/resources/templates"
+	[web-ui.password-protection]
+		# rotate keys by deleting the referenced file
+		password-file = "./secrets/web-ui.password"
+		enabled = true
 
-[web-ui.static]
-directory = "./src/main/resources/static"
-hosted-path = "/assets"
+	[web-ui.static]
+		hosted-path = "/assets"
+		directory = "./src/main/resources/static"
 
-[web-ui.auto-reload]
-enabled = true
-assets-enabled = true
+	[web-ui.auto-reload]
+		assets-enabled = true
+		enabled = true
 
 [rest-api]
-enabled = true
-# auto-generated when missing
-secret-file = "./secrets/rest-api.secret"
+	# auto-generated when missing
+	secret-file = "./secrets/rest-api.secret"
+	enabled = true
 
-[agents.primary]
-enabled = true
-bind = "127.0.0.1"
-port = 9550
-secret-file = "./secrets/agent-primary.secret"
+[server]
+	host = "127.0.0.1"
+	log-rotate-max-size-mb = 10
+	log-file = "./logs/konkin.log"
+	port = 7070
+	log-level = "info"
+	secrets-dir = "./secrets"
 
-[agents.secondary.agent-arthur]
-enabled = true
-bind = "127.0.0.1"
-port = 9560
-secret-file = "./secrets/agent-arthur.secret"
-
-[agents.secondary.agent-merlin]
-enabled = true
-bind = "127.0.0.1"
-port = 9561
-secret-file = "./secrets/agent-merlin.secret"
+[database]
+	pool-size = 5
+	password = "sa"
+	user = "sa"
+	url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
 
 [debug]
-enabled = true
-seed-fake-data = false
+	seed-fake-data = false
+	enabled = true
+
+	[coins.monero]
+		enabled = true
+
+		[coins.monero.auth]
+			web-ui = true
+			rest-api = false
+			telegram = true
+			mcp = "xmr-main"
+			veto-channels = ["telegram", "web-ui"]
+			mcp-auth-channels = ["agent-merlin"]
+			min-approvals-required = 2
+				[[coins.monero.auth.auto-deny]]
+					[coins.monero.auth.auto-deny.criteria]
+						type = "cumulated-value-gt"
+						value = 5
+						period = "24h"
+
+				[[coins.monero.auth.auto-accept]]
+					[coins.monero.auth.auto-accept.criteria]
+						type = "value-lt"
+						value = 0.01
+
+	[coins.litecoin]
+		enabled = false
+
+		#example values for future litecoin auth config
+		[coins.litecoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = false
+			mcp = "ltc-main"
+				[[coins.litecoin.auth.auto-accept]]
+					[coins.litecoin.auth.auto-accept.criteria]
+						type = "value-lt"
+						value = 1.25
+
+				[[coins.litecoin.auth.auto-deny]]
+					[coins.litecoin.auth.auto-deny.criteria]
+						type = "cumulated-value-gt"
+						value = 8.0
+						period = "48h"
+
+	[coins.testdummycoin]
+		enabled = false
+
+		[coins.testdummycoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = true
+			mcp = "tdc-main"
+			mcp-auth-channels = ["agent-arthur"]
+			min-approvals-required = 1
+
+	[coins.bitcoin]
+		signing-address = "mzHczkFvqn5DwcRc62Q1cym4ns33ygShEU"
+		enabled = true
+
+		[coins.bitcoin.secret-files]
+			bitcoin-wallet-config-file = "./secrets/bitcoin-wallet.conf"
+			# files are auto-generated on startup when missing
+			bitcoin-daemon-config-file = "./secrets/bitcoin-daemon.conf"
+
+		[coins.bitcoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = true
+			veto-channels = ["telegram", "agent-merlin"]
+			# MCP auth channel identifiers shown in Auth Definitions
+			mcp-auth-channels = ["agent-arthur", "agent-merlin"]
+			min-approvals-required = 2
+			#[[coins.bitcoin.auth.auto-accept]]
+			#[coins.bitcoin.auth.auto-accept.criteria]
+			#type = "value-lt"
+			#value = 0.01
+			#
+			#[[coins.bitcoin.auth.auto-accept]]
+			#[coins.bitcoin.auth.auto-accept.criteria]
+			#type = "cumulated-value-lt"
+			#value = 0.6
+			#period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
+			[[coins.bitcoin.auth.auto-deny]]
+
+				[coins.bitcoin.auth.auto-deny.criteria]
+					type = "value-gt"
+					value = 0.5
 
 [telegram]
-enabled = true
-secret-file = "./secrets/telegram.secret"
-api-base-url = "https://api.telegram.org"
-auto-deny-timeout = "3m"
+	api-base-url = "https://api.telegram.org"
+	secret-file = "./secrets/telegram.secret"
+	enabled = true
+	auto-deny-timeout = "3m"
 
-[coins.bitcoin]
-enabled = true
+		[agents.secondary.agent-merlin]
+			bind = "127.0.0.1"
+			port = 9561
+			secret-file = "./secrets/agent-merlin.secret"
+			enabled = true
 
-[coins.litecoin]
-enabled = false
-#example values for future litecoin auth config
+		[agents.secondary.agent-arthur]
+			bind = "127.0.0.1"
+			port = 9560
+			secret-file = "./secrets/agent-arthur.secret"
+			enabled = true
 
-[coins.litecoin.auth]
-web-ui = true
-rest-api = true
-telegram = false
-mcp = "ltc-main"
-
-[[coins.litecoin.auth.auto-accept]]
-[coins.litecoin.auth.auto-accept.criteria]
-type = "value-lt"
-value = 1.25
-
-[[coins.litecoin.auth.auto-deny]]
-[coins.litecoin.auth.auto-deny.criteria]
-type = "cumulated-value-gt"
-value = 8.0
-period = "48h"
-
-[coins.monero]
-enabled = true
-
-[coins.monero.auth]
-web-ui = true
-rest-api = false
-telegram = true
-mcp = "xmr-main"
-min-approvals-required = 2
-veto-channels = ["telegram", "web-ui"]
-mcp-auth-channels = ["agent-merlin"]
-
-[[coins.monero.auth.auto-accept]]
-[coins.monero.auth.auto-accept.criteria]
-type = "value-lt"
-value = 0.01
-
-[[coins.monero.auth.auto-deny]]
-[coins.monero.auth.auto-deny.criteria]
-type = "cumulated-value-gt"
-value = 5
-period = "24h"
-
-[coins.testdummycoin]
-enabled = false
-
-[coins.testdummycoin.auth]
-web-ui = true
-rest-api = true
-telegram = true
-mcp = "tdc-main"
-mcp-auth-channels = ["agent-arthur"]
-min-approvals-required = 1
-
-[coins.bitcoin.secret-files]
-# files are auto-generated on startup when missing
-bitcoin-daemon-config-file = "./secrets/bitcoin-daemon.conf"
-bitcoin-wallet-config-file = "./secrets/bitcoin-wallet.conf"
-
-[coins.bitcoin.auth]
-web-ui = true
-rest-api = true
-telegram = true
-# MCP auth channel identifiers shown in Auth Definitions
-mcp-auth-channels = ["agent-arthur", "agent-merlin"]
-min-approvals-required = 2
-veto-channels = ["telegram", "agent-merlin"]
-
-#[[coins.bitcoin.auth.auto-accept]]
-#[coins.bitcoin.auth.auto-accept.criteria]
-#type = "value-lt"
-#value = 0.01
-#
-#[[coins.bitcoin.auth.auto-accept]]
-#[coins.bitcoin.auth.auto-accept.criteria]
-#type = "cumulated-value-lt"
-#value = 0.6
-#period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
-
-[[coins.bitcoin.auth.auto-deny]]
-[coins.bitcoin.auth.auto-deny.criteria]
-type = "value-gt"
-value = 0.5
-
-#[[coins.bitcoin.auth.auto-deny]]
-#[coins.bitcoin.auth.auto-deny.criteria]
-#type = "cumulated-value-gt"
-#value = 1.0
-#period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
-#
-#[[coins.bitcoin.auth.auto-deny]]
-#[coins.bitcoin.auth.auto-deny.criteria]
-#type = "cumulated-value-gt"
-#value = 2.0
-#period = "7d 2h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
+	[agents.primary]
+		bind = "127.0.0.1"
+		port = 9550
+		secret-file = "./secrets/agent-primary.secret"
+		enabled = true

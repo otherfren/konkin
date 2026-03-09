@@ -257,6 +257,8 @@ final class KonkinConfigLoader {
                 secretsDir + "bitcoin-wallet.conf"
         );
 
+        String signingAddress = toml.getOrElse("coins.bitcoin.signing-address", "");
+
         boolean webUi = toml.getOrElse("coins.bitcoin.auth.web-ui", true);
         boolean restApi = toml.getOrElse("coins.bitcoin.auth.rest-api", true);
         boolean telegram = toml.getOrElse("coins.bitcoin.auth.telegram", false);
@@ -273,6 +275,7 @@ final class KonkinConfigLoader {
                 enabled,
                 daemonSecretFile,
                 walletSecretFile,
+                signingAddress,
                 new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
     }

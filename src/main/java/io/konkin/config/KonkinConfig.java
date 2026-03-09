@@ -73,6 +73,7 @@ public class KonkinConfig {
     private final CoinConfig litecoin;
     private final CoinConfig monero;
     private final CoinConfig testDummyCoin;
+    private String configFilePath;
     private Set<String> freshlyCreatedAgentSecrets = Set.of();
 
     KonkinConfig(
@@ -144,6 +145,7 @@ public class KonkinConfig {
             }
 
             KonkinConfig config = KonkinConfigLoader.load(toml);
+            config.configFilePath = Path.of(path).toAbsolutePath().normalize().toString();
             KonkinConfigValidator.validate(config);
             config.freshlyCreatedAgentSecrets = SecretFileBootstrapper.bootstrap(config);
 
@@ -235,6 +237,7 @@ public class KonkinConfig {
     public CoinConfig litecoin() { return litecoin; }
     public CoinConfig monero() { return monero; }
     public CoinConfig testDummyCoin() { return testDummyCoin; }
+    public String configFilePath() { return configFilePath; }
 
     /**
      * Returns agent names whose secret files were freshly created during bootstrap.
