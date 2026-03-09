@@ -18,6 +18,7 @@ package io.konkin.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.sun.net.httpserver.HttpServer;
+import io.konkin.TestConfigBuilder;
 import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
@@ -84,23 +85,13 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
 
-        String configToml = """
-                config-version = 1
-                [server]
-                host = "127.0.0.1"
-                port = %d
-                [database]
-                url = "%s"
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-                [landing]
-                enabled = true
-                [landing.template]
-                directory = "%s"
-                [landing.static]
-                directory = "%s"
-                """.formatted(port, dbUrl, tomlPath(restApiSecretFile), tomlPath(templateDir), tomlPath(staticDir));
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withRestApiSecret(restApiSecretFile)
+                .withLanding(true)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .build();
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
@@ -201,37 +192,13 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
 
         Path webUiPasswordFile = tempDir.resolve("unused-web-ui.password");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-                """.formatted(
-                port,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .build();
 
         Path configFile = tempDir.resolve("config-web-ui-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -292,43 +259,13 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = false
-                telegram = false
-                mcp = "btc-main"
-
-                [[coins.bitcoin.auth.auto-accept]]
-                [coins.bitcoin.auth.auto-accept.criteria]
-                type = "value-lt"
-                value = 1.0
-
-                [[coins.bitcoin.auth.auto-deny]]
-                [coins.bitcoin.auth.auto-deny.criteria]
-                type = "value-gt"
-                value = 0.5
-                """.formatted(
-                port,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthMcp(true, false, false, "btc-main")
+                .withBitcoinAutoAcceptRule("value-lt", 1.0)
+                .withBitcoinAutoDenyRule("value-gt", 0.5)
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-contradiction-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -397,37 +334,12 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-ref.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-ref.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [agents.secondary.agent-default]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9560
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp-auth-channels = ["agent-missing"]
-                """.formatted(
-                port,
-                tomlPath(tempDir.resolve("secrets/agent-default-mcp-ref.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withSecondaryAgent("agent-default", true, "127.0.0.1", 9560,
+                        tempDir.resolve("secrets/agent-default-mcp-ref.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(false, false, false, List.of("agent-missing"))
+                .build();
 
         Path configFile = tempDir.resolve("config-mcp-ref-missing-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -443,23 +355,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void agentPortsMustBeUniqueAcrossServerAndAgentsAtConfigLoad() throws Exception {
         int port = freePort();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [agents.primary]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-                """.formatted(
-                port,
-                port,
-                tomlPath(tempDir.resolve("secrets/agent-primary-duplicate-port.secret"))
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withPrimaryAgent(true, "127.0.0.1", port,
+                        tempDir.resolve("secrets/agent-primary-duplicate-port.secret"))
+                .build();
 
         Path configFile = tempDir.resolve("config-agent-duplicate-port-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -481,51 +380,13 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-valid-agents.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-valid-agents.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [agents.primary]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9550
-                secret-file = "%s"
-
-                [agents.secondary.agent-default]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9560
-                secret-file = "%s"
-
-                [agents.secondary.agent-backup]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9561
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp-auth-channels = ["agent-default", "agent-backup"]
-                """.formatted(
-                port,
-                tomlPath(primarySecretFile),
-                tomlPath(defaultAgentSecretFile),
-                tomlPath(backupAgentSecretFile),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withPrimaryAgent(true, "127.0.0.1", 9550, primarySecretFile)
+                .withSecondaryAgent("agent-default", true, "127.0.0.1", 9560, defaultAgentSecretFile)
+                .withSecondaryAgent("agent-backup", true, "127.0.0.1", 9561, backupAgentSecretFile)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(false, false, false, List.of("agent-default", "agent-backup"))
+                .build();
 
         Path configFile = tempDir.resolve("config-agents-valid-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -571,45 +432,13 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-human.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-human.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = false
-                telegram = false
-                mcp = "btc-main"
-
-                [[coins.bitcoin.auth.auto-accept]]
-                [coins.bitcoin.auth.auto-accept.criteria]
-                type = "cumulated-value-lt"
-                value = 0.6
-                period = "7d 2h"
-
-                [[coins.bitcoin.auth.auto-deny]]
-                [coins.bitcoin.auth.auto-deny.criteria]
-                type = "cumulated-value-gt"
-                value = 2.0
-                period = "7 days and 2 hours"
-                """.formatted(
-                port,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthMcp(true, false, false, "btc-main")
+                .withBitcoinAutoAcceptRule("cumulated-value-lt", 0.6, "7d 2h")
+                .withBitcoinAutoDenyRule("cumulated-value-gt", 2.0, "7 days and 2 hours")
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-human-duration-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -621,13 +450,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void telegramAutoDenyTimeoutDefaultsToFiveMinutesWhenMissing() throws Exception {
         int port = freePort();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-                """.formatted(port);
+        String configToml = TestConfigBuilder.create(port).build();
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         assertEquals(Duration.ofMinutes(5), config.telegramAutoDenyTimeout());
@@ -637,16 +460,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void telegramAutoDenyTimeoutSupportsHumanFriendlyDurationAtConfigLoad() throws Exception {
         int port = freePort();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [telegram]
-                auto-deny-timeout = "3m"
-                """.formatted(port);
+        String configToml = TestConfigBuilder.create(port)
+                .withTelegramAutoDenyTimeout("3m")
+                .build();
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         assertEquals(Duration.ofMinutes(3), config.telegramAutoDenyTimeout());
@@ -656,19 +472,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void testDummyCoinIsUnavailableWhenDebugModeIsDisabledAtConfigLoad() throws Exception {
         int port = freePort();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [debug]
-                enabled = false
-
-                [coins.testdummycoin]
-                enabled = true
-                """.formatted(port);
+        String configToml = TestConfigBuilder.create(port)
+                .withDebug(false)
+                .withTestDummyCoin(true)
+                .build();
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         assertFalse(config.debugEnabled());
@@ -680,27 +487,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     void testDummyCoinCanBeEnabledWhenDebugModeIsEnabledAtConfigLoad() throws Exception {
         int port = freePort();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [debug]
-                enabled = true
-
-                [coins.testdummycoin]
-                enabled = true
-
-                [coins.testdummycoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp = "tdc-main"
-                mcp-auth-channels = ["tdc-main"]
-                min-approvals-required = 1
-                """.formatted(port);
+        String configToml = TestConfigBuilder.create(port)
+                .withDebug(true)
+                .withTestDummyCoin(true)
+                .withTestDummyCoinAuth(false, false, false, "tdc-main", List.of("tdc-main"), 1)
+                .build();
 
         KonkinConfig config = KonkinConfig.load(configFile(configToml));
         assertTrue(config.debugEnabled());
@@ -716,31 +507,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-min-approvals-positive.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-min-approvals-positive.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp = "btc-main"
-                min-approvals-required = 0
-                """.formatted(
-                port,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthMinApprovals(false, false, false, "btc-main", 0)
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-min-approvals-positive-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -759,31 +529,10 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-min-approvals-max.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-min-approvals-max.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp = "btc-main"
-                min-approvals-required = 2
-                """.formatted(
-                port,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthMinApprovals(false, false, false, "btc-main", 2)
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-min-approvals-max-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -802,34 +551,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-veto-invalid.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-veto-invalid.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = false
-                telegram = false
-                mcp = "btc-main"
-                veto-channels = ["telegram"]
-                """.formatted(
-                port,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthVetoChannels(true, false, false, "btc-main", "telegram")
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-veto-invalid-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -849,52 +575,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-quorum-veto.conf");
         Path telegramSecretFile = tempDir.resolve("secrets/telegram-quorum-veto.secret");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                auto-deny-timeout = "3m"
-
-                [agents.secondary.agent-a]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9560
-                secret-file = "%s"
-
-                [agents.secondary.agent-b]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9561
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = true
-                mcp-auth-channels = ["agent-a", "agent-b"]
-                min-approvals-required = 2
-                veto-channels = ["telegram", "agent-a"]
-                """.formatted(
-                port,
-                tomlPath(telegramSecretFile),
-                tomlPath(tempDir.resolve("secrets/agent-a-quorum-veto.secret")),
-                tomlPath(tempDir.resolve("secrets/agent-b-quorum-veto.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withTelegramFull(telegramSecretFile, "3m")
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", 9560,
+                        tempDir.resolve("secrets/agent-a-quorum-veto.secret"))
+                .withSecondaryAgent("agent-b", true, "127.0.0.1", 9561,
+                        tempDir.resolve("secrets/agent-b-quorum-veto.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpChannelsAndQuorum(false, false, true,
+                        List.of("agent-a", "agent-b"), 2, List.of("telegram", "agent-a"))
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-quorum-veto-valid-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -926,78 +616,22 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 StandardOpenOption.CREATE_NEW
         );
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "%s"
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                auto-deny-timeout = "3m"
-
-                [agents.secondary.agent-a]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9562
-                secret-file = "%s"
-
-                [agents.secondary.agent-b]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9563
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = true
-                mcp-auth-channels = ["agent-a", "agent-b"]
-                min-approvals-required = 2
-                veto-channels = ["telegram"]
-                """.formatted(
-                port,
-                dbUrl,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(telegramSecretFile),
-                tomlPath(tempDir.resolve("secrets/agent-a-auth-defs-timeout-quorum.secret")),
-                tomlPath(tempDir.resolve("secrets/agent-b-auth-defs-timeout-quorum.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withTelegramFull(telegramSecretFile, "3m")
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", 9562,
+                        tempDir.resolve("secrets/agent-a-auth-defs-timeout-quorum.secret"))
+                .withSecondaryAgent("agent-b", true, "127.0.0.1", 9563,
+                        tempDir.resolve("secrets/agent-b-auth-defs-timeout-quorum.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpChannelsAndQuorum(false, false, true,
+                        List.of("agent-a", "agent-b"), 2, List.of("telegram"))
+                .build();
 
         Path configFile = tempDir.resolve("config-auth-defs-timeout-quorum-veto-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1029,72 +663,20 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-auth-defs.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-
-                [agents.secondary.btc-main]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9564
-                secret-file = "%s"
-
-                [agents.secondary.btc-backup]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9565
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = false
-                telegram = false
-                mcp-auth-channels = ["btc-main", "btc-backup"]
-
-                [[coins.bitcoin.auth.auto-deny]]
-                [coins.bitcoin.auth.auto-deny.criteria]
-                type = "cumulated-value-gt"
-                value = 2.0
-                period = "7 days and 2 hours"
-                """.formatted(
-                port,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(tempDir.resolve("secrets/btc-main-auth-defs.secret")),
-                tomlPath(tempDir.resolve("secrets/btc-backup-auth-defs.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("btc-main", true, "127.0.0.1", 9564,
+                        tempDir.resolve("secrets/btc-main-auth-defs.secret"))
+                .withSecondaryAgent("btc-backup", true, "127.0.0.1", 9565,
+                        tempDir.resolve("secrets/btc-backup-auth-defs.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(true, false, false, List.of("btc-main", "btc-backup"))
+                .withBitcoinAutoDenyRule("cumulated-value-gt", 2.0, "7 days and 2 hours")
+                .build();
 
         Path configFile = tempDir.resolve("config-auth-defs-friendly-window-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1137,72 +719,20 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-auth-defs-rest.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-auth-defs-rest.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-
-                [agents.secondary.agent-enabled]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [agents.secondary.agent-disabled]
-                enabled = false
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = true
-                telegram = false
-                """.formatted(
-                port,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(restApiSecretFile),
-                enabledSecondaryAgentPort,
-                tomlPath(tempDir.resolve("secrets/agent-enabled-auth-defs.secret")),
-                disabledSecondaryAgentPort,
-                tomlPath(tempDir.resolve("secrets/agent-disabled-auth-defs.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withRestApiSecret(restApiSecretFile)
+                .withSecondaryAgent("agent-enabled", true, "127.0.0.1", enabledSecondaryAgentPort,
+                        tempDir.resolve("secrets/agent-enabled-auth-defs.secret"))
+                .withSecondaryAgent("agent-disabled", false, "127.0.0.1", disabledSecondaryAgentPort,
+                        tempDir.resolve("secrets/agent-disabled-auth-defs.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuth(true, true, false)
+                .build();
 
         Path configFile = tempDir.resolve("config-auth-defs-rest-and-secondary-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1248,58 +778,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 StandardOpenOption.CREATE_NEW
         );
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-
-                [agents.primary]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [agents.secondary.agent-a]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-                """.formatted(
-                port,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(telegramSecretFile),
-                primaryAgentPort,
-                tomlPath(primarySecretFile),
-                secondaryAgentPort,
-                tomlPath(secondarySecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withTelegramSecret(telegramSecretFile)
+                .withPrimaryAgent(true, "127.0.0.1", primaryAgentPort, primarySecretFile)
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", secondaryAgentPort, secondarySecretFile)
+                .build();
 
         Path configFile = tempDir.resolve("config-auth-channels-page-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1351,66 +839,19 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-coins.conf");
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-coins.conf");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = true
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [web-ui.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [web-ui.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [web-ui.auto-reload]
-                enabled = false
-                assets-enabled = false
-
-                [agents.secondary.btc-main]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9566
-                secret-file = "%s"
-
-                [agents.secondary.btc-backup]
-                enabled = true
-                bind = "127.0.0.1"
-                port = 9567
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = true
-                rest-api = false
-                telegram = false
-                mcp-auth-channels = ["btc-main", "btc-backup"]
-                """.formatted(
-                port,
-                tomlPath(webUiPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(tempDir.resolve("secrets/btc-main-coins.secret")),
-                tomlPath(tempDir.resolve("secrets/btc-backup-coins.secret")),
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("btc-main", true, "127.0.0.1", 9566,
+                        tempDir.resolve("secrets/btc-main-coins.secret"))
+                .withSecondaryAgent("btc-backup", true, "127.0.0.1", 9567,
+                        tempDir.resolve("secrets/btc-backup-coins.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(true, false, false, List.of("btc-main", "btc-backup"))
+                .build();
 
         Path configFile = tempDir.resolve("config-coins-page-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1467,17 +908,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         int port = freePort();
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api-generated.secret");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-                """.formatted(port, tomlPath(restApiSecretFile));
+        String configToml = TestConfigBuilder.create(port)
+                .withRestApiSecret(restApiSecretFile)
+                .build();
 
         Path configFile = tempDir.resolve("config-rest-api-secret-generation-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1492,30 +925,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         int port = freePort();
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api-protected.secret");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "jdbc:h2:%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-
-                [web-ui]
-                enabled = false
-                """.formatted(
-                port,
-                "mem:web-endpoints-test;DB_CLOSE_DELAY=-1",
-                tomlPath(restApiSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase("jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1", "konkin", "konkin", 5)
+                .withRestApiSecret(restApiSecretFile)
+                .withWebUi(false)
+                .build();
 
         String correctApiKey = "test-api-key-for-protected-routes";
         Files.createDirectories(restApiSecretFile.getParent());
@@ -1547,30 +961,11 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
         int port = freePort();
         Path restApiSecretFile = tempDir.resolve("secrets/rest-api-allowed.secret");
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "jdbc:h2:%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-
-                [web-ui]
-                enabled = false
-                """.formatted(
-                port,
-                "mem:web-endpoints-test;DB_CLOSE_DELAY=-1",
-                tomlPath(restApiSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase("jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1", "konkin", "konkin", 5)
+                .withRestApiSecret(restApiSecretFile)
+                .withWebUi(false)
+                .build();
 
         String correctApiKey = "test-api-key-for-allowed-routes";
         Files.createDirectories(restApiSecretFile.getParent());

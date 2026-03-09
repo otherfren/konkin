@@ -39,7 +39,7 @@ import io.konkin.config.AgentConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
-import io.konkin.web.service.TelegramApprovalNotifier;
+import io.konkin.telegram.TelegramApprovalNotifier;
 import io.konkin.db.AgentTokenStore;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.ChannelRepository;

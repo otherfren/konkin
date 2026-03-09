@@ -37,8 +37,8 @@ import io.konkin.db.entity.RequestDependencies;
 import io.konkin.db.entity.StateTransitionDetail;
 import io.konkin.db.entity.StateTransitionRow;
 import io.konkin.db.entity.VoteDetail;
-import io.konkin.web.service.TelegramSecretService;
-import io.konkin.web.service.TelegramService;
+import io.konkin.telegram.TelegramSecretService;
+import io.konkin.telegram.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

@@ -1,4 +1,4 @@
-package io.konkin.web.service;
+package io.konkin.telegram;
 
 import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;

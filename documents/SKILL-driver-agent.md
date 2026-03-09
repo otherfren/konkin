@@ -200,15 +200,16 @@ Once connected, the AI agent (not you) will have access to these MCP primitives.
 
 **Tools:**
 
-| Tool                   | Required params                               | Optional params                     | What it does                   |
-|------------------------|-----------------------------------------------|-------------------------------------|--------------------------------|
-| `send_coin`            | `coin`, `toAddress`, `amountNative`, `reason` | `feePolicy`, `feeCapNative`, `memo` | Submit a send for approval     |
-| `wallet_status`        | `coin`                                        |                                     | Check wallet sync status       |
-| `wallet_balance`       | `coin`                                        |                                     | Get wallet balance             |
-| `deposit_address`      | `coin`                                        |                                     | Generate a deposit address     |
-| `pending_transactions` | `coin`                                        | `direction`                         | List unconfirmed transactions  |
-| `sign_message`         | `coin`, `message`                             |                                     | Sign a message with wallet key |
-| `verify_message`       | `coin`, `message`, `address`, `signature`     |                                     | Verify a signed message        |
+| Tool                   | Required params                               | Optional params                     | What it does                    |
+|------------------------|-----------------------------------------------|-------------------------------------|---------------------------------|
+| `send_coin`            | `coin`, `toAddress`, `amountNative`, `reason` | `feePolicy`, `feeCapNative`, `memo` | Submit a send for approval      |
+| `wallet_status`        | `coin`                                        |                                     | Check wallet sync status        |
+| `wallet_balance`       | `coin`                                        |                                     | Get wallet balance              |
+| `deposit_address`      | `coin`                                        |                                     | Generate a deposit address      |
+| `pending_transactions` | `coin`                                        | `direction`                         | List unconfirmed transactions   |
+| `sweep_wallet`         | `coin`, `toAddress`, `reason`                 |                                     | Sweep entire balance to address |
+| `sign_message`         | `coin`, `message`                             |                                     | Sign a message with wallet key  |
+| `verify_message`       | `coin`, `message`, `address`, `signature`     |                                     | Verify a signed message         |
 
 **Prompts:**
 

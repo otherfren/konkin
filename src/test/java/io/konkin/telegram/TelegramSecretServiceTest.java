@@ -1,7 +1,7 @@
-package io.konkin.web.service;
+package io.konkin.telegram;
 
-import io.konkin.web.service.TelegramSecretService.ChatMeta;
-import io.konkin.web.service.TelegramSecretService.TelegramSecret;
+import io.konkin.telegram.TelegramSecretService.ChatMeta;
+import io.konkin.telegram.TelegramSecretService.TelegramSecret;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

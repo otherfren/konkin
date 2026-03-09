@@ -18,6 +18,7 @@ package io.konkin.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.konkin.TestConfigBuilder;
 import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
@@ -798,54 +799,15 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(bitcoinWalletSecretFile, "wallet=main\nwallet-passphrase=pass\n",
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [rest-api]
-                enabled = false
-
-                [web-ui]
-                enabled = false
-
-                [telegram]
-                enabled = false
-
-                [agents.secondary.%s]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = false
-                telegram = false
-                mcp-auth-channels = ["%s"]
-                min-approvals-required = 1
-                """.formatted(
-                serverPort, dbUrl, agentName, agentPort,
-                tomlPath(agentSecretFile),
-                tomlPath(bitcoinDaemonSecretFile),
-                tomlPath(bitcoinWalletSecretFile),
-                agentName
-        );
+        String configToml = TestConfigBuilder.create(serverPort)
+                .withDatabase(dbUrl, "konkin", "konkin", 5)
+                .withRestApi(false)
+                .withWebUi(false)
+                .withTelegram(false)
+                .withSecondaryAgent(agentName, true, "127.0.0.1", agentPort, agentSecretFile)
+                .withBitcoin(bitcoinDaemonSecretFile, bitcoinWalletSecretFile)
+                .withBitcoinAuthFull(false, false, false, null, java.util.List.of(agentName), 1)
+                .build();
 
         Path configFile = workDir.resolve("config-agent-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -903,56 +865,15 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(restApiSecretFile, "api-key=test-api-key-primary",
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-
-                [web-ui]
-                enabled = false
-
-                [telegram]
-                enabled = false
-
-                [agents.primary]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = true
-                telegram = false
-                mcp-auth-channels = []
-                min-approvals-required = 1
-                """.formatted(
-                serverPort, dbUrl,
-                tomlPath(restApiSecretFile),
-                primaryAgentPort,
-                tomlPath(primarySecretFile),
-                tomlPath(bitcoinDaemonSecretFile),
-                tomlPath(bitcoinWalletSecretFile)
-        );
+        String configToml = TestConfigBuilder.create(serverPort)
+                .withDatabase(dbUrl, "konkin", "konkin", 5)
+                .withRestApiSecret(restApiSecretFile)
+                .withWebUi(false)
+                .withTelegram(false)
+                .withPrimaryAgent(true, "127.0.0.1", primaryAgentPort, primarySecretFile)
+                .withBitcoin(bitcoinDaemonSecretFile, bitcoinWalletSecretFile)
+                .withBitcoinAuthFull(false, true, false, null, java.util.List.of(), 1)
+                .build();
 
         Path configFile = tempDir.resolve("config-primary-agent-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1011,73 +932,18 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         Files.writeString(restApiSecretFile, "api-key=test-api-key-send",
                 StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-
-                [web-ui]
-                enabled = false
-
-                [telegram]
-                enabled = false
-
-                [debug]
-                enabled = %s
-
-                [agents.primary]
-                enabled = true
-                bind = "127.0.0.1"
-                port = %d
-                secret-file = "%s"
-
-                [coins.bitcoin]
-                enabled = %s
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = false
-                rest-api = true
-                telegram = false
-                mcp-auth-channels = []
-                min-approvals-required = 1
-
-                [coins.testdummycoin]
-                enabled = %s
-
-                [coins.testdummycoin.auth]
-                web-ui = false
-                rest-api = true
-                telegram = false
-                mcp = "tdc-main"
-                mcp-auth-channels = []
-                min-approvals-required = 1
-                """.formatted(
-                serverPort, dbUrl,
-                tomlPath(restApiSecretFile),
-                debugEnabled,
-                primaryAgentPort,
-                tomlPath(primarySecretFile),
-                bitcoinEnabled,
-                tomlPath(bitcoinDaemonSecretFile),
-                tomlPath(bitcoinWalletSecretFile),
-                testDummyEnabled
-        );
+        String configToml = TestConfigBuilder.create(serverPort)
+                .withDatabase(dbUrl, "konkin", "konkin", 5)
+                .withRestApiSecret(restApiSecretFile)
+                .withWebUi(false)
+                .withTelegram(false)
+                .withDebug(debugEnabled)
+                .withPrimaryAgent(true, "127.0.0.1", primaryAgentPort, primarySecretFile)
+                .withBitcoinEnabled(bitcoinEnabled, bitcoinDaemonSecretFile, bitcoinWalletSecretFile)
+                .withBitcoinAuthFull(false, true, false, null, java.util.List.of(), 1)
+                .withTestDummyCoin(testDummyEnabled)
+                .withTestDummyCoinAuth(false, true, false, "tdc-main", java.util.List.of(), 1)
+                .build();
 
         Path configFile = tempDir.resolve("config-primary-send-agent-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);

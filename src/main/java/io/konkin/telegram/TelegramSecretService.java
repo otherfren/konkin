@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.konkin.web.service;
+package io.konkin.telegram;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

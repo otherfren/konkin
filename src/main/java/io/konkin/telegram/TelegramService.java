@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.konkin.web.service;
+package io.konkin.telegram;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

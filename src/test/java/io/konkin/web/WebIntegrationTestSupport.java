@@ -17,6 +17,7 @@
 package io.konkin.web;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.konkin.TestConfigBuilder;
 import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.DatabaseManager;
@@ -71,50 +72,14 @@ public abstract class WebIntegrationTestSupport {
         Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-%d.conf".formatted(System.nanoTime()));
         Path webUiPasswordFile = tempDir.resolve("unused-web-ui-%d.password".formatted(System.nanoTime()));
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [web-ui]
-                enabled = %s
-
-                [web-ui.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [rest-api]
-                enabled = %s
-
-                [telegram]
-                enabled = %s
-
-                [coins.bitcoin]
-                enabled = true
-
-                [coins.bitcoin.secret-files]
-                bitcoin-daemon-config-file = "%s"
-                bitcoin-wallet-config-file = "%s"
-
-                [coins.bitcoin.auth]
-                web-ui = %s
-                rest-api = %s
-                telegram = %s
-                mcp = "btc-main"
-                """.formatted(
-                port,
-                webUiEnabled,
-                tomlPath(webUiPasswordFile),
-                restApiEnabled,
-                telegramEnabled,
-                tomlPath(daemonSecretFile),
-                tomlPath(walletSecretFile),
-                coinWebUi,
-                coinRestApi,
-                coinTelegram
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(webUiEnabled)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withRestApi(restApiEnabled)
+                .withTelegram(telegramEnabled)
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthMcp(coinWebUi, coinRestApi, coinTelegram, "btc-main")
+                .build();
 
         Path configFile = tempDir.resolve("config-bitcoin-channel-validation-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -157,45 +122,14 @@ public abstract class WebIntegrationTestSupport {
 
         String dbUrl = "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [database]
-                url = "%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-
-                [landing]
-                enabled = %s
-
-                [landing.password-protection]
-                enabled = %s
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-                """.formatted(
-                port,
-                dbUrl,
-                landingEnabled,
-                landingPasswordProtected,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl, "konkin", "konkin", 5)
+                .withLanding(landingEnabled)
+                .withLandingPasswordProtection(landingPasswordProtected, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .build();
 
         Path configFile = workDir.resolve("config-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -281,20 +215,10 @@ public abstract class WebIntegrationTestSupport {
 
         String dbUrl = "jdbc:h2:mem:" + dbName + ";DB_CLOSE_DELAY=-1";
 
-        String configToml = """
-                config-version = 1
-                [server]
-                host = "127.0.0.1"
-                port = %d
-                [database]
-                url = "%s"
-                user = "konkin"
-                password = "konkin"
-                pool-size = 5
-                [rest-api]
-                enabled = true
-                secret-file = "%s"
-                """.formatted(port, dbUrl, tomlPath(restApiSecretFile));
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl, "konkin", "konkin", 5)
+                .withRestApiSecret(restApiSecretFile)
+                .build();
 
         Path configFile = workDir.resolve("config-rest-api-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);

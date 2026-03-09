@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-package io.konkin.web.controller;
+package io.konkin.telegram;
 
 import io.javalin.http.Context;
 import io.konkin.web.WebUtils;
+import io.konkin.web.controller.LandingPageController;
 import io.konkin.web.service.LandingPageService;
-import io.konkin.web.service.TelegramSecretService;
-import io.konkin.web.service.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

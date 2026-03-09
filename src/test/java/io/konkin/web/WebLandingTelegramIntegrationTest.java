@@ -17,6 +17,7 @@
 package io.konkin.web;
 
 import com.sun.net.httpserver.HttpServer;
+import io.konkin.TestConfigBuilder;
 import io.konkin.config.KonkinConfig;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -440,43 +441,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -528,42 +500,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:65534"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:65534")
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-bootstrap-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -640,43 +584,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-no-auto-approve-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -769,81 +684,23 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String firstConfigToml = """
-                config-version = 1
+        String firstConfigToml = TestConfigBuilder.create(firstPort)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                firstPort,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
-
-        String secondConfigToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                secondPort,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String secondConfigToml = TestConfigBuilder.create(secondPort)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path firstConfigFile = tempDir.resolve("config-telegram-reconnect-first-%d.toml".formatted(System.nanoTime()));
         Path secondConfigFile = tempDir.resolve("config-telegram-reconnect-second-%d.toml".formatted(System.nanoTime()));
@@ -951,43 +808,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-approve-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1065,43 +893,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-unapprove-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1185,43 +984,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:%d"
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                telegramApiPort
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrl(secretFile, "http://127.0.0.1:" + telegramApiPort)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-reset-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1277,44 +1047,14 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
 
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = false
-
-                [telegram]
-                enabled = true
-                secret-file = "%s"
-                api-base-url = "http://127.0.0.1:65534"
-                chat-ids = ["%s"]
-                """.formatted(
-                port,
-                tomlPath(landingPasswordFile),
-                tomlPath(templateDir),
-                tomlPath(staticDir),
-                tomlPath(secretFile),
-                configuredChatId
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, landingPasswordFile)
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(false)
+                .withTelegramApiBaseUrlAndChatIds(secretFile, "http://127.0.0.1:65534", configuredChatId)
+                .build();
 
         Path configFile = tempDir.resolve("config-telegram-sync-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
@@ -1397,37 +1137,13 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         Files.createDirectories(staticDir);
 
         int port = freePort();
-        String configToml = """
-                config-version = 1
-
-                [server]
-                host = "127.0.0.1"
-                port = %d
-
-                [landing]
-                enabled = true
-
-                [landing.password-protection]
-                enabled = false
-                password-file = "%s"
-
-                [landing.template]
-                directory = "%s"
-                name = "landing.ftl"
-
-                [landing.static]
-                directory = "%s"
-                hosted-path = "/assets"
-
-                [landing.auto-reload]
-                enabled = true
-                assets-enabled = true
-                """.formatted(
-                port,
-                tomlPath(tempDir.resolve("unused-landing.password")),
-                tomlPath(templateDir),
-                tomlPath(staticDir)
-        );
+        String configToml = TestConfigBuilder.create(port)
+                .withLanding(true)
+                .withLandingPasswordProtection(false, tempDir.resolve("unused-landing.password"))
+                .withLandingTemplate(templateDir)
+                .withLandingStatic(staticDir)
+                .withLandingAutoReload(true, true)
+                .build();
 
         Path configFile = tempDir.resolve("config-reload-%d.toml".formatted(System.nanoTime()));
         Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);

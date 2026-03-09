@@ -23,7 +23,7 @@ import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
 import io.konkin.db.entity.StateTransitionRow;
-import io.konkin.web.service.TelegramApprovalNotifier;
+import io.konkin.telegram.TelegramApprovalNotifier;
 import io.modelcontextprotocol.server.McpServerFeatures.SyncToolSpecification;
 import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpSchema.CallToolResult;

@@ -1,11 +1,9 @@
-package io.konkin.web.controller;
+package io.konkin.telegram;
 
 import io.konkin.web.service.LandingPageService;
-import io.konkin.web.service.TelegramSecretService;
-import io.konkin.web.service.TelegramSecretService.ChatMeta;
-import io.konkin.web.service.TelegramSecretService.TelegramSecret;
-import io.konkin.web.service.TelegramService;
-import io.konkin.web.service.TelegramService.ChatRequest;
+import io.konkin.telegram.TelegramSecretService.ChatMeta;
+import io.konkin.telegram.TelegramSecretService.TelegramSecret;
+import io.konkin.telegram.TelegramService.ChatRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;

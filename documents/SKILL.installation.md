@@ -188,7 +188,7 @@ log-file = "./logs/konkin.log"
 log-rotate-max-size-mb = 10
 
 [database]
-url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
+url = "jdbc:h2:./data/konkin"
 user = "sa"
 password = "sa"
 pool-size = 5
@@ -263,7 +263,7 @@ min-approvals-required = 1
 
 Explain to the human:
 - The database password `sa` is automatically replaced with a random password on first startup. They do not need to change it.
-- All secret files under `./secrets/` are auto-generated on first startup. They do not need to create them manually.
+- Agent secret files and coin secret files under `./secrets/` are auto-generated on first startup. The web UI password and REST API secret are created through the setup wizard on first browser visit.
 - Based on their coin choice, proceed to Step 8 (Bitcoin), Step 8M (Monero), or both.
 
 ---
@@ -287,11 +287,7 @@ java -jar konkin-server.jar config.toml
 
 The server is ready when the terminal shows the Javalin startup message. The human can verify by opening a browser and going to: `http://127.0.0.1:7070`
 
-They will be asked for a password. The password was auto-generated and saved to `./secrets/web-ui.password`. Tell the human to read it:
-
-```bash
-cat ./secrets/web-ui.password
-```
+On first visit, the web UI shows a setup wizard that generates a password and saves it to `./secrets/web-ui.password`. The cleartext password is displayed once during setup — the human must copy it. The REST API secret (`./secrets/rest-api.secret`) is also created through the web UI wizard, not on startup.
 
 ---
 
@@ -529,11 +525,9 @@ Open `./secrets/monero-daemon.conf`. It was auto-generated and looks like this:
 # Fill with your monerod RPC bind details.
 rpc-bind-ip=127.0.0.1
 rpc-bind-port=18081
-# Optional:
-# rpc-login=REPLACE_WITH_DAEMON_RPC_USER:REPLACE_WITH_DAEMON_RPC_PASSWORD
 ```
 
-If `monerod` was started without `--rpc-login`, leave the `rpc-login` line commented out. If `monerod` requires authentication, uncomment and fill it in.
+If `monerod` requires RPC authentication, the human can add a `rpc-login=USER:PASSWORD` line. If `monerod` was started without `--rpc-login`, no additional line is needed.
 
 Then open `./secrets/monero-wallet-rpc.conf`. It looks like this:
 
@@ -633,10 +627,10 @@ After a complete setup, the human's `~/konkin/` directory looks like this:
   konkin-server.jar          <-- the server
   config.toml                <-- main config
   secrets/
-    agent-primary.secret     <-- driver agent credentials
-    agent-arthur.secret      <-- auth agent credentials
-    web-ui.password          <-- web UI login password
-    rest-api.secret          <-- REST API key
+    agent-primary.secret     <-- driver agent credentials (auto-generated on startup)
+    agent-arthur.secret      <-- auth agent credentials (auto-generated on startup)
+    web-ui.password          <-- web UI login password (created via setup wizard on first visit)
+    rest-api.secret          <-- REST API key (created via web UI wizard)
     telegram.secret          <-- Telegram bot token and approved chat IDs
     bitcoin-daemon.conf      <-- Bitcoin Core RPC credentials (if Bitcoin enabled)
     bitcoin-wallet.conf      <-- Bitcoin wallet name and passphrase (if Bitcoin enabled)
