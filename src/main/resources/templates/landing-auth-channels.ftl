@@ -28,82 +28,7 @@
         </div>
     </section>
 
-    <#assign telegramEnabled = (authChannels.telegramEnabled!false)>
-    <#assign telegramUsers = (authChannels.telegramUsers![])>
     <#assign authAgents = (authChannels.authAgents![])>
-
-    <section class="auth-card" aria-labelledby="auth-channel-telegram-title">
-        <div class="auth-card-header">
-            <h3 id="auth-channel-telegram-title" class="auth-coin-name">Telegram Connected Users</h3>
-            <span class="auth-chip <#if telegramEnabled>auth-chip-on<#else>auth-chip-off</#if>">
-                ${telegramEnabled?string('enabled', 'disabled')}
-            </span>
-        </div>
-        <p class="driver-panel-copy auth-channels-copy">Names and usernames come from secret file <span class="mono">telegram.secret</span>.</p>
-
-        <#if !telegramEnabled>
-            <p class="telegram-empty">Telegram is globally disabled.</p>
-        <#elseif telegramUsers?size == 0>
-            <p class="telegram-empty">No Telegram users discovered or approved yet.</p>
-        <#else>
-            <table class="queue-table auth-channel-table">
-                <thead>
-                <tr>
-                    <th>Status</th>
-                    <th>Name</th>
-                    <th>Type</th>
-                    <th>Chat ID</th>
-                    <th>Username</th>
-                    <th>Title</th>
-                </tr>
-                </thead>
-                <tbody>
-                <#list telegramUsers as user>
-                    <tr>
-                        <td>
-                            <span class="auth-channel-status <#if (user.approved!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
-                                <#if (user.approved!false)>approved<#else>discovered</#if>
-                            </span>
-                        </td>
-                        <td><span class="auth-channel-name">${(user.chatDisplayName!'-')}</span></td>
-                        <td>${(user.chatType!'unknown')}</td>
-                        <td>
-                            <span class="auth-channel-secret-wrap">
-                                <span class="mono auth-secret-value" data-secret-value="${(user.chatId!'-')}" data-masked="true">***</span>
-                                <button
-                                    type="button"
-                                    class="auth-secret-toggle"
-                                    aria-label="Reveal Telegram identifier"
-                                    title="Reveal identifier"
-                                >
-                                    <span aria-hidden="true">👁</span>
-                                </button>
-                            </span>
-                        </td>
-                        <td>
-                            <#if (user.chatUsername!'')?has_content>
-                                <span class="auth-channel-secret-wrap">
-                                    <span class="mono auth-secret-value" data-secret-value="@${(user.chatUsername!'')}" data-masked="true">***</span>
-                                    <button
-                                        type="button"
-                                        class="auth-secret-toggle"
-                                        aria-label="Reveal Telegram identifier"
-                                        title="Reveal identifier"
-                                    >
-                                        <span aria-hidden="true">👁</span>
-                                    </button>
-                                </span>
-                            <#else>
-                                <span class="mono">-</span>
-                            </#if>
-                        </td>
-                        <td>${(user.chatTitle!'-')}</td>
-                    </tr>
-                </#list>
-                </tbody>
-            </table>
-        </#if>
-    </section>
 
     <section class="auth-card" aria-labelledby="auth-channel-secondary-title">
         <div class="auth-card-header">
@@ -150,16 +75,6 @@
                 </tbody>
             </table>
 
-            <div class="auth-agent-hints">
-                <section class="auth-overview-panel" aria-labelledby="auth-agent-reference-title">
-                    <h3 id="auth-agent-reference-title" class="auth-section-title">Reference format</h3>
-                    <p class="driver-panel-copy">If your model is dumb: <a target="_blank" href="https://konkin.io/documents/SKILL-auth-agent.md">documents/SKILL-auth-agent.md</a></p>
-                </section>
-                <section class="auth-overview-panel" aria-labelledby="auth-agent-runtime-title">
-                    <h3 id="auth-agent-runtime-title" class="auth-section-title">Runtime checks</h3>
-                    <p class="driver-panel-copy">Use <span class="mono">/health</span> for liveness and <span class="mono">/oauth/token</span> to issue bearer tokens consumed by MCP auth tools.</p>
-                </section>
-            </div>
         </#if>
     </section>
 

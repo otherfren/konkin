@@ -377,10 +377,13 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
         assertEquals(302, login.statusCode());
         String sessionCookie = firstCookiePair(login.headers().firstValue("set-cookie").orElse(""));
 
+        HttpResponse<String> page = get(server, "/", Map.of("Cookie", sessionCookie));
+        String csrf = extractCsrfToken(page.body());
+
         HttpResponse<String> withSession = postForm(
                 server,
                 "/queue/approve",
-                "request_id=" + requestId + "&confirm=yes",
+                "request_id=" + requestId + "&confirm=yes&_csrf=" + csrf,
                 Map.of("Cookie", sessionCookie)
         );
         assertEquals(200, withSession.statusCode());

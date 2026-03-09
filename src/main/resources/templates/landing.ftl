@@ -58,6 +58,7 @@
             </#if>
             <div class="queue-confirm-actions">
                 <form method="post" action="${queueConfirmActionPath}" class="queue-confirm-inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
                     <input type="hidden" name="request_id" value="${queueConfirmRequestId}">
                     <input type="hidden" name="confirm" value="yes">
                     <button
@@ -159,6 +160,7 @@
                                           data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
                                           data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
                                           data-reason="${(row.reason!'')}">
+                                        <input type="hidden" name="_csrf" value="${csrfToken!''}">
                                         <input type="hidden" name="request_id" value="${(row.id!'')}">
                                         <button type="submit" class="queue-action-btn queue-action-approve">approve</button>
                                     </form>
@@ -172,6 +174,7 @@
                                           data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
                                           data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
                                           data-reason="${(row.reason!'')}">
+                                        <input type="hidden" name="_csrf" value="${csrfToken!''}">
                                         <input type="hidden" name="request_id" value="${(row.id!'')}">
                                         <button type="submit" class="queue-action-btn queue-action-deny">deny</button>
                                     </form>

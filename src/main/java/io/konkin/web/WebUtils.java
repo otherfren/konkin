@@ -16,35 +16,95 @@
 
 package io.konkin.web;
 
+import io.javalin.http.Context;
 import io.konkin.db.entity.PageResult;
+
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class WebUtils {
 
     public static final String SESSION_COOKIE_NAME = "konkin_landing_session";
 
+    private static final SecureRandom CSRF_RANDOM = new SecureRandom();
+
+    /** Maps session token → CSRF token. Entries follow session lifecycle. */
+    private static final ConcurrentHashMap<String, String> csrfTokens = new ConcurrentHashMap<>();
+
     private WebUtils() {
     }
 
-    public static boolean hasValidSession(io.javalin.http.Context ctx, java.util.Map<String, java.time.Instant> activeSessions) {
+    public static boolean hasValidSession(Context ctx, Map<String, Instant> activeSessions) {
         String token = ctx.cookie(SESSION_COOKIE_NAME);
         if (token == null || token.isBlank()) {
             return false;
         }
 
-        java.time.Instant expiry = activeSessions.get(token);
+        Instant expiry = activeSessions.get(token);
         if (expiry == null) {
             return false;
         }
 
-        if (expiry.isBefore(java.time.Instant.now())) {
+        if (expiry.isBefore(Instant.now())) {
             activeSessions.remove(token);
+            csrfTokens.remove(token);
             ctx.removeCookie(SESSION_COOKIE_NAME);
             return false;
         }
 
         return true;
+    }
+
+    // ── CSRF helpers ────────────────────────────────────────────────────────
+
+    /** Generate and store a CSRF token for the given session. */
+    public static String generateCsrfToken(String sessionToken) {
+        byte[] bytes = new byte[32];
+        CSRF_RANDOM.nextBytes(bytes);
+        String csrf = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        csrfTokens.put(sessionToken, csrf);
+        return csrf;
+    }
+
+    /** Look up the CSRF token for the current session. Returns empty string if none. */
+    public static String csrfTokenForSession(Context ctx) {
+        String session = ctx.cookie(SESSION_COOKIE_NAME);
+        if (session == null) {
+            return "";
+        }
+        String csrf = csrfTokens.get(session);
+        return csrf != null ? csrf : "";
+    }
+
+    /** Validate the _csrf form parameter against the session's CSRF token. */
+    public static boolean isValidCsrf(Context ctx) {
+        String session = ctx.cookie(SESSION_COOKIE_NAME);
+        if (session == null) {
+            return false;
+        }
+        String expected = csrfTokens.get(session);
+        if (expected == null) {
+            return false;
+        }
+        String submitted = ctx.formParam("_csrf");
+        if (submitted == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+                expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                submitted.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** Remove CSRF token when a session is destroyed. */
+    public static void removeCsrfToken(String sessionToken) {
+        if (sessionToken != null) {
+            csrfTokens.remove(sessionToken);
+        }
     }
 
     public static int parsePositiveInt(String raw, int fallback) {

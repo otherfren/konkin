@@ -80,6 +80,12 @@ public class TelegramWebController {
             showLogin(ctx, false);
             return;
         }
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for telegram approve from {}", ctx.ip());
+            ctx.status(403);
+            renderTelegramPage(ctx, "Invalid CSRF token. Please reload the page and try again.", true, "", null);
+            return;
+        }
 
         String sourcePage = defaultIfBlank(ctx.formParam("source_page"), "").trim();
         boolean sourceAuthChannels = "auth_channels".equalsIgnoreCase(sourcePage);
@@ -121,6 +127,12 @@ public class TelegramWebController {
             showLogin(ctx, false);
             return;
         }
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for telegram unapprove from {}", ctx.ip());
+            ctx.status(403);
+            renderTelegramPage(ctx, "Invalid CSRF token. Please reload the page and try again.", true, "", null);
+            return;
+        }
 
         String chatId = defaultIfBlank(ctx.formParam("chat_id"), "").trim();
         if (chatId.isEmpty()) {
@@ -148,6 +160,12 @@ public class TelegramWebController {
             showLogin(ctx, false);
             return;
         }
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for telegram reset from {}", ctx.ip());
+            ctx.status(403);
+            renderTelegramPage(ctx, "Invalid CSRF token. Please reload the page and try again.", true, "", null);
+            return;
+        }
 
         String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
         if (!"yes".equalsIgnoreCase(confirm)) {
@@ -167,6 +185,12 @@ public class TelegramWebController {
     public void handleSend(Context ctx) {
         if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
             showLogin(ctx, false);
+            return;
+        }
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for telegram send from {}", ctx.ip());
+            ctx.status(403);
+            renderTelegramPage(ctx, "Invalid CSRF token. Please reload the page and try again.", true, "", null);
             return;
         }
 

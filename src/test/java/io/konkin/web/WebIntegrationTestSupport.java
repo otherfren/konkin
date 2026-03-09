@@ -240,6 +240,18 @@ public abstract class WebIntegrationTestSupport {
         return separator >= 0 ? setCookieHeader.substring(0, separator) : setCookieHeader;
     }
 
+    /** Extract the CSRF token from an HTML page containing a hidden _csrf input. */
+    protected static String extractCsrfToken(String html) {
+        String marker = "name=\"_csrf\" value=\"";
+        int start = html.indexOf(marker);
+        if (start < 0) {
+            return "";
+        }
+        start += marker.length();
+        int end = html.indexOf('"', start);
+        return end > start ? html.substring(start, end) : "";
+    }
+
     protected static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket(0)) {
             socket.setReuseAddress(true);

@@ -92,7 +92,7 @@ public class LandingPageService {
     }
 
     public String renderLanding(boolean showLogout, String activePage) {
-        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), false, "", "", "-", "", List.of(), Map.of(), List.of(), Map.of(), List.of(), Map.of());
+        return renderLanding(showLogout, activePage, "", false, "", List.of(), List.of(), false, "", "", "-", "", List.of(), Map.of(), List.of(), Map.of(), List.of(), Map.of(), "");
     }
 
     public String renderLanding(
@@ -113,7 +113,8 @@ public class LandingPageService {
             List<Map<String, Object>> auditRows,
             Map<String, Object> auditPage,
             List<Map<String, Object>> logQueueRows,
-            Map<String, Object> logQueuePage
+            Map<String, Object> logQueuePage,
+            String csrfToken
     ) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
@@ -156,6 +157,7 @@ public class LandingPageService {
         model.put("auditPage", auditPage == null ? Map.of() : auditPage);
         model.put("logQueueRows", logQueueRows == null ? List.of() : logQueueRows);
         model.put("logQueuePage", logQueuePage == null ? Map.of() : logQueuePage);
+        model.put("csrfToken", csrfToken == null ? "" : csrfToken);
 
         String selectedTemplate;
         if ("history".equals(activePage)) {

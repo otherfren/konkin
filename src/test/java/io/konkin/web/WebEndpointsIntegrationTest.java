@@ -1313,23 +1313,15 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             HttpResponse<String> authChannels = get(runningServer, "/auth_channels", Map.of());
             assertEquals(200, authChannels.statusCode());
             assertTrue(authChannels.body().contains("Auth Channels"));
-            assertTrue(authChannels.body().contains("Telegram Connected Users"));
+            assertFalse(authChannels.body().contains("Telegram Connected Users"));
             assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));
             assertFalse(authChannels.body().contains("Driver Agent Endpoint"));
             assertTrue(authChannels.body().contains("<span class=\"menu-active\">auth channels</span>"));
-            assertTrue(authChannels.body().contains("data-secret-value=\"-1004005006\""));
-            assertTrue(authChannels.body().contains(">***<"));
-            assertTrue(authChannels.body().contains("aria-label=\"Reveal Telegram identifier\""));
-            assertTrue(authChannels.body().contains("approved"));
-            assertTrue(authChannels.body().contains("<th>Type</th>"));
-            assertTrue(authChannels.body().contains("<th>Name</th>"));
-            assertTrue(authChannels.body().contains("<th>Title</th>"));
             assertTrue(authChannels.body().contains("<th>Auth Channel ID</th>"));
             assertTrue(authChannels.body().contains("verification-agent:agent-a"));
-            assertTrue(authChannels.body().contains("telegram.secret"));
             assertTrue(authChannels.body().contains("mcp-auth-channels"));
-            assertTrue(authChannels.body().contains("Reference format"));
-            assertTrue(authChannels.body().contains("Runtime checks"));
+            assertFalse(authChannels.body().contains("Reference format"));
+            assertFalse(authChannels.body().contains("Runtime checks"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/health"));
             assertTrue(authChannels.body().contains("http://127.0.0.1:" + secondaryAgentPort + "/oauth/token"));
 

@@ -586,6 +586,7 @@ public class LandingPageController {
         String token = ctx.cookie(SESSION_COOKIE_NAME);
         if (token != null) {
             activeSessions.remove(token);
+            WebUtils.removeCsrfToken(token);
         }
         ctx.removeCookie(SESSION_COOKIE_NAME, "/");
         ctx.redirect("/");
@@ -630,6 +631,7 @@ public class LandingPageController {
     private void issueSessionCookie(Context ctx) {
         String sessionToken = newSessionToken();
         activeSessions.put(sessionToken, Instant.now().plus(SESSION_TTL));
+        WebUtils.generateCsrfToken(sessionToken);
 
         Cookie sessionCookie = new Cookie(SESSION_COOKIE_NAME, sessionToken);
         sessionCookie.setPath("/");
@@ -764,7 +766,8 @@ public class LandingPageController {
                     auditPageData.rows(),
                     auditPageData.pageMeta(),
                     logQueuePageData.rows(),
-                    logQueuePageData.pageMeta()));
+                    logQueuePageData.pageMeta(),
+                    WebUtils.csrfTokenForSession(ctx)));
             return;
         }
 
@@ -957,6 +960,13 @@ public class LandingPageController {
 
         if (passwordProtectionEnabled && !hasValidSession(ctx)) {
             showLogin(ctx, false);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for queue {} from {}", decision, ctx.ip());
+            ctx.status(403);
+            renderLandingForPage(ctx, "queue", "", false, "", "Invalid CSRF token. Please reload the page and try again.", true, null);
             return;
         }
 

@@ -39,6 +39,7 @@
             </p>
             <div class="queue-confirm-actions">
                 <form method="post" action="${telegramConfirmActionPathValue}" class="queue-confirm-inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
                     <#if telegramConfirmModeValue != "reset">
                         <input type="hidden" name="chat_id" value="${telegramConfirmChatIdValue}">
                     </#if>
@@ -76,6 +77,7 @@
                             <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
                                 <form method="post" action="/auth_channels/telegram/approve" class="telegram-inline-form">
+                                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
                                     <input type="hidden" name="chat_id" value="${chat.chatId}">
                                     <input type="hidden" name="chat_type" value="${chat.chatType}">
                                     <input type="hidden" name="chat_title" value="${chat.chatTitle}">
@@ -114,6 +116,7 @@
                             <td><#if chat.chatUsername?has_content>@${chat.chatUsername}<#else>—</#if></td>
                             <td>
                                 <form method="post" action="/auth_channels/telegram/unapprove" class="telegram-inline-form telegram-decision-form" data-telegram-decision="unapprove">
+                                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
                                     <input type="hidden" name="chat_id" value="${chat.chatId}">
                                     <button type="submit" class="queue-action-btn queue-action-deny">unapprove</button>
                                 </form>
@@ -125,6 +128,7 @@
 
             <div class="queue-confirm-actions" style="margin-top:12px;">
                 <form method="post" action="/auth_channels/telegram/reset" class="telegram-inline-form telegram-decision-form" data-telegram-decision="reset">
+                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
                     <button type="submit" class="queue-action-btn queue-action-deny">reset approved list</button>
                 </form>
             </div>
@@ -135,6 +139,7 @@
         <h3 id="telegram-send-title" class="telegram-title">Telegram Broadcast</h3>
         <p class="telegram-empty">This is a test broadcast to currently approved chats, so you can verify bot delivery.</p>
         <form method="post" action="/auth_channels/telegram/send" class="telegram-form">
+            <input type="hidden" name="_csrf" value="${csrfToken!''}">
             <label for="telegram_message" class="telegram-label">Message</label>
             <textarea
                 id="telegram_message"
