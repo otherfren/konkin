@@ -61,12 +61,12 @@ final class KonkinConfigLoader {
                 "landing.password-protection.enabled",
                 landingEnabled
         );
-        String landingPasswordFile = getOrElseWithFallback(
+        String landingPasswordFile = resolveSecretsDir(getOrElseWithFallback(
                 toml,
                 "web-ui.password-protection.password-file",
                 "landing.password-protection.password-file",
                 secretsDir + "web-ui.password"
-        );
+        ), secretsDir);
         String landingTemplateDirectory = getOrElseWithFallback(
                 toml,
                 "web-ui.template.directory",
@@ -102,10 +102,12 @@ final class KonkinConfigLoader {
         boolean debugSeedFakeData = toml.getOrElse("debug.seed-fake-data", false);
 
         boolean restApiEnabled = toml.getOrElse("rest-api.enabled", false);
-        String restApiSecretFile = toml.getOrElse("rest-api.secret-file", secretsDir + "rest-api.secret");
+        String restApiSecretFile = resolveSecretsDir(
+                toml.getOrElse("rest-api.secret-file", secretsDir + "rest-api.secret"), secretsDir);
 
         boolean telegramEnabled = toml.getOrElse("telegram.enabled", false);
-        String telegramSecretFile = toml.getOrElse("telegram.secret-file", secretsDir + "telegram.secret");
+        String telegramSecretFile = resolveSecretsDir(
+                toml.getOrElse("telegram.secret-file", secretsDir + "telegram.secret"), secretsDir);
         String telegramApiBaseUrl = toml.getOrElse("telegram.api-base-url", "https://api.telegram.org");
 
         String telegramAutoDenyTimeoutRaw = normalizeString(toml.get("telegram.auto-deny-timeout"));
@@ -133,9 +135,9 @@ final class KonkinConfigLoader {
         Map<String, AgentConfig> secondaryAgents = loadSecondaryAgentConfigs(toml, secretsDir);
 
         CoinConfig bitcoin = loadBitcoinConfig(toml, secretsDir);
-        CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main");
+        CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main", secretsDir);
         CoinConfig monero = loadMoneroConfig(toml, secretsDir);
-        CoinConfig testDummyCoin = loadTestDummyCoinConfig(toml, debugEnabled);
+        CoinConfig testDummyCoin = loadTestDummyCoinConfig(toml, debugEnabled, secretsDir);
 
         return new KonkinConfig(
                 configVersion, host, port, secretsDir, logLevel, logFile, logRotateMaxSizeMb,
@@ -151,11 +153,21 @@ final class KonkinConfigLoader {
         );
     }
 
+    private static final String SECRETS_DIR_PLACEHOLDER = "{secrets-dir}";
+
     private static String normalizeSecretsDir(String dir) {
         if (dir == null || dir.isBlank()) {
             return "./secrets/";
         }
         return dir.endsWith("/") ? dir : dir + "/";
+    }
+
+    private static String resolveSecretsDir(String path, String secretsDir) {
+        if (path == null || !path.contains(SECRETS_DIR_PLACEHOLDER)) {
+            return path;
+        }
+        String resolvedDir = secretsDir.endsWith("/") ? secretsDir.substring(0, secretsDir.length() - 1) : secretsDir;
+        return path.replace(SECRETS_DIR_PLACEHOLDER, resolvedDir);
     }
 
     private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
@@ -177,7 +189,8 @@ final class KonkinConfigLoader {
                 "agents.primary",
                 "127.0.0.1",
                 9550,
-                secretsDir + "agent-primary.secret"
+                secretsDir + "agent-primary.secret",
+                secretsDir
         );
     }
 
@@ -213,7 +226,8 @@ final class KonkinConfigLoader {
                     "agents.secondary." + agentName,
                     "127.0.0.1",
                     0,
-                    secretsDir + agentName + ".secret"
+                    secretsDir + agentName + ".secret",
+                    secretsDir
             );
             parsedAgents.put(agentName, parsed);
         }
@@ -226,7 +240,8 @@ final class KonkinConfigLoader {
             String keyPrefix,
             String defaultBind,
             int defaultPort,
-            String defaultSecretFile
+            String defaultSecretFile,
+            String secretsDir
     ) {
         boolean enabled = parseBooleanOrDefault(config.get("enabled"), false, keyPrefix + ".enabled");
 
@@ -240,6 +255,8 @@ final class KonkinConfigLoader {
         String secretFile = normalizeString(config.get("secret-file"));
         if (secretFile == null || secretFile.isBlank()) {
             secretFile = defaultSecretFile;
+        } else {
+            secretFile = resolveSecretsDir(secretFile, secretsDir);
         }
 
         return new AgentConfig(enabled, bind, port, secretFile);
@@ -248,14 +265,14 @@ final class KonkinConfigLoader {
     private static CoinConfig loadBitcoinConfig(FileConfig toml, String secretsDir) {
         boolean enabled = toml.getOrElse("coins.bitcoin.enabled", false);
 
-        String daemonSecretFile = toml.getOrElse(
+        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
                 "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
                 secretsDir + "bitcoin-daemon.conf"
-        );
-        String walletSecretFile = toml.getOrElse(
+        ), secretsDir);
+        String walletSecretFile = resolveSecretsDir(toml.getOrElse(
                 "coins.bitcoin.secret-files.bitcoin-wallet-config-file",
                 secretsDir + "bitcoin-wallet.conf"
-        );
+        ), secretsDir);
 
         String signingAddress = toml.getOrElse("coins.bitcoin.signing-address", "");
 
@@ -284,12 +301,12 @@ final class KonkinConfigLoader {
         String coinPrefix = "coins.monero";
         boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
 
-        String daemonSecretFile = toml.getOrElse(
+        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
                 coinPrefix + ".secret-files.monero-daemon-config-file",
-                secretsDir + "monero-daemon.conf");
-        String walletRpcSecretFile = toml.getOrElse(
+                secretsDir + "monero-daemon.conf"), secretsDir);
+        String walletRpcSecretFile = resolveSecretsDir(toml.getOrElse(
                 coinPrefix + ".secret-files.monero-wallet-rpc-config-file",
-                secretsDir + "monero-wallet-rpc.conf");
+                secretsDir + "monero-wallet-rpc.conf"), secretsDir);
 
         boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
         boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
@@ -311,7 +328,7 @@ final class KonkinConfigLoader {
         );
     }
 
-    private static CoinConfig loadTestDummyCoinConfig(FileConfig toml, boolean debugEnabled) {
+    private static CoinConfig loadTestDummyCoinConfig(FileConfig toml, boolean debugEnabled, String secretsDir) {
         if (!debugEnabled) {
             return new CoinConfig(
                     false,
@@ -320,13 +337,21 @@ final class KonkinConfigLoader {
                     new CoinAuthConfig(List.of(), List.of(), false, false, false, "", List.of(), 1, List.of())
             );
         }
-        return loadCoinConfig(toml, "testdummycoin", "tdc-main");
+        return loadCoinConfig(toml, "testdummycoin", "tdc-main", secretsDir);
     }
 
-    private static CoinConfig loadCoinConfig(FileConfig toml, String coinId, String defaultMcp) {
+    private static CoinConfig loadCoinConfig(FileConfig toml, String coinId, String defaultMcp, String secretsDir) {
         String coinPrefix = "coins." + coinId;
 
         boolean enabled = toml.getOrElse(coinPrefix + ".enabled", false);
+
+        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
+                coinPrefix + ".secret-files." + coinId + "-daemon-config-file",
+                secretsDir + coinId + "-daemon.conf"), secretsDir);
+        String walletSecretFile = resolveSecretsDir(toml.getOrElse(
+                coinPrefix + ".secret-files." + coinId + "-wallet-config-file",
+                secretsDir + coinId + "-wallet.conf"), secretsDir);
+
         boolean webUi = toml.getOrElse(coinPrefix + ".auth.web-ui", true);
         boolean restApi = toml.getOrElse(coinPrefix + ".auth.rest-api", true);
         boolean telegram = toml.getOrElse(coinPrefix + ".auth.telegram", false);
@@ -341,8 +366,8 @@ final class KonkinConfigLoader {
 
         return new CoinConfig(
                 enabled,
-                "",
-                "",
+                daemonSecretFile,
+                walletSecretFile,
                 new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
         );
     }
