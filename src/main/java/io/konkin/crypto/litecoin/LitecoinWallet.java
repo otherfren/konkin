@@ -48,6 +48,11 @@ public final class LitecoinWallet extends CoinWallet {
     }
 
     @Override
+    public SweepResult sweep(SweepRequest request) {
+        throw new UnsupportedOperationException("LTC sweep() not yet implemented — use sendtoaddress with subtractfeefromamount RPC");
+    }
+
+    @Override
     public List<Transaction> pendingIncoming() {
         throw new UnsupportedOperationException("LTC pendingIncoming() not yet implemented — use listtransactions RPC");
     }

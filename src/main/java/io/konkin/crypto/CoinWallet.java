@@ -50,6 +50,8 @@ public abstract class CoinWallet {
 
     public abstract SendResult send(SendRequest request);
 
+    public abstract SweepResult sweep(SweepRequest request);
+
     public abstract List<Transaction> pendingIncoming();
 
     public abstract List<Transaction> pendingOutgoing();

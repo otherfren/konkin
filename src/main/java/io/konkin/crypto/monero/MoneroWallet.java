@@ -131,6 +131,50 @@ public final class MoneroWallet extends CoinWallet {
     }
 
     @Override
+    public SweepResult sweep(SweepRequest request) {
+        try {
+            MoneroTxConfig txConfig = new MoneroTxConfig()
+                    .setAccountIndex(accountIndex)
+                    .setAddress(request.toAddress())
+                    .setRelay(true);
+
+            String priorityStr = request.extras().get(MoneroExtras.PRIORITY);
+            if (priorityStr != null && !priorityStr.isBlank()) {
+                txConfig.setPriority(parsePriority(priorityStr));
+            }
+
+            List<MoneroTxWallet> txs = rpc.sweepAll(txConfig);
+
+            List<String> txIds = new ArrayList<>();
+            BigDecimal totalAmount = BigDecimal.ZERO;
+            BigDecimal totalFee = BigDecimal.ZERO;
+
+            for (MoneroTxWallet tx : txs) {
+                txIds.add(tx.getHash());
+                if (tx.getOutgoingAmount() != null) {
+                    totalAmount = totalAmount.add(atomicToXmr(tx.getOutgoingAmount()));
+                }
+                if (tx.getFee() != null) {
+                    totalFee = totalFee.add(atomicToXmr(tx.getFee()));
+                }
+            }
+
+            Map<String, String> extras = new LinkedHashMap<>();
+            if (txs.size() == 1 && txs.get(0).getKey() != null) {
+                extras.put(MoneroExtras.TX_KEY, txs.get(0).getKey());
+            }
+
+            return new SweepResult(Coin.XMR, txIds, totalAmount, totalFee, extras);
+        } catch (MoneroError e) {
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            if (msg.contains("not enough")) {
+                throw new WalletInsufficientFundsException(BigDecimal.ONE, safeBalance());
+            }
+            throw mapMoneroError(e, "sweep");
+        }
+    }
+
+    @Override
     public List<Transaction> pendingIncoming() {
         return listTransfers(TransactionDirection.INCOMING, true);
     }

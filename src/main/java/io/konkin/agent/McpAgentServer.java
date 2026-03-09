@@ -29,6 +29,7 @@ import io.konkin.agent.mcp.driver.DepositAddressTool;
 import io.konkin.agent.mcp.driver.DriverReadinessPrompt;
 import io.konkin.agent.mcp.driver.PendingTransactionsTool;
 import io.konkin.agent.mcp.driver.SendCoinTool;
+import io.konkin.agent.mcp.driver.SweepWalletTool;
 import io.konkin.agent.mcp.driver.SignMessageTool;
 import io.konkin.agent.mcp.driver.VerifyMessageTool;
 import io.konkin.agent.mcp.driver.WalletBalanceTool;
@@ -177,6 +178,7 @@ public class McpAgentServer {
         }
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
             mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
+            mcpSyncServer.addTool(SweepWalletTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
         }
         if (walletSupervisors != null && !walletSupervisors.isEmpty() && runtimeConfig != null) {
             mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisors, runtimeConfig));

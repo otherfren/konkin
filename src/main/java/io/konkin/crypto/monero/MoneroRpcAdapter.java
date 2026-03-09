@@ -45,6 +45,7 @@ interface MoneroRpcAdapter {
 
     // Transactions
     MoneroTxWallet createTx(MoneroTxConfig config);
+    List<MoneroTxWallet> sweepAll(MoneroTxConfig config);
     List<MoneroIncomingTransfer> getIncomingTransfers(MoneroTransferQuery query);
     List<MoneroOutgoingTransfer> getOutgoingTransfers(MoneroTransferQuery query);
 

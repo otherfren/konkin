@@ -133,6 +133,38 @@ public final class BitcoinWallet extends CoinWallet {
     }
 
     @Override
+    public SweepResult sweep(SweepRequest request) {
+        try {
+            BigDecimal balance = client.getBalance().toBtc();
+            if (balance.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new WalletInsufficientFundsException(BigDecimal.ONE, BigDecimal.ZERO);
+            }
+
+            String comment = request.extras().getOrDefault(BitcoinExtras.MEMO, "");
+            // sendtoaddress with subtractfeefromamount=true sends the full balance minus fees
+            String txIdStr = client.send("sendtoaddress", String.class,
+                    request.toAddress(), balance.toPlainString(), comment, "",
+                    true); // subtractfeefromamount
+
+            org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
+            WalletTransactionInfo txInfo = client.getTransaction(txId);
+            BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
+            BigDecimal swept = balance.subtract(fee);
+
+            return new SweepResult(Coin.BTC, List.of(txIdStr), swept, fee, Map.of());
+        } catch (WalletException e) {
+            throw e;
+        } catch (JsonRpcStatusException e) {
+            if (isInsufficientFunds(e)) {
+                throw new WalletInsufficientFundsException(BigDecimal.ONE, safeBalance());
+            }
+            throw new WalletOperationException("BTC sweep failed: " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+        }
+    }
+
+    @Override
     public List<Transaction> pendingIncoming() {
         return listPending(TransactionDirection.INCOMING);
     }

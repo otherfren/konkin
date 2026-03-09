@@ -485,4 +485,92 @@ class MoneroWalletTest {
         assertTrue(recent.get(0).confirmed());
         assertEquals(15, recent.get(0).confirmations());
     }
+
+    // --- sweep() ---
+
+    @Test
+    void sweep_success_singleTx() {
+        MoneroTxWallet tx = mock(MoneroTxWallet.class);
+        when(tx.getHash()).thenReturn("sweep_tx_hash_1");
+        when(tx.getOutgoingAmount()).thenReturn(new BigInteger("5000000000000")); // 5 XMR
+        when(tx.getFee()).thenReturn(new BigInteger("20000000")); // 0.00002 XMR
+        when(tx.getKey()).thenReturn("sweep_tx_key");
+        when(rpc.sweepAll(any(MoneroTxConfig.class))).thenReturn(List.of(tx));
+
+        SweepRequest request = new SweepRequest(Coin.XMR, "dest_address", Map.of());
+        SweepResult result = wallet.sweep(request);
+
+        assertEquals(Coin.XMR, result.coin());
+        assertEquals(List.of("sweep_tx_hash_1"), result.txIds());
+        assertEquals(0, new BigDecimal("5.000000000000").compareTo(result.totalAmount()));
+        assertEquals(0, new BigDecimal("0.000020000000").compareTo(result.totalFee()));
+        assertEquals("sweep_tx_key", result.extras().get(MoneroExtras.TX_KEY));
+    }
+
+    @Test
+    void sweep_success_multipleTxs() {
+        MoneroTxWallet tx1 = mock(MoneroTxWallet.class);
+        when(tx1.getHash()).thenReturn("sweep_hash_a");
+        when(tx1.getOutgoingAmount()).thenReturn(new BigInteger("3000000000000")); // 3 XMR
+        when(tx1.getFee()).thenReturn(new BigInteger("10000000")); // 0.00001 XMR
+        when(tx1.getKey()).thenReturn("key_a");
+
+        MoneroTxWallet tx2 = mock(MoneroTxWallet.class);
+        when(tx2.getHash()).thenReturn("sweep_hash_b");
+        when(tx2.getOutgoingAmount()).thenReturn(new BigInteger("2000000000000")); // 2 XMR
+        when(tx2.getFee()).thenReturn(new BigInteger("15000000")); // 0.000015 XMR
+        when(tx2.getKey()).thenReturn("key_b");
+
+        when(rpc.sweepAll(any(MoneroTxConfig.class))).thenReturn(List.of(tx1, tx2));
+
+        SweepRequest request = new SweepRequest(Coin.XMR, "dest_address", Map.of());
+        SweepResult result = wallet.sweep(request);
+
+        assertEquals(2, result.txIds().size());
+        assertTrue(result.txIds().contains("sweep_hash_a"));
+        assertTrue(result.txIds().contains("sweep_hash_b"));
+        assertEquals(0, new BigDecimal("5.000000000000").compareTo(result.totalAmount()));
+        assertEquals(0, new BigDecimal("0.000025000000").compareTo(result.totalFee()));
+        // tx_key not set when multiple txs
+        assertFalse(result.extras().containsKey(MoneroExtras.TX_KEY));
+    }
+
+    @Test
+    void sweep_notEnoughFunds_throwsInsufficientFunds() {
+        when(rpc.sweepAll(any(MoneroTxConfig.class)))
+                .thenThrow(new MoneroError("not enough money"));
+        when(rpc.getUnlockedBalance(0)).thenReturn(BigInteger.ZERO);
+
+        SweepRequest request = new SweepRequest(Coin.XMR, "dest_address", Map.of());
+
+        assertThrows(WalletInsufficientFundsException.class, () -> wallet.sweep(request));
+    }
+
+    @Test
+    void sweep_connectionError_throwsWalletConnectionException() {
+        when(rpc.sweepAll(any(MoneroTxConfig.class)))
+                .thenThrow(new MoneroError("connection refused"));
+
+        SweepRequest request = new SweepRequest(Coin.XMR, "dest_address", Map.of());
+
+        assertThrows(WalletConnectionException.class, () -> wallet.sweep(request));
+    }
+
+    @Test
+    void sweep_withPriority() {
+        MoneroTxWallet tx = mock(MoneroTxWallet.class);
+        when(tx.getHash()).thenReturn("sweep_priority_hash");
+        when(tx.getOutgoingAmount()).thenReturn(new BigInteger("1000000000000"));
+        when(tx.getFee()).thenReturn(new BigInteger("50000000"));
+        when(tx.getKey()).thenReturn(null);
+        when(rpc.sweepAll(any(MoneroTxConfig.class))).thenReturn(List.of(tx));
+
+        SweepRequest request = new SweepRequest(Coin.XMR, "dest_address",
+                Map.of(MoneroExtras.PRIORITY, "elevated"));
+        wallet.sweep(request);
+
+        var configCaptor = org.mockito.ArgumentCaptor.forClass(MoneroTxConfig.class);
+        verify(rpc).sweepAll(configCaptor.capture());
+        assertEquals(MoneroTxPriority.ELEVATED, configCaptor.getValue().getPriority());
+    }
 }

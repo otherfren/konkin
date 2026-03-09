@@ -96,6 +96,11 @@ final class DefaultMoneroRpcAdapter implements MoneroRpcAdapter {
     }
 
     @Override
+    public List<MoneroTxWallet> sweepAll(MoneroTxConfig config) {
+        return walletRpc.sweepUnlocked(config);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public List<MoneroIncomingTransfer> getIncomingTransfers(MoneroTransferQuery query) {
         return walletRpc.getIncomingTransfers(query);

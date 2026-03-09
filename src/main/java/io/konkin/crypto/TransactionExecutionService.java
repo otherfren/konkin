@@ -138,15 +138,11 @@ public class TransactionExecutionService {
                 "system", "tx-execution-service", "executing_send", now
         ));
 
-        // Build SendRequest
-        BigDecimal amount = new BigDecimal(row.amountNative());
+        Coin coin = resolveCoin(row.coin());
         Map<String, String> extras = new LinkedHashMap<>();
         if (row.feePolicy() != null) extras.put("feePolicy", row.feePolicy());
         if (row.feeCapNative() != null) extras.put("feeCapNative", row.feeCapNative());
         if (row.memo() != null) extras.put("memo", row.memo());
-
-        Coin coin = resolveCoin(row.coin());
-        SendRequest sendRequest = new SendRequest(coin, row.toAddress(), amount, extras);
 
         WalletSupervisor supervisor = walletSupervisors.get(coin);
         if (supervisor == null) {
@@ -158,7 +154,21 @@ public class TransactionExecutionService {
         }
 
         try {
-            SendResult result = supervisor.execute(w -> w.send(sendRequest));
+            String txIdSummary;
+            String feeSummary;
+
+            if ("wallet_sweep".equals(row.toolName())) {
+                SweepRequest sweepRequest = new SweepRequest(coin, row.toAddress(), extras);
+                SweepResult result = supervisor.execute(w -> w.sweep(sweepRequest));
+                txIdSummary = String.join(",", result.txIds());
+                feeSummary = result.totalFee().toPlainString();
+            } else {
+                BigDecimal amount = new BigDecimal(row.amountNative());
+                SendRequest sendRequest = new SendRequest(coin, row.toAddress(), amount, extras);
+                SendResult result = supervisor.execute(w -> w.send(sendRequest));
+                txIdSummary = result.txId();
+                feeSummary = result.fee() != null ? result.fee().toPlainString() : null;
+            }
 
             Instant finished = Instant.now();
 
@@ -166,7 +176,7 @@ public class TransactionExecutionService {
             ExecutionAttemptDetail success = new ExecutionAttemptDetail(
                     0L, row.id(), 1, now, finished,
                     "success", null, null,
-                    result.txId(), result.fee() != null ? result.fee().toPlainString() : null
+                    txIdSummary, feeSummary
             );
             historyRepo.insertExecutionAttempt(success);
 
@@ -176,7 +186,7 @@ public class TransactionExecutionService {
                     row.nonceUuid(), row.payloadHashSha256(), row.nonceComposite(),
                     row.toAddress(), row.amountNative(), row.feePolicy(), row.feeCapNative(), row.memo(), row.reason(),
                     row.requestedAt(), row.expiresAt(),
-                    "COMPLETED", "send_completed", "Transaction sent: " + result.txId(),
+                    "COMPLETED", "send_completed", "Transaction sent: " + txIdSummary,
                     row.minApprovalsRequired(), row.approvalsGranted(), row.approvalsDenied(),
                     row.policyActionAtCreation(), row.createdAt(), finished, finished
             );
@@ -186,7 +196,7 @@ public class TransactionExecutionService {
                     "system", "tx-execution-service", "send_completed", finished
             ));
 
-            log.info("Transaction executed for request {} — txId={}", row.id(), result.txId());
+            log.info("Transaction executed for request {} — txId={}", row.id(), txIdSummary);
 
         } catch (WalletInsufficientFundsException e) {
             failRequest(row, now, e, "non_retryable_error", "insufficient_funds",
