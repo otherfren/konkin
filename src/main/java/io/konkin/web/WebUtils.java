@@ -21,6 +21,7 @@ import io.konkin.db.entity.PageResult;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -40,6 +41,10 @@ public final class WebUtils {
     }
 
     public static boolean hasValidSession(Context ctx, Map<String, Instant> activeSessions) {
+        return hasValidSession(ctx, activeSessions, Duration.ofHours(12));
+    }
+
+    public static boolean hasValidSession(Context ctx, Map<String, Instant> activeSessions, Duration sessionTtl) {
         String token = ctx.cookie(SESSION_COOKIE_NAME);
         if (token == null || token.isBlank()) {
             return false;
@@ -57,6 +62,8 @@ public final class WebUtils {
             return false;
         }
 
+        // Sliding window: refresh expiry on each valid access
+        activeSessions.put(token, Instant.now().plus(sessionTtl));
         return true;
     }
 

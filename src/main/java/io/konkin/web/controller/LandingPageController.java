@@ -431,6 +431,21 @@ public class LandingPageController {
         return activeSessions;
     }
 
+    /**
+     * Removes expired sessions and their associated CSRF tokens.
+     * Called periodically from a background cleanup thread.
+     */
+    public void cleanupExpiredSessions() {
+        Instant now = Instant.now();
+        activeSessions.entrySet().removeIf(entry -> {
+            if (entry.getValue().isBefore(now)) {
+                WebUtils.removeCsrfToken(entry.getKey());
+                return true;
+            }
+            return false;
+        });
+    }
+
     public void showLogin(Context ctx, boolean invalidPassword) {
         if (isWizardMode()) {
             ctx.redirect("/setup");
@@ -442,7 +457,7 @@ public class LandingPageController {
     }
 
     public boolean hasValidSession(Context ctx) {
-        return WebUtils.hasValidSession(ctx, activeSessions);
+        return WebUtils.hasValidSession(ctx, activeSessions, SESSION_TTL);
     }
 
     private String newSessionToken() {

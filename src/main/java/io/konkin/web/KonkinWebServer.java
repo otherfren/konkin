@@ -99,6 +99,8 @@ public class KonkinWebServer {
     }
 
     private Javalin app;
+    private RateLimiter rateLimiter;
+    private java.util.concurrent.ScheduledExecutorService sessionCleanupScheduler;
     private LandingResourceWatcher landingResourceWatcher;
     private ApprovalExpiryService approvalExpiryService;
     private TelegramCallbackPoller telegramCallbackPoller;
@@ -376,6 +378,7 @@ public class KonkinWebServer {
         Path staticDirectoryFinal = landingStaticDirectory;
         app = Javalin.create(javalinConfig -> {
             javalinConfig.showJavalinBanner = false;
+            javalinConfig.http.maxRequestSize = 1_048_576L; // [SEC-5] 1 MB request size limit
             javalinConfig.jetty.modifyServer(server -> server.setStopTimeout(3_000));
 
             ObjectMapper objectMapper = new ObjectMapper();
@@ -401,6 +404,19 @@ public class KonkinWebServer {
             ctx.header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'");
             if ("https".equalsIgnoreCase(ctx.header("X-Forwarded-Proto")) || "https".equalsIgnoreCase(ctx.scheme())) {
                 ctx.header("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+            }
+        });
+
+        // [SEC-6] Global per-IP rate limiting
+        rateLimiter = new RateLimiter(100, 60); // 100 requests per minute per IP
+        app.before(ctx -> {
+            String path = ctx.path();
+            // Exempt health check and static assets from rate limiting
+            if ("/api/v1/health".equals(path) || path.startsWith(config.landingStaticHostedPath())) {
+                return;
+            }
+            if (rateLimiter.isRateLimited(ctx.ip())) {
+                throw new io.javalin.http.HttpResponseException(429, "Too many requests");
             }
         });
 
@@ -570,6 +586,20 @@ public class KonkinWebServer {
 
         if (landingResourceWatcher != null) {
             landingResourceWatcher.start();
+        }
+
+        // [SEC-10] Periodic cleanup of expired sessions and rate-limiter buckets
+        if (webUiPageControllerFinal != null) {
+            LandingPageController lpcForCleanup = webUiPageControllerFinal;
+            sessionCleanupScheduler = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "session-cleanup");
+                t.setDaemon(true);
+                return t;
+            });
+            sessionCleanupScheduler.scheduleAtFixedRate(() -> {
+                lpcForCleanup.cleanupExpiredSessions();
+                rateLimiter.cleanup();
+            }, 5, 5, java.util.concurrent.TimeUnit.MINUTES);
         }
 
         log.info("KONKIN server running at http://{}:{}", config.host(), config.port());
@@ -792,6 +822,11 @@ public class KonkinWebServer {
             supervisor.close();
         }
         walletSupervisors.clear();
+
+        if (sessionCleanupScheduler != null) {
+            sessionCleanupScheduler.shutdownNow();
+            sessionCleanupScheduler = null;
+        }
 
         if (landingResourceWatcher != null) {
             landingResourceWatcher.stop();

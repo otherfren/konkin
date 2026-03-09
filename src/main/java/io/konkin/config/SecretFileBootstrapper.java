@@ -25,9 +25,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -46,7 +48,9 @@ final class SecretFileBootstrapper {
     private static final String DB_SECRET_KEY = "db-password";
 
     static Set<String> bootstrap(KonkinConfig config) {
-        return bootstrapSecretFiles(config);
+        Set<String> freshlyCreated = bootstrapSecretFiles(config);
+        warnOnInsecurePermissions(config);
+        return freshlyCreated;
     }
 
     /**
@@ -145,6 +149,78 @@ final class SecretFileBootstrapper {
             );
         }
         return freshlyCreated;
+    }
+
+    /**
+     * [SEC-2] Warns at startup when existing secret files have permissions other than 600 (owner-read-write only).
+     */
+    private static void warnOnInsecurePermissions(KonkinConfig config) {
+        Set<PosixFilePermission> insecure = EnumSet.of(
+                PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_WRITE,
+                PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_WRITE
+        );
+
+        List<String> paths = new ArrayList<>();
+
+        // Agent secret files
+        if (config.primaryAgent() != null && config.primaryAgent().enabled()) {
+            paths.add(config.primaryAgent().secretFile());
+        }
+        for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
+            AgentConfig agentConfig = entry.getValue();
+            if (agentConfig.enabled()) {
+                paths.add(agentConfig.secretFile());
+            }
+        }
+
+        // Coin daemon/wallet secret files
+        if (config.bitcoin().enabled()) {
+            paths.add(config.bitcoin().daemonConfigSecretFile());
+            paths.add(config.bitcoin().walletConfigSecretFile());
+        }
+        if (config.monero().enabled()) {
+            paths.add(config.monero().daemonConfigSecretFile());
+            paths.add(config.monero().walletConfigSecretFile());
+        }
+
+        // REST API secret file
+        if (config.restApiEnabled()) {
+            paths.add(config.restApiSecretFile());
+        }
+
+        // Telegram secret file
+        if (config.telegramEnabled()) {
+            paths.add(config.telegramSecretFile());
+        }
+
+        // Landing password file
+        if (config.landingPasswordProtectionEnabled()) {
+            paths.add(config.landingPasswordFile());
+        }
+
+        for (String pathStr : paths) {
+            if (pathStr == null || pathStr.isBlank()) {
+                continue;
+            }
+            Path path = Path.of(pathStr);
+            if (!Files.exists(path)) {
+                continue;
+            }
+            try {
+                Set<PosixFilePermission> perms = Files.getPosixFilePermissions(path);
+                for (PosixFilePermission perm : insecure) {
+                    if (perms.contains(perm)) {
+                        log.warn("Secret file has insecure permissions ({}): {} — expected owner-only (600)", perms, path.toAbsolutePath());
+                        break;
+                    }
+                }
+            } catch (UnsupportedOperationException ignored) {
+                // Non-POSIX filesystem (e.g. Windows), skip silently.
+                return;
+            } catch (IOException e) {
+                log.warn("Failed to read permissions of secret file: {}", path.toAbsolutePath(), e);
+            }
+        }
     }
 
     private static void ensureSecretFileExists(Path secretFile, String keyName, String content) {
