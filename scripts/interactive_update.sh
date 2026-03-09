@@ -107,7 +107,7 @@ echo ""
 cp "$POM" "$BACKUP"
 CHANGED=0
 
-while IFS= read -r line; do
+while IFS= read -r line <&3; do
     # Extract artifact, current version, and latest version
     # Format: "groupId:artifactId ........... current -> latest"
     #     or: "${property.name} ............ current -> latest"
@@ -154,7 +154,7 @@ while IFS= read -r line; do
             ;;
     esac
     echo ""
-done <<< "$ALL_UPDATES"
+done 3<<< "$ALL_UPDATES"
 
 echo "==========================================="
 if [ "$CHANGED" -gt 0 ]; then
