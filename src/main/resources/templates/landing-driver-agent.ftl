@@ -22,12 +22,12 @@
     <section class="auth-card" aria-labelledby="driver-agent-title">
         <div class="auth-card-header">
             <h3 id="driver-agent-title" class="auth-coin-name">Driver Agent Endpoint</h3>
-            <span class="auth-chip <#if (driverAgentEndpoint.configured!false) && (driverAgentEndpoint.enabled!false) && !(driverAgentWarn!false)>auth-chip-on<#else>auth-chip-off</#if>">
+            <span class="auth-chip <#if (driverAgentEndpoint.configured!false) && !(driverAgentWarn!false)>auth-chip-on<#else>auth-chip-off</#if>">
                     <#if (driverAgentEndpoint.configured!false)>
                         <#if (driverAgentWarn!false)>
                             not connected
                         <#else>
-                            ${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}
+                            running
                         </#if>
                     <#else>
                         not configured
@@ -57,8 +57,8 @@
                     <td class="mono">${driverAgentEndpoint.name!'-'}</td>
                     <td class="mono">${driverAgentEndpoint.type!'-'}</td>
                     <td>
-                        <span class="auth-channel-status <#if (driverAgentEndpoint.enabled!false) && !(driverAgentWarn!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
-                            <#if (driverAgentWarn!false)>not connected<#else>${(driverAgentEndpoint.enabled!false)?string('enabled', 'disabled')}</#if>
+                        <span class="auth-channel-status <#if (driverAgentEndpoint.configured!false) && !(driverAgentWarn!false)>auth-channel-status-approved<#else>auth-channel-status-pending</#if>">
+                            <#if (driverAgentWarn!false)>not connected<#else>running</#if>
                         </span>
                     </td>
                     <td class="mono">${driverAgentEndpoint.bind!'-'}</td>
@@ -72,6 +72,31 @@
             </table>
         </#if>
     </section>
+
+    <#if driverSettings??>
+    <section class="auth-card settings-section" data-section="driver-agent" style="margin-top:1rem">
+        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+            <h3 class="auth-coin-name">Settings</h3>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
+        </div>
+        <div class="settings-card-body" hidden>
+            <div class="settings-form" data-endpoint="/settings/agents/primary">
+                <div class="settings-field">
+                    <label class="settings-label">Bind <span class="settings-restart" title="Requires restart">&#128274;</span></label>
+                    <input type="text" class="settings-input" name="bind" value="${driverSettings.bind!''}" />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Port <span class="settings-restart" title="Requires restart">&#128274;</span></label>
+                    <input type="number" class="settings-input" name="port" value="${driverSettings.port?c}" min="1" max="65535" />
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="settings-save-btn">Save</button>
+                    <span class="settings-status"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+    </#if>
 
     <div class="driver-panels-grid">
         <section class="auth-overview-panel" aria-labelledby="driver-mcp-registration-title">
@@ -138,6 +163,7 @@
     </div>
 </div></main>
 
+<@m.settingsScript />
 <@m.footer />
 </div>
 </@layout.page>

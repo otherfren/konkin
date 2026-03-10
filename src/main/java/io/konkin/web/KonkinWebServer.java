@@ -279,7 +279,7 @@ public class KonkinWebServer {
             landingPageService.setRestApiKeyMissing(config.restApiEnabled() && activeApiKeyRef.get() == null);
             landingPageService.setDriverAgentWarn(() -> {
                 AgentConfig pa = config.primaryAgent();
-                if (pa == null || !pa.enabled()) {
+                if (pa == null) {
                     return true;
                 }
                 List<McpAgentServer> driverEndpoints = agentEndpoints.stream()
@@ -310,7 +310,7 @@ public class KonkinWebServer {
             landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
             landingPageService.setSecondaryAgentNamesSupplier(() ->
                     configManager.get().secondaryAgents().entrySet().stream()
-                            .filter(e -> e.getValue().enabled())
+                            .filter(e -> e.getValue().visible())
                             .map(Map.Entry::getKey)
                             .toList());
             List<String> enabledCoinIds = mapper.getEnabledCoinIds();
@@ -536,6 +536,7 @@ public class KonkinWebServer {
             app.get("/wallets/{coin}", walletControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", walletControllerFinal::handleGenerateDepositAddress);
             app.post("/wallets/reconnect", walletControllerFinal::handleWalletReconnect);
+            app.post("/wallets/{coin}/rules", settingsControllerFinal::handleUpdateRulesForm);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/auth_channels/agents/{name}", settingsControllerFinal::handleAgentPage);
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
@@ -708,7 +709,7 @@ public class KonkinWebServer {
         agentEndpoints.clear();
 
         AgentConfig primaryAgent = config.primaryAgent();
-        if (primaryAgent != null && primaryAgent.enabled()) {
+        if (primaryAgent != null) {
             McpAgentServer endpoint = new McpAgentServer(
                     "konkin-primary",
                     "driver",

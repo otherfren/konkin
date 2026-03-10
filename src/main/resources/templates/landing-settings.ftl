@@ -19,7 +19,7 @@
     <section class="auth-card settings-section" data-section="server">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Server</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
             <div class="settings-form" data-endpoint="/settings/server">
@@ -63,7 +63,7 @@
     <section class="auth-card settings-section" data-section="database">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Database</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
             <div class="settings-form" data-endpoint="/settings/database">
@@ -92,46 +92,17 @@
     </section>
 
     <#-- ── Agents ── -->
-    <#if settings.primaryAgent??>
-    <section class="auth-card settings-section" data-section="driver-agent">
-        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">Driver Agent</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
-        </div>
-        <div class="settings-card-body" hidden>
-            <div class="settings-form" data-endpoint="/settings/agents/primary">
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.primaryAgent.enabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field">
-                    <label class="settings-label">Bind <span class="settings-restart" title="Requires restart">&#128274;</span></label>
-                    <input type="text" class="settings-input" name="bind" value="${settings.primaryAgent.bind!''}" />
-                </div>
-                <div class="settings-field">
-                    <label class="settings-label">Port <span class="settings-restart" title="Requires restart">&#128274;</span></label>
-                    <input type="number" class="settings-input" name="port" value="${settings.primaryAgent.port?c}" min="1" max="65535" />
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
-                </div>
-            </div>
-        </div>
-    </section>
-    </#if>
-
     <#list (settings.secondaryAgents!{}) as agentName, agent>
     <section class="auth-card settings-section" data-section="agent-${agentName}">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Agent: ${agentName}</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
             <div class="settings-form" data-endpoint="/settings/agents/${agentName}">
                 <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if agent.enabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    <label class="settings-label">Visible</label>
+                    <label class="settings-toggle"><input type="checkbox" name="visible"<#if agent.visible!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
                 </div>
                 <div class="settings-field">
                     <label class="settings-label">Bind <span class="settings-restart" title="Requires restart">&#128274;</span></label>
@@ -154,7 +125,7 @@
     <section class="auth-card settings-section" data-section="debug">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Debug</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
             <div class="settings-debug-warn">Do not enable debug mode in a production environment. It exposes test wallets, seeds fake data, and weakens security assumptions.</div>

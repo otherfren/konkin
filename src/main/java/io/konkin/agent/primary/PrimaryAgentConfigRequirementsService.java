@@ -279,20 +279,20 @@ public class PrimaryAgentConfigRequirementsService {
 
     private RequirementItem checkPrimaryAgentEnabled() {
         AgentConfig primary = config.primaryAgent();
-        if (primary == null || !primary.enabled()) {
+        if (primary == null) {
             return item(
-                    "agents.primary.enabled",
+                    "agents.primary",
                     CHECK_MISSING,
-                    "Driver agent endpoint is disabled or not configured.",
-                    "Set [agents.primary].enabled=true in config.toml.",
+                    "Driver agent endpoint is not configured.",
+                    "Add [agents.primary] section in config.toml.",
                     true
             );
         }
 
         return item(
-                "agents.primary.enabled",
+                "agents.primary",
                 CHECK_OK,
-                "Driver agent endpoint is enabled.",
+                "Driver agent endpoint is configured.",
                 "",
                 true
         );
@@ -300,12 +300,12 @@ public class PrimaryAgentConfigRequirementsService {
 
     private RequirementItem checkPrimaryAgentEndpoint() {
         AgentConfig primary = config.primaryAgent();
-        if (primary == null || !primary.enabled()) {
+        if (primary == null) {
             return item(
                     "agents.primary.endpoint",
                     CHECK_MISSING,
-                    "Driver endpoint bind/port is unavailable because driver agent is disabled.",
-                    "Enable [agents.primary] and provide bind/port.",
+                    "Driver endpoint bind/port is unavailable because driver agent is not configured.",
+                    "Add [agents.primary] section with bind/port in config.toml.",
                     true
             );
         }
@@ -331,12 +331,12 @@ public class PrimaryAgentConfigRequirementsService {
 
     private RequirementItem checkPrimaryAgentSecretFile() {
         AgentConfig primary = config.primaryAgent();
-        if (primary == null || !primary.enabled()) {
+        if (primary == null) {
             return item(
                     "agents.primary.secret-file",
                     CHECK_MISSING,
-                    "Driver secret-file is unavailable because driver agent is disabled.",
-                    "Enable [agents.primary] and configure secret-file.",
+                    "Driver secret-file is unavailable because driver agent is not configured.",
+                    "Add [agents.primary] section with secret-file in config.toml.",
                     true
             );
         }

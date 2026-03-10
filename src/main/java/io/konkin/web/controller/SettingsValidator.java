@@ -52,7 +52,7 @@ final class SettingsValidator {
     );
 
     private static final Set<String> AGENT_FIELDS = Set.of(
-            "enabled", "bind", "port"
+            "visible", "bind", "port"
     );
 
     private static final Set<String> DEBUG_FIELDS = Set.of("enabled", "seed-fake-data");
@@ -181,8 +181,8 @@ final class SettingsValidator {
         String unknownField = rejectUnknownFields(values, AGENT_FIELDS);
         if (unknownField != null) return unknownField;
 
-        if (values.containsKey("enabled")) {
-            String err = requireBoolean(values.get("enabled"), "enabled");
+        if (values.containsKey("visible")) {
+            String err = requireBoolean(values.get("visible"), "visible");
             if (err != null) return err;
         }
 

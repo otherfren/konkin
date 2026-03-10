@@ -246,7 +246,6 @@ class KonkinConfigLoaderTest {
                 secret-file = "/tmp/agent.secret"
                 """);
         assertNotNull(config.primaryAgent());
-        assertTrue(config.primaryAgent().enabled());
         assertEquals("0.0.0.0", config.primaryAgent().bind());
         assertEquals(9550, config.primaryAgent().port());
     }
@@ -255,6 +254,7 @@ class KonkinConfigLoaderTest {
         KonkinConfig config = loadToml(baseToml() + """
                 [agents.secondary.auth1]
                 enabled = true
+                visible = true
                 bind = "127.0.0.1"
                 port = 9551
                 secret-file = "/tmp/auth1.secret"
@@ -269,6 +269,7 @@ class KonkinConfigLoaderTest {
                 enabled = true
                 [agents.secondary.auth1]
                 enabled = true
+                visible = true
                 bind = "127.0.0.1"
                 port = 9551
                 secret-file = "/tmp/auth1.secret"

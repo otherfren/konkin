@@ -556,22 +556,21 @@ public class TestConfigBuilder {
     public TestConfigBuilder withPrimaryAgent(boolean enabled, String bind, int agentPort, Path secretFile) {
         sections.add("""
                 [agents.primary]
-                enabled = %s
                 bind = "%s"
                 port = %d
                 secret-file = "%s"
-                """.formatted(enabled, bind, agentPort, tomlPath(secretFile)));
+                """.formatted(bind, agentPort, tomlPath(secretFile)));
         return this;
     }
 
     public TestConfigBuilder withSecondaryAgent(String name, boolean enabled, String bind, int agentPort, Path secretFile) {
         sections.add("""
                 [agents.secondary.%s]
-                enabled = %s
+                visible = true
                 bind = "%s"
                 port = %d
                 secret-file = "%s"
-                """.formatted(name, enabled, bind, agentPort, tomlPath(secretFile)));
+                """.formatted(name, bind, agentPort, tomlPath(secretFile)));
         return this;
     }
 

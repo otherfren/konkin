@@ -273,6 +273,7 @@ final class KonkinConfigValidator {
         }
 
         validateAgentPortUniqueness(config);
+        validateAtLeastOneVisibleAgent(config);
         validateMcpAuthChannelReferences(config);
     }
 
@@ -306,6 +307,18 @@ final class KonkinConfigValidator {
 
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
             ensureUniquePort(portOwners, entry.getValue().port(), "agent '" + entry.getKey() + "'");
+        }
+    }
+
+    private static void validateAtLeastOneVisibleAgent(KonkinConfig config) {
+        if (config.secondaryAgents().isEmpty()) {
+            return;
+        }
+        boolean anyVisible = config.secondaryAgents().values().stream()
+                .anyMatch(AgentConfig::visible);
+        if (!anyVisible) {
+            throw new IllegalStateException(
+                    "Invalid config: at least one auth agent must have visible=true.");
         }
     }
 

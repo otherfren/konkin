@@ -17,7 +17,7 @@
 package io.konkin.config;
 
 public record AgentConfig(
-        boolean enabled,
+        boolean visible,
         String bind,
         int port,
         String secretFile

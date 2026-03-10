@@ -135,7 +135,8 @@ public class SettingsController {
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderDriverAgent(
                 passwordProtectionEnabled,
-                mapper.buildDriverAgentModel()
+                mapper.buildDriverAgentModel(),
+                mapper.buildDriverAgentSettingsModel()
         ));
     }
 
@@ -260,6 +261,16 @@ public class SettingsController {
                 ctx.json(ConfigUpdateResult.error("Unknown agent: " + name));
                 return;
             }
+            if (Boolean.FALSE.equals(body.get("visible"))) {
+                long otherVisible = config().secondaryAgents().entrySet().stream()
+                        .filter(e -> !e.getKey().equals(name))
+                        .filter(e -> e.getValue().visible())
+                        .count();
+                if (otherVisible == 0) {
+                    ctx.json(ConfigUpdateResult.error("At least one auth agent must remain visible."));
+                    return;
+                }
+            }
             sectionPrefix = "agents.secondary." + name;
         }
         ctx.json(configManager.updateSection(sectionPrefix, body));
@@ -289,6 +300,79 @@ public class SettingsController {
         ctx.json(configManager.updateSection("coins." + coin, body));
     }
 
+
+    /**
+     * Handles HTML form submission for auto-accept/auto-deny rules.
+     * Parses parallel form arrays (type[], value[], period-amount[], period-unit[]),
+     * validates, saves, and redirects back to the wallet page.
+     */
+    public void handleUpdateRulesForm(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            loginRedirect.accept(ctx);
+            return;
+        }
+
+        String coin = ctx.pathParam("coin").toLowerCase();
+        if (config().resolveCoinConfig(coin) == null) {
+            ctx.redirect("/wallets");
+            return;
+        }
+
+        String ruleKey = ctx.formParam("rule-key");
+        if (!"auth.auto-accept".equals(ruleKey) && !"auth.auto-deny".equals(ruleKey)) {
+            ctx.redirect("/wallets/" + coin);
+            return;
+        }
+
+        List<String> types = ctx.formParams("type");
+        List<String> values = ctx.formParams("value");
+        List<String> periodAmounts = ctx.formParams("period-amount");
+        List<String> periodUnits = ctx.formParams("period-unit");
+
+        List<Map<String, Object>> rules = new ArrayList<>();
+        int count = Math.min(types.size(), values.size());
+        for (int i = 0; i < count; i++) {
+            String val = values.get(i).trim();
+            if (val.isEmpty()) continue;
+
+            Map<String, Object> rule = new LinkedHashMap<>();
+            rule.put("type", types.get(i));
+            try {
+                rule.put("value", Double.parseDouble(val));
+            } catch (NumberFormatException e) {
+                ctx.redirect("/wallets/" + coin);
+                return;
+            }
+
+            String periodAmount = i < periodAmounts.size() ? periodAmounts.get(i).trim() : "";
+            String periodUnit = i < periodUnits.size() ? periodUnits.get(i).trim() : "h";
+            if (!periodAmount.isEmpty()) {
+                rule.put("period", periodAmount + periodUnit);
+            }
+            rules.add(rule);
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put(ruleKey, rules);
+
+        String error = SettingsValidator.validateCoin(body);
+        if (error != null) {
+            log.warn("Rule validation failed for {}: {}", coin, error);
+            ctx.redirect("/wallets/" + coin + "?error=" + java.net.URLEncoder.encode(cleanRuleError(error), java.nio.charset.StandardCharsets.UTF_8) + "#rule-errors");
+            return;
+        }
+
+        transformRuleLists(body);
+        ConfigUpdateResult result = configManager.updateSection("coins." + coin, body);
+        if (!result.success()) {
+            log.warn("Rule update failed for {}: {}", coin, result.errorMessage());
+            ctx.redirect("/wallets/" + coin + "?error=" + java.net.URLEncoder.encode(cleanRuleError(result.errorMessage()), java.nio.charset.StandardCharsets.UTF_8) + "#rule-errors");
+            return;
+        }
+
+        log.info("Rules updated via form — coin={}, key={}, ruleCount={}", coin, ruleKey, rules.size());
+        ctx.redirect("/wallets/" + coin + "#rule-errors");
+    }
 
     public void handleRevokeAgentToken(Context ctx) {
         if (!checkSession(ctx)) return;
@@ -390,6 +474,15 @@ public class SettingsController {
         } catch (java.io.IOException e) {
             throw new IllegalStateException("Failed to write REST API secret file: " + secretFile, e);
         }
+    }
+
+    private static String cleanRuleError(String raw) {
+        if (raw == null) return "Unknown error";
+        String msg = raw;
+        for (String prefix : new String[]{"Validation failed: ", "Invalid config: "}) {
+            if (msg.startsWith(prefix)) msg = msg.substring(prefix.length());
+        }
+        return msg;
     }
 
     private static void setOwnerOnlyPermissions(Path file) {

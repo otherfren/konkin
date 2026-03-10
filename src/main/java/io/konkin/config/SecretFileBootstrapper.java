@@ -108,7 +108,7 @@ final class SecretFileBootstrapper {
 
         Set<String> freshlyCreated = new HashSet<>();
 
-        if (config.primaryAgent() != null && config.primaryAgent().enabled()) {
+        if (config.primaryAgent() != null) {
             if (ensureAgentSecretFileExists(Path.of(config.primaryAgent().secretFile()), PRIMARY_AGENT_CLIENT_ID, "driver")) {
                 freshlyCreated.add(PRIMARY_AGENT_CLIENT_ID);
             }
@@ -161,7 +161,7 @@ final class SecretFileBootstrapper {
         List<String> paths = new ArrayList<>();
 
         // Agent secret files
-        if (config.primaryAgent() != null && config.primaryAgent().enabled()) {
+        if (config.primaryAgent() != null) {
             paths.add(config.primaryAgent().secretFile());
         }
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {

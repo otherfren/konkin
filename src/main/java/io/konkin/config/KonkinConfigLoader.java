@@ -237,6 +237,10 @@ final class KonkinConfigLoader {
         return Map.copyOf(parsedAgents);
     }
 
+    private static final java.util.Set<String> DEFAULT_VISIBLE_AGENTS = java.util.Set.of(
+            "agent-merlin", "agent-arthur"
+    );
+
     private static AgentConfig parseAgentConfig(
             Config config,
             String keyPrefix,
@@ -245,7 +249,10 @@ final class KonkinConfigLoader {
             String defaultSecretFile,
             String secretsDir
     ) {
-        boolean enabled = parseBooleanOrDefault(config.get("enabled"), false, keyPrefix + ".enabled");
+        // visible defaults to true for merlin/arthur, false for others
+        String agentName = keyPrefix.contains(".") ? keyPrefix.substring(keyPrefix.lastIndexOf('.') + 1) : keyPrefix;
+        boolean defaultVisible = DEFAULT_VISIBLE_AGENTS.contains(agentName);
+        boolean visible = parseBooleanOrDefault(config.get("visible"), defaultVisible, keyPrefix + ".visible");
 
         String bind = normalizeString(config.get("bind"));
         if (bind == null || bind.isBlank()) {
@@ -261,7 +268,7 @@ final class KonkinConfigLoader {
             secretFile = resolveSecretsDir(secretFile, secretsDir);
         }
 
-        return new AgentConfig(enabled, bind, port, secretFile);
+        return new AgentConfig(visible, bind, port, secretFile);
     }
 
     private static CoinConfig loadBitcoinConfig(UnmodifiableConfig toml, String secretsDir) {

@@ -68,7 +68,7 @@
         <section class="auth-card settings-section" data-section="coin-settings" style="margin-top:1rem">
             <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
                 <h3 class="auth-coin-name">Settings</h3>
-                <span class="settings-toggle-icon">&#9654;</span>
+                <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
             </div>
             <div class="settings-card-body" hidden>
                 <div class="settings-form" data-endpoint="/settings/coins/${coin.coin!''}">
@@ -213,16 +213,15 @@
             </#if>
         </section>
 
+        <#assign emptySlots = 2>
         <div class="auth-rules-grid">
             <section class="auth-rule-block auth-rule-block-accept" aria-labelledby="auth-accept-0">
                 <h4 id="auth-accept-0" class="auth-rule-title">Auto Apply</h4>
-                <#if autoAcceptRules?size == 0>
-                    <p class="auth-empty-rule">No auto-apply rules configured.</p>
-                <#else>
-                    <table class="queue-table auth-rule-table">
+                <form method="POST" action="/wallets/${coin.coin!''}/rules">
+                    <input type="hidden" name="rule-key" value="auth.auto-accept" />
+                    <table class="queue-table auth-rule-table rule-form-table">
                         <thead>
                             <tr>
-                                <th>#</th>
                                 <th>Rule</th>
                                 <th>Amount</th>
                                 <th>Time window</th>
@@ -231,51 +230,66 @@
                         <tbody>
                             <#list autoAcceptRules as rule>
                                 <tr>
-                                    <td class="mono">${rule.index!'-'}</td>
-                                    <td><span class="auth-rule-type auth-rule-type-accept">${rule.typeLabel!rule.type!'-'}</span></td>
-                                    <td class="mono">${rule.value!'-'}</td>
-                                    <td class="mono">${rule.period!'-'}</td>
+                                    <td>
+                                        <select class="settings-input" name="type">
+                                            <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
+                                            <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
+                                            <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
+                                            <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="settings-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" /></td>
+                                    <td>
+                                        <span class="rule-period-group">
+                                            <input type="number" class="settings-input rule-period-amount-input" name="period-amount" value="${rule.periodAmount!''}" placeholder="—" min="1" step="1" />
+                                            <select class="settings-input" name="period-unit">
+                                                <#assign pu = (rule.periodUnit!'h')>
+                                                <option value="h"<#if pu == 'h'> selected</#if>>hours</option>
+                                                <option value="d"<#if pu == 'd'> selected</#if>>days</option>
+                                                <option value="w"<#if pu == 'w'> selected</#if>>weeks</option>
+                                            </select>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </#list>
+                            <#list 1..emptySlots as i>
+                                <tr class="rule-form-empty-slot">
+                                    <td>
+                                        <select class="settings-input" name="type">
+                                            <option value="value-lt">amount &lt;</option>
+                                            <option value="value-gt">amount &gt;</option>
+                                            <option value="cumulated-value-lt">sum in window &lt;</option>
+                                            <option value="cumulated-value-gt">sum in window &gt;</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="settings-input" name="value" placeholder="amount" step="any" min="0" /></td>
+                                    <td>
+                                        <span class="rule-period-group">
+                                            <input type="number" class="settings-input rule-period-amount-input" name="period-amount" placeholder="—" min="1" step="1" />
+                                            <select class="settings-input" name="period-unit">
+                                                <option value="h">hours</option>
+                                                <option value="d">days</option>
+                                                <option value="w">weeks</option>
+                                            </select>
+                                        </span>
+                                    </td>
                                 </tr>
                             </#list>
                         </tbody>
                     </table>
-                </#if>
-                <div class="rule-editor" data-coin="${coin.coin!''}" data-rule-key="auth.auto-accept">
-                    <div class="rule-editor-toggle" role="button" tabindex="0" aria-expanded="false">&#9654; edit rules</div>
-                    <div class="rule-editor-body" hidden>
-                        <div class="rule-editor-list">
-                            <#list autoAcceptRules as rule>
-                            <div class="rule-editor-row">
-                                <select class="settings-input rule-type-select" name="type">
-                                    <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
-                                    <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
-                                    <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
-                                    <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
-                                </select>
-                                <input type="number" class="settings-input rule-value-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" />
-                                <input type="text" class="settings-input rule-period-input" name="period" value="<#if rule.period != '-'>${rule.period!''}</#if>" placeholder="e.g. 24h" />
-                                <button type="button" class="rule-remove-btn" title="Remove rule">&times;</button>
-                            </div>
-                            </#list>
-                        </div>
-                        <button type="button" class="rule-add-btn">+ add rule</button>
-                        <div class="settings-actions">
-                            <button type="button" class="settings-save-btn rule-save-btn">Save</button>
-                            <span class="settings-status"></span>
-                        </div>
+                    <div class="settings-actions" style="margin-top:6px">
+                        <button type="submit" class="settings-save-btn rule-save-btn">Save rules</button>
                     </div>
-                </div>
+                </form>
             </section>
 
             <section class="auth-rule-block auth-rule-block-deny" aria-labelledby="auth-deny-0">
                 <h4 id="auth-deny-0" class="auth-rule-title">Auto Deny</h4>
-                <#if autoDenyRules?size == 0>
-                    <p class="auth-empty-rule">No auto-deny rules configured.</p>
-                <#else>
-                    <table class="queue-table auth-rule-table">
+                <form method="POST" action="/wallets/${coin.coin!''}/rules">
+                    <input type="hidden" name="rule-key" value="auth.auto-deny" />
+                    <table class="queue-table auth-rule-table rule-form-table">
                         <thead>
                             <tr>
-                                <th>#</th>
                                 <th>Rule</th>
                                 <th>Amount</th>
                                 <th>Time window</th>
@@ -284,42 +298,62 @@
                         <tbody>
                             <#list autoDenyRules as rule>
                                 <tr>
-                                    <td class="mono">${rule.index!'-'}</td>
-                                    <td><span class="auth-rule-type auth-rule-type-deny">${rule.typeLabel!rule.type!'-'}</span></td>
-                                    <td class="mono">${rule.value!'-'}</td>
-                                    <td class="mono">${rule.period!'-'}</td>
+                                    <td>
+                                        <select class="settings-input" name="type">
+                                            <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
+                                            <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
+                                            <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
+                                            <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="settings-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" /></td>
+                                    <td>
+                                        <span class="rule-period-group">
+                                            <input type="number" class="settings-input rule-period-amount-input" name="period-amount" value="${rule.periodAmount!''}" placeholder="—" min="1" step="1" />
+                                            <select class="settings-input" name="period-unit">
+                                                <#assign pu = (rule.periodUnit!'h')>
+                                                <option value="h"<#if pu == 'h'> selected</#if>>hours</option>
+                                                <option value="d"<#if pu == 'd'> selected</#if>>days</option>
+                                                <option value="w"<#if pu == 'w'> selected</#if>>weeks</option>
+                                            </select>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </#list>
+                            <#list 1..emptySlots as i>
+                                <tr class="rule-form-empty-slot">
+                                    <td>
+                                        <select class="settings-input" name="type">
+                                            <option value="value-lt">amount &lt;</option>
+                                            <option value="value-gt">amount &gt;</option>
+                                            <option value="cumulated-value-lt">sum in window &lt;</option>
+                                            <option value="cumulated-value-gt">sum in window &gt;</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="settings-input" name="value" placeholder="amount" step="any" min="0" /></td>
+                                    <td>
+                                        <span class="rule-period-group">
+                                            <input type="number" class="settings-input rule-period-amount-input" name="period-amount" placeholder="—" min="1" step="1" />
+                                            <select class="settings-input" name="period-unit">
+                                                <option value="h">hours</option>
+                                                <option value="d">days</option>
+                                                <option value="w">weeks</option>
+                                            </select>
+                                        </span>
+                                    </td>
                                 </tr>
                             </#list>
                         </tbody>
                     </table>
-                </#if>
-                <div class="rule-editor" data-coin="${coin.coin!''}" data-rule-key="auth.auto-deny">
-                    <div class="rule-editor-toggle" role="button" tabindex="0" aria-expanded="false">&#9654; edit rules</div>
-                    <div class="rule-editor-body" hidden>
-                        <div class="rule-editor-list">
-                            <#list autoDenyRules as rule>
-                            <div class="rule-editor-row">
-                                <select class="settings-input rule-type-select" name="type">
-                                    <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
-                                    <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
-                                    <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
-                                    <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
-                                </select>
-                                <input type="number" class="settings-input rule-value-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" />
-                                <input type="text" class="settings-input rule-period-input" name="period" value="<#if rule.period != '-'>${rule.period!''}</#if>" placeholder="e.g. 24h" />
-                                <button type="button" class="rule-remove-btn" title="Remove rule">&times;</button>
-                            </div>
-                            </#list>
-                        </div>
-                        <button type="button" class="rule-add-btn">+ add rule</button>
-                        <div class="settings-actions">
-                            <button type="button" class="settings-save-btn rule-save-btn">Save</button>
-                            <span class="settings-status"></span>
-                        </div>
+                    <div class="settings-actions" style="margin-top:6px">
+                        <button type="submit" class="settings-save-btn rule-save-btn">Save rules</button>
                     </div>
-                </div>
+                </form>
             </section>
         </div>
+        <#if (walletData.ruleFlash!'') != ''>
+            <div class="rule-flash-error" id="rule-errors">${walletData.ruleFlash}</div>
+        </#if>
 
         <#if channelWarnings?size gt 0>
             <ul class="auth-warning-list">
@@ -333,7 +367,6 @@
 
 <@m.secretToggleScript containerSelectors=".auth-mcp-item, .auth-secret" />
 <@m.settingsScript />
-<@m.ruleEditorScript />
 
 <script>
 (() => {

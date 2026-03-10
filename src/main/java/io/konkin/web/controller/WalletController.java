@@ -88,6 +88,12 @@ public class WalletController {
             return;
         }
 
+        String ruleError = ctx.queryParam("error");
+        if (ruleError != null && !ruleError.isBlank()) {
+            walletData = new java.util.LinkedHashMap<>(walletData);
+            walletData.put("ruleFlash", ruleError);
+        }
+
         ctx.contentType("text/html; charset=UTF-8");
         ctx.result(landingPageService.renderWallet(
                 passwordProtectionEnabled,

@@ -96,7 +96,7 @@ public class ConfigManager {
         return configRef.get();
     }
 
-    // (agents are always present in config — show/hide is controlled via the enabled flag)
+    // (agents are always present in config — sidebar visibility is controlled via the visible flag)
 
     /**
      * Update a section: all keys are prefixed with sectionPrefix + ".".

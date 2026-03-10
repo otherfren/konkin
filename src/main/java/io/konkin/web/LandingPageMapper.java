@@ -431,16 +431,24 @@ public class LandingPageMapper {
         return Map.copyOf(root);
     }
 
+    public Map<String, Object> buildDriverAgentSettingsModel() {
+        AgentConfig driverAgent = config().primaryAgent();
+        if (driverAgent == null) return null;
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("bind", safe(driverAgent.bind()));
+        s.put("port", driverAgent.port());
+        return Map.copyOf(s);
+    }
+
     private Map<String, Object> buildDriverAgentAuthMethod(Map<String, Object> driverAgent) {
         boolean configured = Boolean.TRUE.equals(driverAgent.get("configured"));
-        boolean enabled = Boolean.TRUE.equals(driverAgent.get("enabled"));
 
         String tokenEndpoint = driverAgent.get("oauthTokenPath") instanceof String value ? value : "-";
         String secretFile = driverAgent.get("secretFile") instanceof String value ? value : "-";
 
         Map<String, Object> authMethod = new LinkedHashMap<>();
         authMethod.put("configured", configured);
-        authMethod.put("enabled", enabled);
+        authMethod.put("enabled", configured);
         authMethod.put("method", "OAuth 2.0 Client Credentials");
         authMethod.put("clientId", "konkin-primary");
         authMethod.put("tokenEndpoint", tokenEndpoint);
@@ -451,12 +459,11 @@ public class LandingPageMapper {
 
     private Map<String, Object> buildDriverAgentMcpRegistration(Map<String, Object> driverAgent) {
         boolean configured = Boolean.TRUE.equals(driverAgent.get("configured"));
-        boolean enabled = Boolean.TRUE.equals(driverAgent.get("enabled"));
 
         String tokenEndpoint = driverAgent.get("oauthTokenPath") instanceof String value ? value : "-";
         String sseEndpoint = driverAgent.get("ssePath") instanceof String value ? value : "-";
 
-        String tokenCommand = enabled && !"-".equals(tokenEndpoint)
+        String tokenCommand = configured && !"-".equals(tokenEndpoint)
                 ? """
                 curl -s -X POST "%s" \\
                   -d "grant_type=client_credentials" \\
@@ -467,10 +474,10 @@ public class LandingPageMapper {
 
         Map<String, Object> mcpRegistration = new LinkedHashMap<>();
         mcpRegistration.put("configured", configured);
-        mcpRegistration.put("enabled", enabled);
+        mcpRegistration.put("enabled", configured);
         mcpRegistration.put("sseEndpoint", sseEndpoint);
         mcpRegistration.put("tokenEndpoint", tokenEndpoint);
-        mcpRegistration.put("agentCommands", buildAgentCommands(enabled, sseEndpoint, "konkin"));
+        mcpRegistration.put("agentCommands", buildAgentCommands(configured, sseEndpoint, "konkin"));
         mcpRegistration.put("tokenCommand", tokenCommand);
         mcpRegistration.put("skillPath", "documents/SKILL-driver-agent.md");
         return Map.copyOf(mcpRegistration);
@@ -577,21 +584,19 @@ public class LandingPageMapper {
             );
         }
 
-        boolean enabled = driverAgent.enabled();
         String bind = safe(driverAgent.bind());
         int port = driverAgent.port();
-        String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+        String endpointBase = "http://" + bind + ":" + port;
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("configured", true);
         row.put("name", "driver");
         row.put("type", "driver");
-        row.put("enabled", enabled);
         row.put("bind", bind);
         row.put("port", port > 0 ? Integer.toString(port) : "-");
-        row.put("healthPath", enabled ? endpointBase + "/health" : "-");
-        row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
-        row.put("ssePath", enabled ? endpointBase + "/sse" : "-");
+        row.put("healthPath", endpointBase + "/health");
+        row.put("oauthTokenPath", endpointBase + "/oauth/token");
+        row.put("ssePath", endpointBase + "/sse");
         row.put("secretFile", safe(driverAgent.secretFile()));
         return Map.copyOf(row);
     }
@@ -606,8 +611,11 @@ public class LandingPageMapper {
 
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
-            String agentName = safe(entry.getKey());
             AgentConfig agentConfig = entry.getValue();
+            if (agentConfig == null || !agentConfig.visible()) {
+                continue;
+            }
+            String agentName = safe(entry.getKey());
 
             String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
             int port = agentConfig == null ? 0 : agentConfig.port();
@@ -760,7 +768,7 @@ public class LandingPageMapper {
         if (authAgents != null && !authAgents.isEmpty()) {
             for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
                 AgentConfig agentConfig = entry.getValue();
-                if (agentConfig == null || !agentConfig.enabled()) {
+                if (agentConfig == null || !agentConfig.visible()) {
                     continue;
                 }
 
@@ -807,17 +815,17 @@ public class LandingPageMapper {
             String safeChannelName = safe(channelName);
             AgentConfig agentConfig = authAgents.get(channelName);
 
-            boolean enabled = agentConfig != null && agentConfig.enabled();
+            boolean configured = agentConfig != null;
             String bind = agentConfig == null ? "unknown" : safe(agentConfig.bind());
-            String connectUrl = (enabled && !"-".equals(bind)) ? "http://" + bind : "unknown";
+            String connectUrl = (configured && !"-".equals(bind)) ? "http://" + bind : "unknown";
             String port = (agentConfig != null && agentConfig.port() > 0) ? Integer.toString(agentConfig.port()) : "unknown";
 
             Map<String, Object> verificationAgent = new LinkedHashMap<>();
             verificationAgent.put("name", safeChannelName);
-            verificationAgent.put("enabled", enabled);
+            verificationAgent.put("enabled", configured);
             verificationAgent.put("connectUrl", connectUrl);
             verificationAgent.put("port", port);
-            verificationAgent.put("status", enabled ? "reachable (config)" : "unknown");
+            verificationAgent.put("status", configured ? "reachable (config)" : "unknown");
             verificationAgents.add(Map.copyOf(verificationAgent));
         }
 
@@ -964,10 +972,38 @@ public class LandingPageMapper {
             entry.put("value", criteria == null ? "-" : Double.toString(criteria.value()));
             entry.put("period", criteria == null || criteria.period() == null ? "-" : formatDurationFriendly(criteria.period()));
             entry.put("requiresPeriod", criteria != null && criteria.type().requiresPeriod());
+            String[] periodParts = splitPeriodAmountUnit(criteria == null ? null : criteria.period());
+            entry.put("periodAmount", periodParts[0]);
+            entry.put("periodUnit", periodParts[1]);
             mappedRules.add(Map.copyOf(entry));
         }
 
         return List.copyOf(mappedRules);
+    }
+
+    /**
+     * Splits a Duration into a [amount, unit] pair for the period dropdown.
+     * Returns the best-fit whole number for weeks/days/hours.
+     */
+    private static String[] splitPeriodAmountUnit(java.time.Duration period) {
+        if (period == null) return new String[]{"", "h"};
+        long totalSeconds = period.getSeconds();
+        if (totalSeconds <= 0) return new String[]{"", "h"};
+
+        long weeks = totalSeconds / (7 * 24 * 3600);
+        if (weeks > 0 && totalSeconds % (7 * 24 * 3600) == 0) {
+            return new String[]{String.valueOf(weeks), "w"};
+        }
+        long days = totalSeconds / (24 * 3600);
+        if (days > 0 && totalSeconds % (24 * 3600) == 0) {
+            return new String[]{String.valueOf(days), "d"};
+        }
+        long hours = totalSeconds / 3600;
+        if (hours > 0 && totalSeconds % 3600 == 0) {
+            return new String[]{String.valueOf(hours), "h"};
+        }
+        // Fall back to hours (rounded up)
+        return new String[]{String.valueOf(Math.max(1, (totalSeconds + 3599) / 3600)), "h"};
     }
 
     // ── Coin → supervisor lookup ────────────────────────────────────────────
@@ -1012,20 +1048,18 @@ public class LandingPageMapper {
         AgentConfig agentConfig = config().secondaryAgents().get(agentName);
         if (agentConfig == null) return null;
 
-        boolean enabled = agentConfig.enabled();
         String bind = safe(agentConfig.bind());
         int port = agentConfig.port();
-        String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+        String endpointBase = "http://" + bind + ":" + port;
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("name", safe(agentName));
         m.put("authChannelId", "verification-agent:" + agentName);
-        m.put("enabled", enabled);
         m.put("bind", bind);
         m.put("port", port > 0 ? Integer.toString(port) : "-");
-        m.put("healthPath", enabled ? endpointBase + "/health" : "-");
-        m.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
-        m.put("ssePath", enabled ? endpointBase + "/sse" : "-");
+        m.put("healthPath", endpointBase + "/health");
+        m.put("oauthTokenPath", endpointBase + "/oauth/token");
+        m.put("ssePath", endpointBase + "/sse");
         m.put("secretFile", safe(agentConfig.secretFile()));
         return Map.copyOf(m);
     }
@@ -1034,7 +1068,7 @@ public class LandingPageMapper {
         AgentConfig ac = config().secondaryAgents().get(agentName);
         if (ac == null) return null;
         Map<String, Object> s = new LinkedHashMap<>();
-        s.put("enabled", ac.enabled());
+        s.put("visible", ac.visible());
         s.put("bind", safe(ac.bind()));
         s.put("port", ac.port());
         return Map.copyOf(s);
@@ -1105,22 +1139,12 @@ public class LandingPageMapper {
         s.put("debugEnabled", c.debugEnabled());
         s.put("debugSeedFakeData", c.debugSeedFakeData());
 
-        // Primary agent
-        AgentConfig primary = c.primaryAgent();
-        if (primary != null) {
-            Map<String, Object> pa = new LinkedHashMap<>();
-            pa.put("enabled", primary.enabled());
-            pa.put("bind", safe(primary.bind()));
-            pa.put("port", primary.port());
-            s.put("primaryAgent", Map.copyOf(pa));
-        }
-
         // Secondary agents
         Map<String, Object> agents = new LinkedHashMap<>();
         for (Map.Entry<String, AgentConfig> entry : c.secondaryAgents().entrySet()) {
             AgentConfig ac = entry.getValue();
             Map<String, Object> a = new LinkedHashMap<>();
-            a.put("enabled", ac.enabled());
+            a.put("visible", ac.visible());
             a.put("bind", safe(ac.bind()));
             a.put("port", ac.port());
             agents.put(entry.getKey(), Map.copyOf(a));

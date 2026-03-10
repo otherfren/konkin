@@ -363,7 +363,7 @@
     }
 
     // Save buttons
-    const saveBtns = document.querySelectorAll('.settings-save-btn:not(.coin-settings-save-btn)');
+    const saveBtns = document.querySelectorAll('.settings-save-btn:not(.coin-settings-save-btn):not(.rule-save-btn)');
     for (const btn of saveBtns) {
         btn.addEventListener('click', async () => {
             const form = btn.closest('.settings-form');
@@ -431,113 +431,6 @@
                 }
             }
         } catch (ignored) {}
-    }
-})();
-</script>
-</#macro>
-
-<#-- Rule editor JavaScript - auto-accept/auto-deny editing on wallet detail pages -->
-<#macro ruleEditorScript>
-<script>
-(() => {
-    const ROW_HTML =
-        '<div class="rule-editor-row">' +
-        '<select class="settings-input rule-type-select" name="type">' +
-        '<option value="value-lt">amount &lt;</option>' +
-        '<option value="value-gt">amount &gt;</option>' +
-        '<option value="cumulated-value-lt">sum in window &lt;</option>' +
-        '<option value="cumulated-value-gt">sum in window &gt;</option>' +
-        '</select>' +
-        '<input type="number" class="settings-input rule-value-input" name="value" placeholder="amount" step="any" min="0" />' +
-        '<input type="text" class="settings-input rule-period-input" name="period" placeholder="e.g. 24h" />' +
-        '<button type="button" class="rule-remove-btn" title="Remove rule">&times;</button>' +
-        '</div>';
-
-    // Toggle expand/collapse
-    const toggles = document.querySelectorAll('.rule-editor-toggle');
-    for (const toggle of toggles) {
-        toggle.addEventListener('click', () => {
-            const body = toggle.nextElementSibling;
-            const expanded = toggle.getAttribute('aria-expanded') === 'true';
-            toggle.setAttribute('aria-expanded', String(!expanded));
-            body.hidden = expanded;
-            toggle.textContent = (expanded ? '\u25B6' : '\u25BC') + ' edit rules';
-        });
-        toggle.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.click(); }
-        });
-    }
-
-    // Add rule buttons
-    const addBtns = document.querySelectorAll('.rule-add-btn');
-    for (const btn of addBtns) {
-        btn.addEventListener('click', () => {
-            const list = btn.closest('.rule-editor-body').querySelector('.rule-editor-list');
-            const div = document.createElement('div');
-            div.innerHTML = ROW_HTML;
-            const row = div.firstChild;
-            attachRemoveHandler(row);
-            list.appendChild(row);
-        });
-    }
-
-    // Remove rule buttons (existing rows)
-    const removeBtns = document.querySelectorAll('.rule-remove-btn');
-    for (const btn of removeBtns) {
-        attachRemoveHandler(btn.closest('.rule-editor-row'));
-    }
-
-    function attachRemoveHandler(row) {
-        const btn = row.querySelector('.rule-remove-btn');
-        if (!btn) return;
-        btn.addEventListener('click', () => row.remove());
-    }
-
-    // Save buttons
-    const saveBtns = document.querySelectorAll('.rule-save-btn');
-    for (const btn of saveBtns) {
-        btn.addEventListener('click', async () => {
-            const editor = btn.closest('.rule-editor');
-            const coinName = editor.dataset.coin;
-            const ruleKey = editor.dataset.ruleKey;
-            const status = editor.querySelector('.settings-status');
-            const rows = editor.querySelectorAll('.rule-editor-row');
-
-            const rules = [];
-            for (const row of rows) {
-                const type = row.querySelector('.rule-type-select').value;
-                const val = row.querySelector('.rule-value-input').value;
-                const period = row.querySelector('.rule-period-input').value.trim();
-                if (!val) continue;
-                const rule = { type: type, value: Number(val) };
-                if (period) rule.period = period;
-                rules.push(rule);
-            }
-
-            const body = {};
-            body[ruleKey] = rules;
-
-            btn.disabled = true;
-            if (status) { status.textContent = 'saving...'; status.className = 'settings-status'; }
-
-            try {
-                const resp = await fetch('/settings/coins/' + coinName, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                });
-                const result = await resp.json();
-                if (result.success) {
-                    if (status) { status.textContent = 'saved to config.toml'; status.className = 'settings-status settings-status-ok'; }
-                } else {
-                    if (status) { status.textContent = result.errorMessage || 'error'; status.className = 'settings-status settings-status-error'; }
-                }
-            } catch (err) {
-                if (status) { status.textContent = 'network error'; status.className = 'settings-status settings-status-error'; }
-            } finally {
-                btn.disabled = false;
-            }
-        });
     }
 })();
 </script>

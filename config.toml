@@ -117,7 +117,8 @@ config-version = 1
 			web-ui = true
 			rest-api = true
 			telegram = true
-			veto-channels = ["telegram", "agent-merlin"]
+			auto-accept = []
+			veto-channels = ["telegram", "agent-merlin", "web-ui"]
 			# MCP auth channel identifiers shown in Auth Definitions
 			mcp-auth-channels = ["agent-arthur", "agent-merlin"]
 			min-approvals-required = 2
@@ -145,36 +146,35 @@ config-version = 1
 
 		[agents.secondary.agent-arthur]
 			bind = "127.0.0.1"
+			visible = false
 			port = 9560
 			secret-file = "{secrets-dir}/agent-arthur.secret"
-			enabled = true
 
 		[agents.secondary.agent-morgana]
 			bind = "127.0.0.1"
+			visible = true
 			port = 9564
 			secret-file = "{secrets-dir}/agent-morgana.secret"
-			enabled = true
 
 		[agents.secondary.agent-lancelot]
 			bind = "127.0.0.1"
+			visible = true
 			port = 9562
 			secret-file = "{secrets-dir}/agent-lancelot.secret"
-			enabled = true
 
 		[agents.secondary.agent-merlin]
 			bind = "127.0.0.1"
+			visible = false
 			port = 9561
 			secret-file = "{secrets-dir}/agent-merlin.secret"
-			enabled = true
 
 		[agents.secondary.agent-guinevere]
 			bind = "127.0.0.1"
+			visible = false
 			port = 9563
 			secret-file = "{secrets-dir}/agent-guinevere.secret"
-			enabled = true
 
 	[agents.primary]
 		bind = "127.0.0.1"
 		port = 9550
 		secret-file = "{secrets-dir}/agent-primary.secret"
-		enabled = true

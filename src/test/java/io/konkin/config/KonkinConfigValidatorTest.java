@@ -384,6 +384,35 @@ class KonkinConfigValidatorTest {
         assertThrows(IllegalStateException.class, () -> KonkinConfigValidator.validate(config));
     }
 
+    // ── Agent visibility ──
+
+    @Test void allSecondaryAgentsInvisibleThrows() {
+        AgentConfig invisible1 = new AgentConfig(false, "127.0.0.1", 9091, "/tmp/secret1");
+        AgentConfig invisible2 = new AgentConfig(false, "127.0.0.1", 9092, "/tmp/secret2");
+        KonkinConfig config = base(false, false, null,
+                false, false, false, null, false, null, null, List.of(), null,
+                Map.of("auth1", invisible1, "auth2", invisible2),
+                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN);
+        assertThrows(IllegalStateException.class, () -> KonkinConfigValidator.validate(config));
+    }
+
+    @Test void atLeastOneVisibleAgentPasses() {
+        AgentConfig visible = new AgentConfig(true, "127.0.0.1", 9091, "/tmp/secret1");
+        AgentConfig invisible = new AgentConfig(false, "127.0.0.1", 9092, "/tmp/secret2");
+        KonkinConfig config = base(false, false, null,
+                false, false, false, null, false, null, null, List.of(), null,
+                Map.of("auth1", visible, "auth2", invisible),
+                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN);
+        assertDoesNotThrow(() -> KonkinConfigValidator.validate(config));
+    }
+
+    @Test void noSecondaryAgentsSkipsVisibilityCheck() {
+        KonkinConfig config = base(false, false, null,
+                false, false, false, null, false, null, null, List.of(), null, Map.of(),
+                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN);
+        assertDoesNotThrow(() -> KonkinConfigValidator.validate(config));
+    }
+
     // ── MCP auth channel references ──
 
     @Test void mcpAuthChannelReferencesUndefinedAgentThrows() {

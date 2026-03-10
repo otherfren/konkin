@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+@font-face {
+    font-family: 'Share Tech Mono';
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url('../fonts/ShareTechMono-Regular.ttf') format('truetype');
+}
 
 :root {
     color-scheme: dark;
@@ -2200,6 +2206,22 @@ p {
     transition: transform 0.15s;
 }
 
+.settings-expand-hint {
+    font-size: 0.72rem;
+    color: var(--muted);
+    opacity: 0.55;
+    margin-right: 6px;
+    transition: opacity 0.15s;
+}
+
+.settings-card-header:hover .settings-expand-hint {
+    opacity: 0.85;
+}
+
+.settings-card-header[aria-expanded="true"] .settings-expand-hint {
+    display: none;
+}
+
 .settings-card-body {
     padding: 12px 16px 16px;
     border-top: 1px solid var(--line);
@@ -2290,6 +2312,12 @@ p {
 .settings-toggle input:checked + .settings-toggle-slider::before {
     transform: translateX(18px);
     background: var(--green);
+}
+
+.settings-toggle-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .settings-actions {
@@ -2402,6 +2430,44 @@ p {
     flex: 0 0 90px;
 }
 
+.rule-period-group {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.rule-period-amount-select,
+.rule-period-amount-input {
+    flex: 0 0 65px;
+}
+
+.rule-period-unit-select {
+    flex: 0 0 80px;
+}
+
+.rule-form-table .settings-input {
+    font-size: 0.8rem;
+    padding: 4px 6px;
+}
+
+.rule-form-empty-slot {
+    opacity: 0.5;
+}
+
+.rule-form-empty-slot:focus-within {
+    opacity: 1;
+}
+
+.rule-flash-error {
+    margin-top: 10px;
+    padding: 8px 12px;
+    font-size: 0.82rem;
+    color: var(--red);
+    border: 1px solid var(--red-border);
+    background: var(--red-bg);
+    border-radius: 4px;
+}
+
 .rule-remove-btn {
     background: none;
     border: 1px solid var(--red-border);
@@ -2445,7 +2511,8 @@ p {
 
     .rule-type-select,
     .rule-value-input,
-    .rule-period-input {
+    .rule-period-input,
+    .rule-period-group {
         flex: 1 1 100%;
     }
 }

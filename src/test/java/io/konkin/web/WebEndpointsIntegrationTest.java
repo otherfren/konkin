@@ -693,7 +693,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             waitForHealth(port);
             HttpResponse<String> authDefinitions = get(runningServer, "/wallets/bitcoin", Map.of());
             assertEquals(200, authDefinitions.statusCode());
-            assertTrue(authDefinitions.body().contains("7d 2h"));
+            assertTrue(authDefinitions.body().contains("value=\"170\""));
             assertTrue(authDefinitions.body().contains("sum in window &gt;"));
             assertTrue(authDefinitions.body().contains("Time window"));
             // litecoin/monero not configured (enabled=false) in this test config, so they should not appear

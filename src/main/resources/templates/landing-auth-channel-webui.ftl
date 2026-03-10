@@ -36,7 +36,7 @@
     <section class="auth-card settings-section" data-section="web-ui" style="margin-top:1rem">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Settings</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
+            <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
             <div class="settings-form" data-endpoint="/settings/web-ui">
