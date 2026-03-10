@@ -2378,6 +2378,20 @@ p {
     margin-bottom: 10px;
 }
 
+.settings-section-disabled .settings-card-body {
+    opacity: 0.45;
+    pointer-events: none;
+}
+
+.settings-debug-notice {
+    font-size: 0.8rem;
+    color: var(--muted);
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
 .settings-subsection-title {
     font-size: 0.8rem;
     color: var(--accent);

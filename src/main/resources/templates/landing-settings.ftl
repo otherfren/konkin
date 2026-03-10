@@ -122,25 +122,21 @@
     </#list>
 
     <#-- ── Debug ── -->
-    <section class="auth-card settings-section" data-section="debug">
+    <section class="auth-card settings-section settings-section-disabled" data-section="debug">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
             <h3 class="auth-coin-name">Debug</h3>
             <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
-            <div class="settings-debug-warn">Do not enable debug mode in a production environment. It exposes test wallets, seeds fake data, and weakens security assumptions.</div>
-            <div class="settings-form" data-endpoint="/settings/debug">
+            <div class="settings-debug-notice">These settings can only be changed in config.toml — editing them via the web UI is disabled for safety.</div>
+            <div class="settings-form">
                 <div class="settings-field settings-field-toggle">
                     <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.debugEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.debugEnabled!false> checked</#if> disabled /><span class="settings-toggle-slider"></span></label>
                 </div>
                 <div class="settings-field settings-field-toggle">
                     <label class="settings-label">Seed Fake Data</label>
-                    <label class="settings-toggle"><input type="checkbox" name="seed-fake-data"<#if settings.debugSeedFakeData!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
+                    <label class="settings-toggle"><input type="checkbox" name="seed-fake-data"<#if settings.debugSeedFakeData!false> checked</#if> disabled /><span class="settings-toggle-slider"></span></label>
                 </div>
             </div>
         </div>
