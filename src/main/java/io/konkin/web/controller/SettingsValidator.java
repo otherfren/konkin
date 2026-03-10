@@ -18,6 +18,7 @@ package io.konkin.web.controller;
 
 import java.time.Duration;
 import java.time.format.DateTimeParseException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -33,7 +34,7 @@ final class SettingsValidator {
     private static final Set<String> VALID_LOG_LEVELS = Set.of("trace", "debug", "info", "warn", "error");
 
     private static final Set<String> SERVER_FIELDS = Set.of(
-            "host", "port", "log-level", "log-file", "log-rotate-max-size-mb"
+            "host", "port", "log-level", "log-file", "log-rotate-max-size-mb", "secrets-dir"
     );
 
     private static final Set<String> DATABASE_FIELDS = Set.of(
@@ -47,7 +48,7 @@ final class SettingsValidator {
     private static final Set<String> REST_API_FIELDS = Set.of("enabled");
 
     private static final Set<String> TELEGRAM_FIELDS = Set.of(
-            "enabled", "auto-deny-timeout"
+            "enabled", "auto-deny-timeout", "api-base-url"
     );
 
     private static final Set<String> AGENT_FIELDS = Set.of(
@@ -59,7 +60,17 @@ final class SettingsValidator {
     private static final Set<String> COIN_FIELDS = Set.of(
             "enabled",
             "auth.web-ui", "auth.rest-api", "auth.telegram",
-            "auth.min-approvals-required"
+            "auth.min-approvals-required",
+            "auth.auto-accept", "auth.auto-deny",
+            "auth.veto-channels"
+    );
+
+    private static final Set<String> VALID_CRITERIA_TYPES = Set.of(
+            "value-gt", "value-lt", "cumulated-value-gt", "cumulated-value-lt"
+    );
+
+    private static final Set<String> CUMULATED_TYPES = Set.of(
+            "cumulated-value-gt", "cumulated-value-lt"
     );
 
     private static final Pattern HUMAN_DURATION_PART = Pattern.compile(
@@ -97,6 +108,11 @@ final class SettingsValidator {
 
         if (values.containsKey("log-file")) {
             String err = requireNonBlankString(values.get("log-file"), "log-file");
+            if (err != null) return err;
+        }
+
+        if (values.containsKey("secrets-dir")) {
+            String err = requireNonBlankString(values.get("secrets-dir"), "secrets-dir");
             if (err != null) return err;
         }
 
@@ -150,6 +166,11 @@ final class SettingsValidator {
 
         if (values.containsKey("auto-deny-timeout")) {
             String err = requireDuration(values.get("auto-deny-timeout"), "auto-deny-timeout");
+            if (err != null) return err;
+        }
+
+        if (values.containsKey("api-base-url")) {
+            String err = requireNonBlankString(values.get("api-base-url"), "api-base-url");
             if (err != null) return err;
         }
 
@@ -211,6 +232,65 @@ final class SettingsValidator {
             if (err != null) return err;
         }
 
+        for (String ruleField : new String[]{"auth.auto-accept", "auth.auto-deny"}) {
+            if (values.containsKey(ruleField)) {
+                String err = validateRuleList(values.get(ruleField), ruleField);
+                if (err != null) return err;
+            }
+        }
+
+        if (values.containsKey("auth.veto-channels")) {
+            String err = validateStringList(values.get("auth.veto-channels"), "auth.veto-channels");
+            if (err != null) return err;
+        }
+
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String validateRuleList(Object value, String field) {
+        if (!(value instanceof List<?> list)) {
+            return field + " must be an array of rule objects";
+        }
+        for (int i = 0; i < list.size(); i++) {
+            Object item = list.get(i);
+            if (!(item instanceof Map<?, ?> rule)) {
+                return field + "[" + i + "] must be a rule object with type, value, and optional period";
+            }
+            Map<String, Object> ruleMap = (Map<String, Object>) rule;
+
+            Object typeObj = ruleMap.get("type");
+            if (!(typeObj instanceof String typeStr) || !VALID_CRITERIA_TYPES.contains(typeStr.toLowerCase(Locale.ROOT))) {
+                return field + "[" + i + "].type must be one of: " + VALID_CRITERIA_TYPES;
+            }
+
+            Object valueObj = ruleMap.get("value");
+            double numVal;
+            if (valueObj instanceof Number n) {
+                numVal = n.doubleValue();
+            } else if (valueObj instanceof String s) {
+                try { numVal = Double.parseDouble(s); } catch (NumberFormatException e) {
+                    return field + "[" + i + "].value must be a positive number";
+                }
+            } else {
+                return field + "[" + i + "].value must be a positive number";
+            }
+            if (numVal <= 0) {
+                return field + "[" + i + "].value must be > 0";
+            }
+
+            if (CUMULATED_TYPES.contains(typeStr.toLowerCase(Locale.ROOT))) {
+                Object periodObj = ruleMap.get("period");
+                if (periodObj == null || (periodObj instanceof String ps && ps.isBlank())) {
+                    return field + "[" + i + "].period is required for cumulated rule types";
+                }
+                if (periodObj instanceof String ps) {
+                    if (parseDurationOrNull(ps) == null) {
+                        return field + "[" + i + "].period must be a valid duration (e.g. '5m', '1h', '24h')";
+                    }
+                }
+            }
+        }
         return null;
     }
 
@@ -252,6 +332,18 @@ final class SettingsValidator {
     private static String requireNonBlankString(Object value, String field) {
         if (!(value instanceof String s) || s.isBlank()) {
             return field + " must be a non-empty string";
+        }
+        return null;
+    }
+
+    private static String validateStringList(Object value, String field) {
+        if (!(value instanceof List<?> list)) {
+            return field + " must be an array of strings";
+        }
+        for (int i = 0; i < list.size(); i++) {
+            if (!(list.get(i) instanceof String s) || s.isBlank()) {
+                return field + "[" + i + "] must be a non-empty string";
+            }
         }
         return null;
     }

@@ -65,35 +65,6 @@
                     <span class="auth-channel-badge <#if (channels.restApi!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">rest-api <strong>${(channels.restApi!false)?string('on', 'off')}</strong></span>
                     <span class="auth-channel-badge <#if (channels.telegram!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">telegram <strong>${(channels.telegram!false)?string('on', 'off')}</strong></span>
                 </div>
-                <div class="coin-auth-editor" data-coin="${coin.coin!''}">
-                    <div class="coin-auth-editor-header" role="button" tabindex="0" aria-expanded="false">
-                        <span class="coin-auth-editor-toggle">&#9654; edit auth channels</span>
-                    </div>
-                    <div class="coin-auth-editor-body" hidden>
-                        <div class="settings-form" data-endpoint="/settings/coins/${coin.coin!''}">
-                            <div class="settings-field settings-field-toggle">
-                                <label class="settings-label">Web UI</label>
-                                <label class="settings-toggle"><input type="checkbox" name="auth.web-ui"<#if (coin.authWebUi!false)> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-field settings-field-toggle">
-                                <label class="settings-label">REST API</label>
-                                <label class="settings-toggle"><input type="checkbox" name="auth.rest-api"<#if (coin.authRestApi!false)> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-field settings-field-toggle">
-                                <label class="settings-label">Telegram</label>
-                                <label class="settings-toggle"><input type="checkbox" name="auth.telegram"<#if (coin.authTelegram!false)> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                            </div>
-                            <div class="settings-field">
-                                <label class="settings-label">Min Approvals</label>
-                                <input type="number" class="settings-input" name="auth.min-approvals-required" value="${(coin.minApprovalsRequired!1)?c}" min="1" max="10" />
-                            </div>
-                            <div class="settings-actions">
-                                <button type="button" class="settings-save-btn">Save</button>
-                                <span class="settings-status"></span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </#if>
         </section>
     </#list>
@@ -102,5 +73,4 @@
 <@m.footer />
 </div>
 
-<@m.coinAuthEditorScript />
 </@layout.page>

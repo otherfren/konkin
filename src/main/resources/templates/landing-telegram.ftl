@@ -27,6 +27,35 @@
         </div>
     </#if>
 
+    <#if settings??>
+    <section class="auth-card settings-section" data-section="telegram" style="margin-top:1rem">
+        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+            <h3 class="auth-coin-name">Settings</h3>
+            <span class="settings-toggle-icon">&#9654;</span>
+        </div>
+        <div class="settings-card-body" hidden>
+            <div class="settings-form" data-endpoint="/settings/telegram">
+                <div class="settings-field settings-field-toggle">
+                    <label class="settings-label">Enabled</label>
+                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.telegramEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">API Base URL <span class="settings-restart" title="Requires restart">&#128274;</span></label>
+                    <input type="text" class="settings-input" name="api-base-url" value="${settings.telegramApiBaseUrl!''}" />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Auto-Deny Timeout</label>
+                    <input type="text" class="settings-input" name="auto-deny-timeout" value="${settings.telegramAutoDenyTimeout!''}" placeholder="e.g. 5m, 1h" />
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="settings-save-btn">Save</button>
+                    <span class="settings-status"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+    </#if>
+
     <#if telegramConfirmRequiredValue>
         <section class="queue-confirm-panel" aria-labelledby="telegram-confirm-title">
             <h3 id="telegram-confirm-title" class="queue-confirm-title">Confirmation required</h3>
@@ -164,6 +193,8 @@
         </div>
     </div>
 </div></main>
+
+<@m.settingsScript />
 
 <script>
 (() => {

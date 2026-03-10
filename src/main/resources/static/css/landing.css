@@ -2543,6 +2543,96 @@ p {
     border-top: 1px solid var(--line);
 }
 
+/* ── rule editor (auto-accept/deny on wallet detail pages) ── */
+.rule-editor {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+
+.rule-editor-toggle {
+    font-size: 0.8rem;
+    color: var(--accent);
+    cursor: pointer;
+    user-select: none;
+}
+
+.rule-editor-body {
+    padding-top: 8px;
+}
+
+.rule-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.rule-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rule-type-select {
+    flex: 0 0 160px;
+}
+
+.rule-value-input {
+    flex: 0 0 100px;
+}
+
+.rule-period-input {
+    flex: 0 0 90px;
+}
+
+.rule-remove-btn {
+    background: none;
+    border: 1px solid var(--red-border);
+    color: var(--red);
+    font-size: 1rem;
+    line-height: 1;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rule-remove-btn:hover {
+    background: var(--red-bg);
+}
+
+.rule-add-btn {
+    background: none;
+    border: 1px dashed var(--line-light);
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 6px;
+    align-self: flex-start;
+}
+
+.rule-add-btn:hover {
+    border-color: var(--accent);
+}
+
+@media (max-width: 700px) {
+    .rule-editor-row {
+        flex-wrap: wrap;
+    }
+
+    .rule-type-select,
+    .rule-value-input,
+    .rule-period-input {
+        flex: 1 1 100%;
+    }
+}
+
 /* ── coin auth editor (inline on wallets page) ── */
 .coin-auth-editor {
     padding: 8px 16px 4px;

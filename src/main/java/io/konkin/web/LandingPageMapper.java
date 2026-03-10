@@ -887,6 +887,20 @@ public class LandingPageMapper {
         coin.put("vetoChannelsLine", vetoChannels.isEmpty() ? "none" : String.join(", ", vetoChannels));
         coin.put("autoAcceptRules", mapApprovalRules(auth.autoAccept()));
         coin.put("autoDenyRules", mapApprovalRules(auth.autoDeny()));
+        coin.put("authWebUi", auth.webUi());
+        coin.put("authRestApi", auth.restApi());
+        coin.put("authTelegram", auth.telegram());
+        coin.put("minApprovalsRequired", auth.minApprovalsRequired());
+        coin.put("vetoChannels", vetoChannels);
+
+        List<String> vetoChannelOptions = new ArrayList<>();
+        vetoChannelOptions.add("web-ui");
+        vetoChannelOptions.add("rest-api");
+        vetoChannelOptions.add("telegram");
+        for (String agentName : authAgents.keySet()) {
+            vetoChannelOptions.add(agentName);
+        }
+        coin.put("vetoChannelOptions", vetoChannelOptions);
 
         // Deposit address from KvStore
         String lastDepositAddress = readLastDepositAddress(coinId);
@@ -1002,6 +1016,30 @@ public class LandingPageMapper {
 
     // ── Settings model ────────────────────────────────────────────────────
 
+    public Map<String, Object> buildWebUiSettingsModel() {
+        KonkinConfig c = config();
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("passwordProtectionEnabled", c.landingPasswordProtectionEnabled());
+        s.put("autoReloadEnabled", c.landingAutoReloadEnabled());
+        s.put("assetsAutoReloadEnabled", c.landingAssetsAutoReloadEnabled());
+        return Map.copyOf(s);
+    }
+
+    public Map<String, Object> buildRestApiSettingsModel() {
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("restApiEnabled", config().restApiEnabled());
+        return Map.copyOf(s);
+    }
+
+    public Map<String, Object> buildTelegramSettingsModel() {
+        KonkinConfig c = config();
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("telegramEnabled", c.telegramEnabled());
+        s.put("telegramApiBaseUrl", safe(c.telegramApiBaseUrl()));
+        s.put("telegramAutoDenyTimeout", c.telegramAutoDenyTimeout() != null ? formatDurationFriendly(c.telegramAutoDenyTimeout()) : "");
+        return Map.copyOf(s);
+    }
+
     public Map<String, Object> buildSettingsModel() {
         KonkinConfig c = config();
         Map<String, Object> s = new LinkedHashMap<>();
@@ -1059,31 +1097,7 @@ public class LandingPageMapper {
         }
         s.put("secondaryAgents", Map.copyOf(agents));
 
-        // Coins
-        Map<String, Object> coins = new LinkedHashMap<>();
-        addCoinSettings(coins, "bitcoin", c.bitcoin());
-        addCoinSettings(coins, "litecoin", c.litecoin());
-        addCoinSettings(coins, "monero", c.monero());
-        if (c.testDummyCoin() != null && c.debugEnabled()) {
-            addCoinSettings(coins, "testdummycoin", c.testDummyCoin());
-        }
-        s.put("coins", Map.copyOf(coins));
-
         return Map.copyOf(s);
-    }
-
-    private static void addCoinSettings(Map<String, Object> coins, String name, CoinConfig cc) {
-        if (cc == null) return;
-        Map<String, Object> coin = new LinkedHashMap<>();
-        coin.put("enabled", cc.enabled());
-        CoinAuthConfig auth = cc.auth();
-        if (auth != null) {
-            coin.put("authWebUi", auth.webUi());
-            coin.put("authRestApi", auth.restApi());
-            coin.put("authTelegram", auth.telegram());
-            coin.put("minApprovalsRequired", auth.minApprovalsRequired());
-        }
-        coins.put(name, Map.copyOf(coin));
     }
 
     // ── Shared record ──────────────────────────────────────────────────────

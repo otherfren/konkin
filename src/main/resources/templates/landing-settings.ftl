@@ -91,87 +91,11 @@
         </div>
     </section>
 
-    <#-- ── Web UI ── -->
-    <section class="auth-card settings-section" data-section="web-ui">
-        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">Web UI</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
-        </div>
-        <div class="settings-card-body" hidden>
-            <div class="settings-form" data-endpoint="/settings/web-ui">
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Password Protection</label>
-                    <label class="settings-toggle"><input type="checkbox" name="password-protection.enabled"<#if settings.passwordProtectionEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Auto-Reload Templates</label>
-                    <label class="settings-toggle"><input type="checkbox" name="auto-reload"<#if settings.autoReloadEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Assets Auto-Reload</label>
-                    <label class="settings-toggle"><input type="checkbox" name="assets-auto-reload"<#if settings.assetsAutoReloadEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <#-- ── REST API ── -->
-    <section class="auth-card settings-section" data-section="rest-api">
-        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">REST API</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
-        </div>
-        <div class="settings-card-body" hidden>
-            <div class="settings-form" data-endpoint="/settings/rest-api">
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.restApiEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <#-- ── Telegram ── -->
-    <section class="auth-card settings-section" data-section="telegram">
-        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">Telegram</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
-        </div>
-        <div class="settings-card-body" hidden>
-            <div class="settings-form" data-endpoint="/settings/telegram">
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.telegramEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field">
-                    <label class="settings-label">API Base URL <span class="settings-restart" title="Requires restart">&#128274;</span></label>
-                    <input type="text" class="settings-input" name="api-base-url" value="${settings.telegramApiBaseUrl!''}" />
-                </div>
-                <div class="settings-field">
-                    <label class="settings-label">Auto-Deny Timeout</label>
-                    <input type="text" class="settings-input" name="auto-deny-timeout" value="${settings.telegramAutoDenyTimeout!''}" placeholder="e.g. 5m, 1h" />
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
-                </div>
-            </div>
-        </div>
-    </section>
-
     <#-- ── Agents ── -->
     <#if settings.primaryAgent??>
-    <section class="auth-card settings-section" data-section="agent-primary">
+    <section class="auth-card settings-section" data-section="driver-agent">
         <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">Agent: primary</h3>
+            <h3 class="auth-coin-name">Driver Agent</h3>
             <span class="settings-toggle-icon">&#9654;</span>
         </div>
         <div class="settings-card-body" hidden>
@@ -251,44 +175,6 @@
         </div>
     </section>
 
-    <#-- ── Coins ── -->
-    <#list (settings.coins!{}) as coinName, coin>
-    <section class="auth-card settings-section" data-section="coin-${coinName}">
-        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
-            <h3 class="auth-coin-name">Coin: ${coinName?upper_case}</h3>
-            <span class="settings-toggle-icon">&#9654;</span>
-        </div>
-        <div class="settings-card-body" hidden>
-            <div class="settings-form" data-endpoint="/settings/coins/${coinName}">
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Enabled</label>
-                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if coin.enabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <h4 class="settings-subsection-title">Auth Channels</h4>
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Web UI</label>
-                    <label class="settings-toggle"><input type="checkbox" name="auth.web-ui"<#if coin.authWebUi!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">REST API</label>
-                    <label class="settings-toggle"><input type="checkbox" name="auth.rest-api"<#if coin.authRestApi!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field settings-field-toggle">
-                    <label class="settings-label">Telegram</label>
-                    <label class="settings-toggle"><input type="checkbox" name="auth.telegram"<#if coin.authTelegram!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
-                </div>
-                <div class="settings-field">
-                    <label class="settings-label">Min Approvals Required</label>
-                    <input type="number" class="settings-input" name="auth.min-approvals-required" value="${coin.minApprovalsRequired?c}" min="1" max="10" />
-                </div>
-                <div class="settings-actions">
-                    <button type="button" class="settings-save-btn">Save</button>
-                    <span class="settings-status"></span>
-                </div>
-            </div>
-        </div>
-    </section>
-    </#list>
 
 </div></main>
 

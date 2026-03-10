@@ -65,6 +65,60 @@
             </span>
         </section>
 
+        <section class="auth-card settings-section" data-section="coin-settings" style="margin-top:1rem">
+            <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+                <h3 class="auth-coin-name">Settings</h3>
+                <span class="settings-toggle-icon">&#9654;</span>
+            </div>
+            <div class="settings-card-body" hidden>
+                <div class="settings-form" data-endpoint="/settings/coins/${coin.coin!''}">
+                    <div class="settings-field settings-field-toggle">
+                        <label class="settings-label">Enabled</label>
+                        <label class="settings-toggle"><input type="checkbox" name="enabled"<#if coin.enabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    </div>
+                    <h4 class="settings-subsection-title">Auth Channels</h4>
+                    <div class="settings-field settings-field-toggle">
+                        <label class="settings-label">Web UI</label>
+                        <label class="settings-toggle"><input type="checkbox" name="auth.web-ui"<#if coin.authWebUi!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    </div>
+                    <div class="settings-field settings-field-toggle">
+                        <label class="settings-label">REST API</label>
+                        <label class="settings-toggle"><input type="checkbox" name="auth.rest-api"<#if coin.authRestApi!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    </div>
+                    <div class="settings-field settings-field-toggle">
+                        <label class="settings-label">Telegram</label>
+                        <label class="settings-toggle"><input type="checkbox" name="auth.telegram"<#if coin.authTelegram!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                    </div>
+                    <div class="settings-field">
+                        <label class="settings-label">Min Approvals Required</label>
+                        <input type="number" class="settings-input" name="auth.min-approvals-required" value="${(coin.minApprovalsRequired!1)?c}" min="1" max="10" />
+                    </div>
+                    <h4 class="settings-subsection-title">Veto Channels</h4>
+                    <div class="settings-field veto-channels-field">
+                        <div class="veto-channels-list">
+                            <#assign vetoList = (coin.vetoChannels![])>
+                            <#assign vetoOptions = (coin.vetoChannelOptions![])>
+                            <#list vetoList as vc>
+                            <div class="veto-channel-row">
+                                <select class="settings-input settings-select veto-channel-input">
+                                    <#list vetoOptions as opt>
+                                    <option value="${opt}"<#if opt == vc> selected</#if>>${opt}</option>
+                                    </#list>
+                                </select>
+                                <button type="button" class="rule-remove-btn" title="Remove">&times;</button>
+                            </div>
+                            </#list>
+                        </div>
+                        <button type="button" class="rule-add-btn veto-add-btn">+ add veto channel</button>
+                    </div>
+                    <div class="settings-actions">
+                        <button type="button" class="settings-save-btn coin-settings-save-btn">Save</button>
+                        <span class="settings-status"></span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <div class="deposit-quorum-row">
             <#if !(coin.disconnected!true)>
             <section class="deposit-address-panel" aria-label="Deposit address">
@@ -186,6 +240,31 @@
                         </tbody>
                     </table>
                 </#if>
+                <div class="rule-editor" data-coin="${coin.coin!''}" data-rule-key="auth.auto-accept">
+                    <div class="rule-editor-toggle" role="button" tabindex="0" aria-expanded="false">&#9654; edit rules</div>
+                    <div class="rule-editor-body" hidden>
+                        <div class="rule-editor-list">
+                            <#list autoAcceptRules as rule>
+                            <div class="rule-editor-row">
+                                <select class="settings-input rule-type-select" name="type">
+                                    <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
+                                    <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
+                                    <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
+                                    <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
+                                </select>
+                                <input type="number" class="settings-input rule-value-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" />
+                                <input type="text" class="settings-input rule-period-input" name="period" value="<#if rule.period != '-'>${rule.period!''}</#if>" placeholder="e.g. 24h" />
+                                <button type="button" class="rule-remove-btn" title="Remove rule">&times;</button>
+                            </div>
+                            </#list>
+                        </div>
+                        <button type="button" class="rule-add-btn">+ add rule</button>
+                        <div class="settings-actions">
+                            <button type="button" class="settings-save-btn rule-save-btn">Save</button>
+                            <span class="settings-status"></span>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section class="auth-rule-block auth-rule-block-deny" aria-labelledby="auth-deny-0">
@@ -214,6 +293,31 @@
                         </tbody>
                     </table>
                 </#if>
+                <div class="rule-editor" data-coin="${coin.coin!''}" data-rule-key="auth.auto-deny">
+                    <div class="rule-editor-toggle" role="button" tabindex="0" aria-expanded="false">&#9654; edit rules</div>
+                    <div class="rule-editor-body" hidden>
+                        <div class="rule-editor-list">
+                            <#list autoDenyRules as rule>
+                            <div class="rule-editor-row">
+                                <select class="settings-input rule-type-select" name="type">
+                                    <option value="value-lt"<#if (rule.type!'') == 'value-lt'> selected</#if>>amount &lt;</option>
+                                    <option value="value-gt"<#if (rule.type!'') == 'value-gt'> selected</#if>>amount &gt;</option>
+                                    <option value="cumulated-value-lt"<#if (rule.type!'') == 'cumulated-value-lt'> selected</#if>>sum in window &lt;</option>
+                                    <option value="cumulated-value-gt"<#if (rule.type!'') == 'cumulated-value-gt'> selected</#if>>sum in window &gt;</option>
+                                </select>
+                                <input type="number" class="settings-input rule-value-input" name="value" value="${rule.value!''}" placeholder="amount" step="any" min="0" />
+                                <input type="text" class="settings-input rule-period-input" name="period" value="<#if rule.period != '-'>${rule.period!''}</#if>" placeholder="e.g. 24h" />
+                                <button type="button" class="rule-remove-btn" title="Remove rule">&times;</button>
+                            </div>
+                            </#list>
+                        </div>
+                        <button type="button" class="rule-add-btn">+ add rule</button>
+                        <div class="settings-actions">
+                            <button type="button" class="settings-save-btn rule-save-btn">Save</button>
+                            <span class="settings-status"></span>
+                        </div>
+                    </div>
+                </div>
             </section>
         </div>
 
@@ -228,6 +332,8 @@
 </div></main>
 
 <@m.secretToggleScript containerSelectors=".auth-mcp-item, .auth-secret" />
+<@m.settingsScript />
+<@m.ruleEditorScript />
 
 <script>
 (() => {
@@ -308,6 +414,100 @@
         });
 
         renderPage();
+    }
+})();
+</script>
+
+<script>
+(() => {
+    // Veto channel add/remove
+    const vetoList = document.querySelector('.veto-channels-list');
+    const vetoAddBtn = document.querySelector('.veto-add-btn');
+    const vetoOptions = [<#list (coin.vetoChannelOptions![]) as opt>'${opt}'<#if opt?has_next>,</#if></#list>];
+    if (vetoAddBtn && vetoList) {
+        vetoAddBtn.addEventListener('click', () => {
+            const row = document.createElement('div');
+            row.className = 'veto-channel-row';
+            const select = document.createElement('select');
+            select.className = 'settings-input settings-select veto-channel-input';
+            for (const opt of vetoOptions) {
+                const o = document.createElement('option');
+                o.value = opt;
+                o.textContent = opt;
+                select.appendChild(o);
+            }
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'rule-remove-btn';
+            removeBtn.title = 'Remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => row.remove());
+            row.appendChild(select);
+            row.appendChild(removeBtn);
+            vetoList.appendChild(row);
+        });
+        for (const btn of vetoList.querySelectorAll('.rule-remove-btn')) {
+            btn.addEventListener('click', () => btn.closest('.veto-channel-row').remove());
+        }
+    }
+
+    // Coin settings save: collect veto channels + reload on success
+    const coinSaveBtn = document.querySelector('.coin-settings-save-btn');
+    if (coinSaveBtn) {
+        coinSaveBtn.addEventListener('click', async () => {
+            const form = coinSaveBtn.closest('.settings-form');
+            if (!form) return;
+            const endpoint = form.dataset.endpoint;
+            const status = form.querySelector('.settings-status');
+            const body = {};
+
+            const inputs = form.querySelectorAll('input[name], select[name]');
+            for (const input of inputs) {
+                const name = input.name;
+                if (!name) continue;
+                if (input.type === 'checkbox') {
+                    body[name] = input.checked;
+                } else if (input.type === 'number') {
+                    body[name] = input.value === '' ? '' : Number(input.value);
+                } else {
+                    body[name] = input.value;
+                }
+            }
+
+            // Collect veto channels
+            const vetoInputs = form.querySelectorAll('.veto-channel-input');
+            const vetoChannels = [];
+            for (const vi of vetoInputs) {
+                const v = vi.value.trim();
+                if (v) vetoChannels.push(v);
+            }
+            body['auth.veto-channels'] = vetoChannels;
+
+            coinSaveBtn.disabled = true;
+            if (status) { status.textContent = 'saving...'; status.className = 'settings-status'; }
+
+            try {
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    if (status) {
+                        status.textContent = 'saved — reloading...';
+                        status.className = 'settings-status settings-status-ok';
+                    }
+                    setTimeout(() => location.reload(), 600);
+                } else {
+                    if (status) { status.textContent = result.errorMessage || 'error'; status.className = 'settings-status settings-status-error'; }
+                    coinSaveBtn.disabled = false;
+                }
+            } catch (err) {
+                if (status) { status.textContent = 'network error'; status.className = 'settings-status settings-status-error'; }
+                coinSaveBtn.disabled = false;
+            }
+        });
     }
 })();
 </script>

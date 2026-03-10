@@ -17,7 +17,7 @@
 package io.konkin.config;
 
 import com.electronwill.nightconfig.core.Config;
-import com.electronwill.nightconfig.core.file.FileConfig;
+import com.electronwill.nightconfig.core.UnmodifiableConfig;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,14 +33,12 @@ import static io.konkin.config.ConfigParsingUtils.*;
  */
 final class KonkinConfigLoader {
 
-    static final int EXPECTED_CONFIG_VERSION = 1;
     private static final String PRIMARY_AGENT_CLIENT_ID = "konkin-primary";
 
     private KonkinConfigLoader() {
     }
 
-    static KonkinConfig load(FileConfig toml) {
-        int configVersion = toml.getIntOrElse("config-version", -1);
+    static KonkinConfig load(UnmodifiableConfig toml) {
         String host = toml.getOrElse("server.host", "127.0.0.1");
         int port = toml.getIntOrElse("server.port", 7070);
         String secretsDir = normalizeSecretsDir(toml.getOrElse("server.secrets-dir", "./secrets"));
@@ -144,7 +142,7 @@ final class KonkinConfigLoader {
         CoinConfig testDummyCoin = loadTestDummyCoinConfig(toml, debugEnabled, secretsDir);
 
         return new KonkinConfig(
-                configVersion, host, port, secretsDir, logLevel, logFile, logRotateMaxSizeMb,
+                host, port, secretsDir, logLevel, logFile, logRotateMaxSizeMb,
                 dbUrl, dbUser, dbPassword, dbPoolSize,
                 landingEnabled, landingPasswordProtectionEnabled, landingPasswordFile,
                 landingTemplateDirectory, landingStaticDirectory, landingStaticHostedPath,
@@ -174,11 +172,11 @@ final class KonkinConfigLoader {
         return path.replace(SECRETS_DIR_PLACEHOLDER, resolvedDir);
     }
 
-    private static <T> T getOrElseWithFallback(FileConfig toml, String primaryKey, String legacyKey, T defaultValue) {
+    private static <T> T getOrElseWithFallback(UnmodifiableConfig toml, String primaryKey, String legacyKey, T defaultValue) {
         return toml.getOrElse(primaryKey, toml.getOrElse(legacyKey, defaultValue));
     }
 
-    private static AgentConfig loadPrimaryAgentConfig(FileConfig toml, String secretsDir) {
+    private static AgentConfig loadPrimaryAgentConfig(UnmodifiableConfig toml, String secretsDir) {
         Object rawPrimaryAgent = toml.get("agents.primary");
         if (rawPrimaryAgent == null) {
             return null;
@@ -198,7 +196,7 @@ final class KonkinConfigLoader {
         );
     }
 
-    private static Map<String, AgentConfig> loadSecondaryAgentConfigs(FileConfig toml, String secretsDir) {
+    private static Map<String, AgentConfig> loadSecondaryAgentConfigs(UnmodifiableConfig toml, String secretsDir) {
         Object rawSecondaryAgents = toml.get("agents.secondary");
         if (rawSecondaryAgents == null) {
             return Map.of();
@@ -266,7 +264,7 @@ final class KonkinConfigLoader {
         return new AgentConfig(enabled, bind, port, secretFile);
     }
 
-    private static CoinConfig loadBitcoinConfig(FileConfig toml, String secretsDir) {
+    private static CoinConfig loadBitcoinConfig(UnmodifiableConfig toml, String secretsDir) {
         boolean enabled = toml.getOrElse("coins.bitcoin.enabled", false);
 
         String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
@@ -301,7 +299,7 @@ final class KonkinConfigLoader {
         );
     }
 
-    private static CoinConfig loadTestDummyCoinConfig(FileConfig toml, boolean debugEnabled, String secretsDir) {
+    private static CoinConfig loadTestDummyCoinConfig(UnmodifiableConfig toml, boolean debugEnabled, String secretsDir) {
         if (!debugEnabled) {
             return new CoinConfig(
                     false,
@@ -316,7 +314,7 @@ final class KonkinConfigLoader {
     }
 
     private static CoinConfig loadCoinConfig(
-            FileConfig toml, String coinId, String defaultMcp,
+            UnmodifiableConfig toml, String coinId, String defaultMcp,
             String daemonSecretKey, String walletSecretKey,
             String defaultDaemonFile, String defaultWalletFile,
             String secretsDir
@@ -352,7 +350,7 @@ final class KonkinConfigLoader {
         );
     }
 
-    private static List<String> loadMcpAuthChannels(FileConfig toml, String authPath, String fallbackMcp) {
+    private static List<String> loadMcpAuthChannels(UnmodifiableConfig toml, String authPath, String fallbackMcp) {
         LinkedHashSet<String> channels = new LinkedHashSet<>();
 
         Object raw = toml.get(authPath + ".mcp-auth-channels");
@@ -378,7 +376,7 @@ final class KonkinConfigLoader {
         return List.copyOf(channels);
     }
 
-    private static List<String> loadVetoChannels(FileConfig toml, String authPath) {
+    private static List<String> loadVetoChannels(UnmodifiableConfig toml, String authPath) {
         Object raw = toml.get(authPath + ".veto-channels");
         if (raw == null) {
             return List.of();
@@ -402,7 +400,7 @@ final class KonkinConfigLoader {
         return List.copyOf(vetoChannels);
     }
 
-    private static List<ApprovalRule> readApprovalRules(FileConfig toml, String keyPath) {
+    private static List<ApprovalRule> readApprovalRules(UnmodifiableConfig toml, String keyPath) {
         Object rawRules = toml.get(keyPath);
         if (rawRules == null) {
             return List.of();
@@ -423,37 +421,39 @@ final class KonkinConfigLoader {
     }
 
     private static ApprovalRule parseApprovalRule(Object rawRule, String keyPath, int index) {
-        if (!(rawRule instanceof Config ruleConfig)) {
+        Map<String, Object> ruleMap = toMap(rawRule);
+        if (ruleMap == null) {
             throw new IllegalStateException(
                     "Invalid config: " + keyPath + "[" + index + "] must be a TOML table with criteria.");
         }
 
-        Object rawCriteria = ruleConfig.get("criteria");
+        Object rawCriteria = ruleMap.get("criteria");
         ApprovalCriteria criteria = rawCriteria == null
-                ? parseCriteria(ruleConfig, keyPath + "[" + index + "]")
+                ? parseCriteria(ruleMap, keyPath + "[" + index + "]")
                 : parseCriteria(rawCriteria, keyPath + "[" + index + "].criteria");
 
         return new ApprovalRule(criteria);
     }
 
     private static ApprovalCriteria parseCriteria(Object rawCriteria, String keyPath) {
-        if (!(rawCriteria instanceof Config criteriaConfig)) {
+        Map<String, Object> criteriaMap = toMap(rawCriteria);
+        if (criteriaMap == null) {
             throw new IllegalStateException("Invalid config: " + keyPath + " must be a TOML table.");
         }
 
-        String typeRaw = normalizeString(criteriaConfig.get("type"));
+        String typeRaw = normalizeString(criteriaMap.get("type"));
         if (typeRaw == null || typeRaw.isBlank()) {
             throw new IllegalStateException("Invalid config: " + keyPath + ".type must be set.");
         }
 
         CriteriaType type = CriteriaType.fromTomlValue(typeRaw);
 
-        double value = parseDouble(criteriaConfig.get("value"), keyPath + ".value");
+        double value = parseDouble(criteriaMap.get("value"), keyPath + ".value");
         if (value <= 0d) {
             throw new IllegalStateException("Invalid config: " + keyPath + ".value must be > 0.");
         }
 
-        String periodRaw = normalizeString(criteriaConfig.get("period"));
+        String periodRaw = normalizeString(criteriaMap.get("period"));
         Duration period = null;
 
         if (type.requiresPeriod()) {
@@ -468,5 +468,16 @@ final class KonkinConfigLoader {
         }
 
         return new ApprovalCriteria(type, value, period);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> toMap(Object obj) {
+        if (obj instanceof Config config) {
+            return config.valueMap();
+        }
+        if (obj instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        return null;
     }
 }

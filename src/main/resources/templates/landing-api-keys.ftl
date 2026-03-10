@@ -45,6 +45,25 @@
         </div>
     </section>
 
+    <section class="auth-card settings-section" data-section="rest-api" style="margin-top:1rem">
+        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+            <h3 class="auth-coin-name">Settings</h3>
+            <span class="settings-toggle-icon">&#9654;</span>
+        </div>
+        <div class="settings-card-body" hidden>
+            <div class="settings-form" data-endpoint="/settings/rest-api">
+                <div class="settings-field settings-field-toggle">
+                    <label class="settings-label">Enabled</label>
+                    <label class="settings-toggle"><input type="checkbox" name="enabled"<#if settings.restApiEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="settings-save-btn">Save</button>
+                    <span class="settings-status"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="auth-channel-card" aria-labelledby="api-key-mgmt-title" style="text-align: center;">
         <div class="auth-card-header">
             <h3 id="api-key-mgmt-title" class="auth-coin-name">API Key Management</h3>
@@ -75,6 +94,7 @@
     </section>
 </div></main>
 
+<@m.settingsScript />
 <@m.footer />
 </div>
 </@layout.page>

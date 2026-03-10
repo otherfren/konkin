@@ -23,7 +23,6 @@ class KonkinConfigLoaderTest {
 
     private String baseToml() {
         return """
-                config-version = 1
                 [server]
                 host = "127.0.0.1"
                 port = 7070
@@ -35,14 +34,6 @@ class KonkinConfigLoaderTest {
         assertEquals("127.0.0.1", config.host());
         assertEquals(7070, config.port());
         assertFalse(config.landingEnabled());
-    }
-
-    @Test void missingConfigVersionThrows() {
-        assertThrows(IllegalStateException.class, () -> loadToml("[server]\nhost = \"127.0.0.1\"\n"));
-    }
-
-    @Test void wrongConfigVersionThrows() {
-        assertThrows(IllegalStateException.class, () -> loadToml("config-version = 999\n[server]\nhost = \"127.0.0.1\"\n"));
     }
 
     @Test void webUiSection() throws IOException {

@@ -27,7 +27,10 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Path;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -101,7 +104,8 @@ public class SettingsController {
         ctx.result(landingPageService.renderApiKeys(
                 passwordProtectionEnabled,
                 restApiEnabled, hasKey, "", secretFile,
-                mapper.buildRestApiChannelModel()));
+                mapper.buildRestApiChannelModel(),
+                mapper.buildRestApiSettingsModel()));
     }
 
     public void handleApiKeysRotate(Context ctx) {
@@ -126,7 +130,8 @@ public class SettingsController {
         ctx.result(landingPageService.renderApiKeys(
                 passwordProtectionEnabled,
                 true, true, newKey, secretFile,
-                mapper.buildRestApiChannelModel()));
+                mapper.buildRestApiChannelModel(),
+                mapper.buildRestApiSettingsModel()));
     }
 
     public void handleSettingsPage(Context ctx) {
@@ -227,9 +232,10 @@ public class SettingsController {
             ctx.json(ConfigUpdateResult.error("Unknown coin: " + coin));
             return;
         }
-        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        Map<String, Object> body = new LinkedHashMap<>(ctx.bodyAsClass(Map.class));
         String error = SettingsValidator.validateCoin(body);
         if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        transformRuleLists(body);
         ctx.json(configManager.updateSection("coins." + coin, body));
     }
 
@@ -244,6 +250,39 @@ public class SettingsController {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Transforms flat rule objects [{type, value, period}] into TOML-compatible
+     * structure [{criteria: {type, value, period}}].
+     */
+    @SuppressWarnings("unchecked")
+    private static void transformRuleLists(Map<String, Object> body) {
+        for (String key : new String[]{"auth.auto-accept", "auth.auto-deny"}) {
+            Object raw = body.get(key);
+            if (!(raw instanceof List<?> list)) continue;
+            List<Map<String, Object>> transformed = new ArrayList<>();
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> rule)) continue;
+                Map<String, Object> ruleMap = (Map<String, Object>) rule;
+                Map<String, Object> criteria = new LinkedHashMap<>();
+                criteria.put("type", ruleMap.get("type"));
+                Object val = ruleMap.get("value");
+                if (val instanceof Number n) {
+                    criteria.put("value", n.doubleValue());
+                } else if (val instanceof String s) {
+                    criteria.put("value", Double.parseDouble(s));
+                }
+                Object period = ruleMap.get("period");
+                if (period instanceof String ps && !ps.isBlank()) {
+                    criteria.put("period", ps);
+                }
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("criteria", criteria);
+                transformed.add(entry);
+            }
+            body.put(key, transformed);
+        }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

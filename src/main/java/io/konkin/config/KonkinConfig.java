@@ -33,7 +33,6 @@ public class KonkinConfig {
 
     private static final Logger log = LoggerFactory.getLogger(KonkinConfig.class);
 
-    private final int configVersion;
     private final String host;
     private final int port;
     private final String secretsDir;
@@ -73,11 +72,11 @@ public class KonkinConfig {
     private final CoinConfig litecoin;
     private final CoinConfig monero;
     private final CoinConfig testDummyCoin;
-    private String configFilePath;
+    String configFilePath;
     private Set<String> freshlyCreatedAgentSecrets = Set.of();
 
     KonkinConfig(
-            int configVersion, String host, int port, String secretsDir, String logLevel, String logFile, int logRotateMaxSizeMb,
+            String host, int port, String secretsDir, String logLevel, String logFile, int logRotateMaxSizeMb,
             String dbUrl, String dbUser, String dbPassword, int dbPoolSize,
             boolean landingEnabled, boolean landingPasswordProtectionEnabled, String landingPasswordFile,
             String landingTemplateDirectory, String landingStaticDirectory, String landingStaticHostedPath,
@@ -88,7 +87,6 @@ public class KonkinConfig {
             AgentConfig primaryAgent, Map<String, AgentConfig> secondaryAgents,
             CoinConfig bitcoin, CoinConfig litecoin, CoinConfig monero, CoinConfig testDummyCoin
     ) {
-        this.configVersion = configVersion;
         this.host = host;
         this.port = port;
         this.secretsDir = secretsDir;
@@ -126,23 +124,12 @@ public class KonkinConfig {
 
     /**
      * Load configuration from a TOML file path.
-     * Fails fast on missing/incompatible config-version and logical inconsistencies.
+     * Fails fast on logical inconsistencies.
      */
     public static KonkinConfig load(String path) {
         log.info("Loading configuration from: {}", path);
         try (FileConfig toml = FileConfig.of(Path.of(path))) {
             toml.load();
-
-            int version = toml.getIntOrElse("config-version", -1);
-            if (version == -1) {
-                throw new IllegalStateException("config.toml is missing mandatory 'config-version' key. Refusing to start.");
-            }
-            if (version != KonkinConfigLoader.EXPECTED_CONFIG_VERSION) {
-                throw new IllegalStateException(
-                        "config.toml has config-version=" + version +
-                                " but this build expects config-version=" + KonkinConfigLoader.EXPECTED_CONFIG_VERSION +
-                                ". See CHANGELOG.md for migration instructions. Refusing to start.");
-            }
 
             KonkinConfig config = KonkinConfigLoader.load(toml);
             config.configFilePath = Path.of(path).toAbsolutePath().normalize().toString();
@@ -194,7 +181,6 @@ public class KonkinConfig {
         }
     }
 
-    public int configVersion() { return configVersion; }
     public String host() { return host; }
     public int port() { return port; }
     public String secretsDir() { return secretsDir; }

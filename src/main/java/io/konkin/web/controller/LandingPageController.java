@@ -252,6 +252,10 @@ public class LandingPageController {
             ctx.status(404);
             return;
         }
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
 
         String notice = ctx.queryParam("telegram_notice");
         boolean error = "true".equalsIgnoreCase(ctx.queryParam("telegram_notice_error"));
@@ -259,12 +263,39 @@ public class LandingPageController {
         String confirmMode = ctx.queryParam("telegram_confirm_mode");
         String confirmChatId = ctx.queryParam("telegram_confirm_chat_id");
 
-        TelegramWebController.TelegramConfirmData confirmData = null;
+        TelegramPageData telegramPageData = loadTelegramPageData();
+
+        boolean telegramConfirmRequired = false;
+        String telegramConfirmMode = "";
+        String telegramConfirmChatId = "";
+        String telegramConfirmChatIdShort = "-";
+        String telegramConfirmActionPath = "";
+
         if (confirmMode != null && !confirmMode.isBlank()) {
-            confirmData = new TelegramWebController.TelegramConfirmData(confirmMode, confirmChatId);
+            String mode = "reset".equalsIgnoreCase(confirmMode) ? "reset" : "unapprove";
+            telegramConfirmRequired = true;
+            telegramConfirmMode = mode;
+            telegramConfirmChatId = defaultIfBlank(confirmChatId, "").trim();
+            telegramConfirmChatIdShort = "reset".equals(mode) ? "-" : abbreviateId(telegramConfirmChatId);
+            telegramConfirmActionPath = "reset".equals(mode) ? "/auth_channels/telegram/reset" : "/auth_channels/telegram/unapprove";
         }
 
-        renderLandingForPage(ctx, "auth_channel_telegram", notice, error, draft, "", false, null, confirmData);
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderTelegramPage(
+                passwordProtectionEnabled,
+                telegramPageData.chatRequests(),
+                telegramPageData.approvedChats(),
+                notice,
+                error,
+                draft,
+                telegramConfirmRequired,
+                telegramConfirmMode,
+                telegramConfirmChatId,
+                telegramConfirmChatIdShort,
+                telegramConfirmActionPath,
+                WebUtils.csrfTokenForSession(ctx),
+                mapper.buildTelegramSettingsModel()
+        ));
     }
 
     // Wallet handlers extracted to WalletController
@@ -293,7 +324,8 @@ public class LandingPageController {
         ctx.result(landingPageService.renderAuthChannelWebUi(
                 passwordProtectionEnabled,
                 mapper.buildWebUiChannelModel(),
-                ""
+                "",
+                mapper.buildWebUiSettingsModel()
         ));
     }
 
@@ -318,7 +350,8 @@ public class LandingPageController {
         ctx.result(landingPageService.renderAuthChannelWebUi(
                 passwordProtectionEnabled,
                 mapper.buildWebUiChannelModel(),
-                result.cleartextPassword()
+                result.cleartextPassword(),
+                mapper.buildWebUiSettingsModel()
         ));
     }
 

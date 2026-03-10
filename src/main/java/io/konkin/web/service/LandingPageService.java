@@ -271,7 +271,7 @@ public class LandingPageService {
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
     }
 
-    public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData, String revealedPassword) {
+    public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData, String revealedPassword, Map<String, Object> settingsData) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
@@ -300,8 +300,66 @@ public class LandingPageService {
                 && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("webUi", webUiData == null ? Map.of() : webUiData);
         model.put("revealedPassword", revealedPassword != null ? revealedPassword : "");
+        model.put("settings", settingsData == null ? Map.of() : settingsData);
 
         return renderTemplate(AUTH_CHANNEL_WEBUI_TEMPLATE_NAME, model);
+    }
+
+    public String renderTelegramPage(
+            boolean showLogout,
+            List<Map<String, String>> telegramChatRequests,
+            List<Map<String, String>> telegramApprovedChats,
+            String telegramNotice,
+            boolean telegramNoticeError,
+            String telegramDraft,
+            boolean telegramConfirmRequired,
+            String telegramConfirmMode,
+            String telegramConfirmChatId,
+            String telegramConfirmChatIdShort,
+            String telegramConfirmActionPath,
+            String csrfToken,
+            Map<String, Object> settingsData
+    ) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/history");
+        model.put("telegramPath", "/auth_channels/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
+        model.put("showLogout", showLogout);
+        model.put("activePage", "auth_channel_telegram");
+        model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
+        model.put("telegramNotice", telegramNotice == null ? "" : telegramNotice);
+        model.put("telegramNoticeError", telegramNoticeError);
+        model.put("telegramDraft", telegramDraft == null ? "" : telegramDraft);
+        model.put("telegramChatRequests", telegramChatRequests == null ? List.of() : telegramChatRequests);
+        model.put("telegramApprovedChats", telegramApprovedChats == null ? List.of() : telegramApprovedChats);
+        model.put("telegramConfirmRequired", telegramConfirmRequired);
+        model.put("telegramConfirmMode", telegramConfirmMode == null ? "" : telegramConfirmMode);
+        model.put("telegramConfirmChatId", telegramConfirmChatId == null ? "" : telegramConfirmChatId);
+        model.put("telegramConfirmChatIdShort", telegramConfirmChatIdShort == null ? "-" : telegramConfirmChatIdShort);
+        model.put("telegramConfirmActionPath", telegramConfirmActionPath == null ? "" : telegramConfirmActionPath);
+        model.put("csrfToken", csrfToken == null ? "" : csrfToken);
+        model.put("settings", settingsData == null ? Map.of() : settingsData);
+
+        return renderTemplate(TELEGRAM_TEMPLATE_NAME, model);
     }
 
     public String renderDriverAgent(boolean showLogout, Map<String, Object> driverAgentData) {
@@ -363,7 +421,8 @@ public class LandingPageService {
             boolean hasApiKey,
             String revealedApiKey,
             String secretFilePath,
-            Map<String, Object> restApiChannelData
+            Map<String, Object> restApiChannelData,
+            Map<String, Object> settingsData
     ) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
@@ -396,6 +455,7 @@ public class LandingPageService {
         model.put("revealedApiKey", revealedApiKey != null ? revealedApiKey : "");
         model.put("secretFilePath", secretFilePath != null ? secretFilePath : "");
         model.put("restApi", restApiChannelData == null ? Map.of() : restApiChannelData);
+        model.put("settings", settingsData == null ? Map.of() : settingsData);
         return renderTemplate(API_KEYS_TEMPLATE_NAME, model);
     }
 

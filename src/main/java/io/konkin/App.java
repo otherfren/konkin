@@ -19,6 +19,7 @@ package io.konkin;
 import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.config.LoggingConfigurator;
+import io.konkin.db.ConfigOverrideStore;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.KvStore;
 import io.konkin.web.KonkinWebServer;
@@ -47,17 +48,20 @@ public class App {
 
         // 1. Load config (including consistency checks)
         KonkinConfig config = KonkinConfig.load(configPath);
-        ConfigManager configManager = new ConfigManager(config);
 
-        // 2. Apply runtime logging settings from config
-        LoggingConfigurator.applyLoggingConfig(config);
-        configManager.addListener(new LoggingConfigurator());
-
-        // 3. Initialize database (connection pool + Flyway migration)
+        // 2. Initialize database (connection pool + Flyway migration)
         DatabaseManager dbManager = new DatabaseManager(config);
         new KvStore(dbManager.dataSource()); //will fail hard if something is broken
 
-        // 4. Start web server (services/controllers are assembled in KonkinWebServer)
+        // 3. Create ConfigManager with DB-backed overrides
+        ConfigOverrideStore overrideStore = new ConfigOverrideStore(dbManager.dataSource());
+        ConfigManager configManager = new ConfigManager(config, overrideStore);
+
+        // 4. Apply runtime logging settings from config
+        LoggingConfigurator.applyLoggingConfig(config);
+        configManager.addListener(new LoggingConfigurator());
+
+        // 5. Start web server (services/controllers are assembled in KonkinWebServer)
         KonkinWebServer webServer = new KonkinWebServer(configManager, VERSION, dbManager.dataSource());
         webServer.start();
 

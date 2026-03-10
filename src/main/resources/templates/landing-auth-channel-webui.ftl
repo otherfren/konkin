@@ -33,6 +33,33 @@
         </div>
     </section>
 
+    <section class="auth-card settings-section" data-section="web-ui" style="margin-top:1rem">
+        <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+            <h3 class="auth-coin-name">Settings</h3>
+            <span class="settings-toggle-icon">&#9654;</span>
+        </div>
+        <div class="settings-card-body" hidden>
+            <div class="settings-form" data-endpoint="/settings/web-ui">
+                <div class="settings-field settings-field-toggle">
+                    <label class="settings-label">Password Protection</label>
+                    <label class="settings-toggle"><input type="checkbox" name="password-protection.enabled"<#if settings.passwordProtectionEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                </div>
+                <div class="settings-field settings-field-toggle">
+                    <label class="settings-label">Auto-Reload Templates</label>
+                    <label class="settings-toggle"><input type="checkbox" name="auto-reload.enabled"<#if settings.autoReloadEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                </div>
+                <div class="settings-field settings-field-toggle">
+                    <label class="settings-label">Assets Auto-Reload</label>
+                    <label class="settings-toggle"><input type="checkbox" name="auto-reload.assets-enabled"<#if settings.assetsAutoReloadEnabled!false> checked</#if> /><span class="settings-toggle-slider"></span></label>
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="settings-save-btn">Save</button>
+                    <span class="settings-status"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <#if (webUi.passwordProtectionEnabled!false)>
         <section class="auth-channel-card" aria-labelledby="password-rotate-title">
             <div class="auth-card-header">
@@ -56,6 +83,7 @@
     </#if>
 </div></main>
 
+<@m.settingsScript />
 <@m.footer />
 </div>
 </@layout.page>
