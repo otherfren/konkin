@@ -16,17 +16,14 @@
 
 package io.konkin;
 
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.joran.JoranConfigurator;
+import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
+import io.konkin.config.LoggingConfigurator;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.KvStore;
 import io.konkin.web.KonkinWebServer;
-import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.net.URL;
 
 /**
  * KONKIN MCP Server — main entry point.
@@ -50,16 +47,18 @@ public class App {
 
         // 1. Load config (including consistency checks)
         KonkinConfig config = KonkinConfig.load(configPath);
+        ConfigManager configManager = new ConfigManager(config);
 
         // 2. Apply runtime logging settings from config
-        applyLoggingConfig(config);
+        LoggingConfigurator.applyLoggingConfig(config);
+        configManager.addListener(new LoggingConfigurator());
 
         // 3. Initialize database (connection pool + Flyway migration)
         DatabaseManager dbManager = new DatabaseManager(config);
         new KvStore(dbManager.dataSource()); //will fail hard if something is broken
 
         // 4. Start web server (services/controllers are assembled in KonkinWebServer)
-        KonkinWebServer webServer = new KonkinWebServer(config, VERSION, dbManager.dataSource());
+        KonkinWebServer webServer = new KonkinWebServer(configManager, VERSION, dbManager.dataSource());
         webServer.start();
 
         if (!webServer.isRunning()) {
@@ -75,33 +74,5 @@ public class App {
             dbManager.shutdown();
             log.info("KONKIN shutdown complete.");
         }));
-    }
-
-    private static void applyLoggingConfig(KonkinConfig config) {
-        System.setProperty("LOG_LEVEL", config.logLevel().toUpperCase());
-        System.setProperty("LOG_FILE", config.logFile());
-        System.setProperty("LOG_ROTATE_MAX_SIZE_MB", Integer.toString(config.logRotateMaxSizeMb()));
-
-        ILoggerFactory factory = LoggerFactory.getILoggerFactory();
-        if (!(factory instanceof LoggerContext loggerContext)) {
-            return;
-        }
-
-        URL logbackConfig = App.class.getClassLoader().getResource("logback.xml");
-        if (logbackConfig == null) {
-            return;
-        }
-
-        try {
-            JoranConfigurator configurator = new JoranConfigurator();
-            configurator.setContext(loggerContext);
-            loggerContext.reset();
-            configurator.doConfigure(logbackConfig);
-            log.info("Logging configured from config.toml (file={}, rotateMaxSizeMb={})",
-                    config.logFile(),
-                    config.logRotateMaxSizeMb());
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to apply logback configuration from config.toml", e);
-        }
     }
 }

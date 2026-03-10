@@ -21,6 +21,7 @@ import io.konkin.config.ApprovalCriteria;
 import io.konkin.config.ApprovalRule;
 import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;
+import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Transaction;
 import io.konkin.crypto.WalletSnapshot;
@@ -61,24 +62,30 @@ public class LandingPageMapper {
 
     private static final String KV_DEPOSIT_ADDRESS_PREFIX = "deposit-address:";
 
-    private final KonkinConfig config;
+    private final ConfigManager configManager;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final KvStore kvStore;
     private final AtomicReference<String> activeApiKey;
 
+    /** Convenience constructor for tests. */
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors) {
-        this(config, walletSupervisors, null, null);
+        this(new ConfigManager(config), walletSupervisors, null, null);
     }
 
+    /** Convenience constructor for tests. */
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore) {
-        this(config, walletSupervisors, kvStore, null);
+        this(new ConfigManager(config), walletSupervisors, kvStore, null);
     }
 
-    public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore, AtomicReference<String> activeApiKey) {
-        this.config = config;
+    public LandingPageMapper(ConfigManager configManager, Map<Coin, WalletSupervisor> walletSupervisors, KvStore kvStore, AtomicReference<String> activeApiKey) {
+        this.configManager = configManager;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.kvStore = kvStore;
         this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
+    }
+
+    private KonkinConfig config() {
+        return configManager.get();
     }
 
     // ── Approval page data (queue + log-queue shared row mapping) ───────────
@@ -278,22 +285,22 @@ public class LandingPageMapper {
 
     public Map<String, Object> buildWebUiChannelModel() {
         Map<String, Object> webUi = new LinkedHashMap<>();
-        webUi.put("enabled", config.landingEnabled());
-        webUi.put("passwordProtectionEnabled", config.landingPasswordProtectionEnabled());
-        webUi.put("passwordFile", safe(config.landingPasswordFile()));
+        webUi.put("enabled", config().landingEnabled());
+        webUi.put("passwordProtectionEnabled", config().landingPasswordProtectionEnabled());
+        webUi.put("passwordFile", safe(config().landingPasswordFile()));
         return Map.copyOf(webUi);
     }
 
     public Map<String, Object> buildRestApiChannelModel() {
         Map<String, Object> restApi = new LinkedHashMap<>();
-        boolean restApiEnabled = config.restApiEnabled();
+        boolean restApiEnabled = config().restApiEnabled();
         boolean restApiOperational = restApiEnabled && activeApiKey.get() != null;
         restApi.put("enabled", restApiOperational);
         restApi.put("healthPath", "/api/v1/health");
         restApi.put("apiKeyHeader", "X-API-Key");
         restApi.put("protectedScope", "/api/v1/* (except /api/v1/health)");
         restApi.put("apiKeyProtectionEnabled", restApiEnabled);
-        restApi.put("secretFile", restApiEnabled ? safe(config.restApiSecretFile()) : "-");
+        restApi.put("secretFile", restApiEnabled ? safe(config().restApiSecretFile()) : "-");
         return Map.copyOf(restApi);
     }
 
@@ -549,7 +556,7 @@ public class LandingPageMapper {
     }
 
     private Map<String, Object> buildDriverAgentChannel() {
-        AgentConfig driverAgent = config.primaryAgent();
+        AgentConfig driverAgent = config().primaryAgent();
         if (driverAgent == null) {
             return Map.of(
                     "configured", false,
@@ -587,7 +594,7 @@ public class LandingPageMapper {
     // ── Auth agent channels ────────────────────────────────────────────────
 
     public List<Map<String, Object>> buildAuthAgentChannels() {
-        Map<String, AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config().secondaryAgents();
         if (authAgents == null || authAgents.isEmpty()) {
             return List.of();
         }
@@ -620,7 +627,7 @@ public class LandingPageMapper {
     // ── Auth agent MCP registrations ────────────────────────────────────────
 
     private List<Map<String, Object>> buildAuthAgentMcpRegistrations() {
-        Map<String, AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config().secondaryAgents();
         if (authAgents == null || authAgents.isEmpty()) {
             return List.of();
         }
@@ -668,13 +675,13 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        coins.add(buildWalletOverviewEntry("bitcoin", config.bitcoin(),
+        coins.add(buildWalletOverviewEntry("bitcoin", config().bitcoin(),
                 "coins.bitcoin", "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
                 "coins.bitcoin.secret-files.bitcoin-wallet-config-file"));
-        coins.add(buildWalletOverviewEntry("litecoin", config.litecoin(),
+        coins.add(buildWalletOverviewEntry("litecoin", config().litecoin(),
                 "coins.litecoin", "coins.litecoin.secret-files.litecoin-daemon-config-file",
                 "coins.litecoin.secret-files.litecoin-wallet-config-file"));
-        coins.add(buildWalletOverviewEntry("monero", config.monero(),
+        coins.add(buildWalletOverviewEntry("monero", config().monero(),
                 "coins.monero", "coins.monero.secret-files.monero-daemon-config-file",
                 "coins.monero.secret-files.monero-wallet-rpc-config-file"));
         coins.sort((a, b) -> Integer.compare(coinSortOrder(a), coinSortOrder(b)));
@@ -703,13 +710,21 @@ public class LandingPageMapper {
         coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
         coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
 
+        // Raw auth config for inline editing
+        CoinAuthConfig auth = coinConfig.auth();
+        if (auth != null) {
+            coin.put("authWebUi", auth.webUi());
+            coin.put("authRestApi", auth.restApi());
+            coin.put("authTelegram", auth.telegram());
+            coin.put("minApprovalsRequired", auth.minApprovalsRequired());
+        }
+
         if (coinConfig.enabled()) {
-            CoinAuthConfig auth = coinConfig.auth();
-            boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+            boolean restApiOperational = auth != null && auth.restApi() && config().restApiEnabled() && activeApiKey.get() != null;
             Map<String, Object> channels = new LinkedHashMap<>();
-            channels.put("webUi", auth.webUi());
+            channels.put("webUi", auth != null && auth.webUi());
             channels.put("restApi", restApiOperational);
-            channels.put("telegram", auth.telegram());
+            channels.put("telegram", auth != null && auth.telegram());
             coin.put("channels", Map.copyOf(channels));
 
             WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
@@ -734,14 +749,14 @@ public class LandingPageMapper {
 
     public List<String> getEnabledCoinIds() {
         List<String> coins = new ArrayList<>();
-        if (config.bitcoin().enabled()) coins.add("bitcoin");
-        if (config.litecoin().enabled()) coins.add("litecoin");
-        if (config.monero().enabled()) coins.add("monero");
+        if (config().bitcoin().enabled()) coins.add("bitcoin");
+        if (config().litecoin().enabled()) coins.add("litecoin");
+        if (config().monero().enabled()) coins.add("monero");
         return List.copyOf(coins);
     }
 
     public Map<String, Object> buildSingleCoinWalletModel(String coinId) {
-        CoinConfig coinConfig = config.resolveCoinConfig(coinId);
+        CoinConfig coinConfig = config().resolveCoinConfig(coinId);
         if (coinConfig == null || !coinConfig.enabled()) {
             return null;
         }
@@ -758,10 +773,10 @@ public class LandingPageMapper {
 
         Map<String, Object> webUi = new LinkedHashMap<>();
         webUi.put("name", "web-ui");
-        webUi.put("enabled", config.landingEnabled());
+        webUi.put("enabled", config().landingEnabled());
         channels.add(Map.copyOf(webUi));
 
-        if (config.restApiEnabled()) {
+        if (config().restApiEnabled()) {
             Map<String, Object> restApi = new LinkedHashMap<>();
             restApi.put("name", "rest-api");
             restApi.put("enabled", activeApiKey.get() != null);
@@ -770,10 +785,10 @@ public class LandingPageMapper {
 
         Map<String, Object> telegram = new LinkedHashMap<>();
         telegram.put("name", "telegram");
-        telegram.put("enabled", config.telegramEnabled());
+        telegram.put("enabled", config().telegramEnabled());
         channels.add(Map.copyOf(telegram));
 
-        Map<String, AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config().secondaryAgents();
         if (authAgents != null && !authAgents.isEmpty()) {
             for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
                 AgentConfig agentConfig = entry.getValue();
@@ -797,7 +812,7 @@ public class LandingPageMapper {
         Map<String, Object> coin = new LinkedHashMap<>();
         CoinAuthConfig auth = coinConfig.auth();
 
-        boolean restApiOperational = auth.restApi() && config.restApiEnabled() && activeApiKey.get() != null;
+        boolean restApiOperational = auth.restApi() && config().restApiEnabled() && activeApiKey.get() != null;
 
         Map<String, Object> channels = new LinkedHashMap<>();
         channels.put("webUi", auth.webUi());
@@ -805,21 +820,21 @@ public class LandingPageMapper {
         channels.put("telegram", auth.telegram());
 
         List<String> warnings = new ArrayList<>();
-        if (auth.webUi() && !config.landingEnabled()) {
+        if (auth.webUi() && !config().landingEnabled()) {
             warnings.add("web-ui channel is configured, but web-ui is globally disabled.");
         }
-        if (auth.restApi() && !config.restApiEnabled()) {
+        if (auth.restApi() && !config().restApiEnabled()) {
             warnings.add("rest-api channel is configured, but rest-api is globally disabled.");
         }
-        if (auth.restApi() && config.restApiEnabled() && activeApiKey.get() == null) {
+        if (auth.restApi() && config().restApiEnabled() && activeApiKey.get() == null) {
             warnings.add("rest-api channel is configured, but no API key has been created yet.");
         }
-        if (auth.telegram() && !config.telegramEnabled()) {
+        if (auth.telegram() && !config().telegramEnabled()) {
             warnings.add("telegram channel is configured, but telegram is globally disabled.");
         }
 
         List<Map<String, Object>> verificationAgents = new ArrayList<>();
-        Map<String, AgentConfig> authAgents = config.secondaryAgents();
+        Map<String, AgentConfig> authAgents = config().secondaryAgents();
         for (String channelName : auth.mcpAuthChannels()) {
             String safeChannelName = safe(channelName);
             AgentConfig agentConfig = authAgents.get(channelName);
@@ -983,6 +998,92 @@ public class LandingPageMapper {
             default -> null;
         };
         return coin != null ? walletSupervisors.get(coin) : null;
+    }
+
+    // ── Settings model ────────────────────────────────────────────────────
+
+    public Map<String, Object> buildSettingsModel() {
+        KonkinConfig c = config();
+        Map<String, Object> s = new LinkedHashMap<>();
+
+        // Server
+        s.put("serverHost", safe(c.host()));
+        s.put("serverPort", c.port());
+        s.put("logLevel", safe(c.logLevel()));
+        s.put("logFile", safe(c.logFile()));
+        s.put("logRotateMaxSizeMb", c.logRotateMaxSizeMb());
+        s.put("secretsDir", safe(c.secretsDir()));
+
+        // Database
+        s.put("dbUrl", safe(c.dbUrl()));
+        s.put("dbUser", safe(c.dbUser()));
+        s.put("dbPassword", safe(c.dbPassword()));
+        s.put("dbPoolSize", c.dbPoolSize());
+
+        // Web UI
+        s.put("passwordProtectionEnabled", c.landingPasswordProtectionEnabled());
+        s.put("autoReloadEnabled", c.landingAutoReloadEnabled());
+        s.put("assetsAutoReloadEnabled", c.landingAssetsAutoReloadEnabled());
+
+        // REST API
+        s.put("restApiEnabled", c.restApiEnabled());
+
+        // Telegram
+        s.put("telegramEnabled", c.telegramEnabled());
+        s.put("telegramApiBaseUrl", safe(c.telegramApiBaseUrl()));
+        s.put("telegramAutoDenyTimeout", c.telegramAutoDenyTimeout() != null ? formatDurationFriendly(c.telegramAutoDenyTimeout()) : "");
+
+        // Debug
+        s.put("debugEnabled", c.debugEnabled());
+        s.put("debugSeedFakeData", c.debugSeedFakeData());
+
+        // Primary agent
+        AgentConfig primary = c.primaryAgent();
+        if (primary != null) {
+            Map<String, Object> pa = new LinkedHashMap<>();
+            pa.put("enabled", primary.enabled());
+            pa.put("bind", safe(primary.bind()));
+            pa.put("port", primary.port());
+            s.put("primaryAgent", Map.copyOf(pa));
+        }
+
+        // Secondary agents
+        Map<String, Object> agents = new LinkedHashMap<>();
+        for (Map.Entry<String, AgentConfig> entry : c.secondaryAgents().entrySet()) {
+            AgentConfig ac = entry.getValue();
+            Map<String, Object> a = new LinkedHashMap<>();
+            a.put("enabled", ac.enabled());
+            a.put("bind", safe(ac.bind()));
+            a.put("port", ac.port());
+            agents.put(entry.getKey(), Map.copyOf(a));
+        }
+        s.put("secondaryAgents", Map.copyOf(agents));
+
+        // Coins
+        Map<String, Object> coins = new LinkedHashMap<>();
+        addCoinSettings(coins, "bitcoin", c.bitcoin());
+        addCoinSettings(coins, "litecoin", c.litecoin());
+        addCoinSettings(coins, "monero", c.monero());
+        if (c.testDummyCoin() != null && c.debugEnabled()) {
+            addCoinSettings(coins, "testdummycoin", c.testDummyCoin());
+        }
+        s.put("coins", Map.copyOf(coins));
+
+        return Map.copyOf(s);
+    }
+
+    private static void addCoinSettings(Map<String, Object> coins, String name, CoinConfig cc) {
+        if (cc == null) return;
+        Map<String, Object> coin = new LinkedHashMap<>();
+        coin.put("enabled", cc.enabled());
+        CoinAuthConfig auth = cc.auth();
+        if (auth != null) {
+            coin.put("authWebUi", auth.webUi());
+            coin.put("authRestApi", auth.restApi());
+            coin.put("authTelegram", auth.telegram());
+            coin.put("minApprovalsRequired", auth.minApprovalsRequired());
+        }
+        coins.put(name, Map.copyOf(coin));
     }
 
     // ── Shared record ──────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ package io.konkin.telegram;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.konkin.config.CoinAuthConfig;
 import io.konkin.config.CoinConfig;
+import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
@@ -53,7 +54,7 @@ public class TelegramCallbackPoller {
     private final ApprovalRequestRepository requestRepo;
     private final VoteRepository voteRepo;
     private final HistoryRepository historyRepo;
-    private final KonkinConfig config;
+    private final ConfigManager configManager;
     private final VoteService voteService;
 
     private ScheduledExecutorService scheduler;
@@ -64,16 +65,32 @@ public class TelegramCallbackPoller {
             ApprovalRequestRepository requestRepo,
             VoteRepository voteRepo,
             HistoryRepository historyRepo,
-            KonkinConfig config,
+            ConfigManager configManager,
             VoteService voteService
     ) {
         this.telegramService = telegramService;
         this.requestRepo = requestRepo;
         this.voteRepo = voteRepo;
         this.historyRepo = historyRepo;
-        this.config = config;
+        this.configManager = configManager;
         this.voteService = voteService;
         this.nextOffset = 0;
+    }
+
+    /** Convenience constructor for backward compatibility. */
+    public TelegramCallbackPoller(
+            TelegramService telegramService,
+            ApprovalRequestRepository requestRepo,
+            VoteRepository voteRepo,
+            HistoryRepository historyRepo,
+            KonkinConfig config,
+            VoteService voteService
+    ) {
+        this(telegramService, requestRepo, voteRepo, historyRepo, new ConfigManager(config), voteService);
+    }
+
+    private KonkinConfig config() {
+        return configManager.get();
     }
 
     public void start() {
@@ -85,7 +102,7 @@ public class TelegramCallbackPoller {
 
         scheduler.scheduleWithFixedDelay(this::poll, 2, 3, TimeUnit.SECONDS);
 
-        Duration autoDenyTimeout = config.telegramAutoDenyTimeout();
+        Duration autoDenyTimeout = config().telegramAutoDenyTimeout();
         if (autoDenyTimeout != null && !autoDenyTimeout.isZero() && !autoDenyTimeout.isNegative()) {
             scheduler.scheduleAtFixedRate(this::sweepAutoDeny, 10, 10, TimeUnit.SECONDS);
             log.info("Telegram callback poller started (interval=3s, auto-deny-timeout={})", autoDenyTimeout);
@@ -232,7 +249,7 @@ public class TelegramCallbackPoller {
 
     private void sweepAutoDeny() {
         try {
-            Duration autoDenyTimeout = config.telegramAutoDenyTimeout();
+            Duration autoDenyTimeout = config().telegramAutoDenyTimeout();
             if (autoDenyTimeout == null || autoDenyTimeout.isZero() || autoDenyTimeout.isNegative()) {
                 return;
             }
@@ -339,7 +356,7 @@ public class TelegramCallbackPoller {
     }
 
     private CoinConfig resolveCoinConfig(String coin) {
-        return config.resolveCoinConfig(coin);
+        return config().resolveCoinConfig(coin);
     }
 
     private void editMessageWithOutcome(JsonNode message, String chatId, ApprovalRequestRow row, String resolvedState) {

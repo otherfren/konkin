@@ -36,6 +36,7 @@ import io.konkin.db.AgentTokenStore;
 import io.konkin.agent.McpAgentServer;
 import io.konkin.agent.primary.PrimaryAgentConfigRequirementsService;
 import io.konkin.config.AgentConfig;
+import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Coin;
 import io.konkin.crypto.TransactionExecutionService;
@@ -84,16 +85,22 @@ public class KonkinWebServer {
 
     private static final Logger log = LoggerFactory.getLogger(KonkinWebServer.class);
 
-    private final KonkinConfig config;
+    private final ConfigManager configManager;
     private final String version;
     private final DataSource dataSource;
 
+    /** Convenience constructor for tests — wraps config in a ConfigManager. */
     public KonkinWebServer(KonkinConfig config, String version) {
-        this(config, version, null);
+        this(new ConfigManager(config), version, null);
     }
 
+    /** Convenience constructor for tests — wraps config in a ConfigManager. */
     public KonkinWebServer(KonkinConfig config, String version, DataSource dataSource) {
-        this.config = config;
+        this(new ConfigManager(config), version, dataSource);
+    }
+
+    public KonkinWebServer(ConfigManager configManager, String version, DataSource dataSource) {
+        this.configManager = configManager;
         this.version = version;
         this.dataSource = dataSource;
     }
@@ -119,6 +126,7 @@ public class KonkinWebServer {
 
     public void start() {
         running = false;
+        KonkinConfig config = configManager.get();
 
         HealthService healthService = new HealthService(version);
         HealthController healthController = new HealthController(healthService);
@@ -297,7 +305,7 @@ public class KonkinWebServer {
             });
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
-            LandingPageMapper mapper = new LandingPageMapper(config, walletSupervisors, kvStore, activeApiKeyRef);
+            LandingPageMapper mapper = new LandingPageMapper(configManager, walletSupervisors, kvStore, activeApiKeyRef);
             landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
             List<String> enabledCoinIds = mapper.getEnabledCoinIds();
             landingPageService.setWalletDisconnectedSupplier(() -> {
@@ -321,6 +329,8 @@ public class KonkinWebServer {
                 }
                 return result;
             });
+
+            landingPageService.setPendingRestartFields(configManager::pendingRestartFields);
 
             if (requestRepo != null) {
                 landingPageService.setQueueCount(requestRepo::countOpenRequests);
@@ -347,7 +357,7 @@ public class KonkinWebServer {
                     channelRepo,
                     historyRepo,
                     depLoader,
-                    config,
+                    configManager,
                     mapper,
                     walletSupervisors,
                     voteService,
@@ -367,7 +377,7 @@ public class KonkinWebServer {
             );
 
             settingsController = new SettingsController(
-                    landingPageService, mapper, config,
+                    landingPageService, mapper, configManager,
                     config.landingPasswordProtectionEnabled(),
                     restApiSecretPath, activeApiKeyRef,
                     lpc::hasValidSession,
@@ -533,6 +543,18 @@ public class KonkinWebServer {
             app.post("/queue/approve", webUiPageControllerFinal::handleQueueApprove);
             app.post("/queue/deny", webUiPageControllerFinal::handleQueueDeny);
 
+            // Settings update endpoints
+            app.get("/settings", settingsControllerFinal::handleSettingsPage);
+            app.post("/settings/server", settingsControllerFinal::handleUpdateServer);
+            app.post("/settings/database", settingsControllerFinal::handleUpdateDatabase);
+            app.post("/settings/web-ui", settingsControllerFinal::handleUpdateWebUi);
+            app.post("/settings/rest-api", settingsControllerFinal::handleUpdateRestApi);
+            app.post("/settings/telegram", settingsControllerFinal::handleUpdateTelegram);
+            app.post("/settings/agents/{name}", settingsControllerFinal::handleUpdateAgent);
+            app.post("/settings/debug", settingsControllerFinal::handleUpdateDebug);
+            app.post("/settings/coins/{coin}", settingsControllerFinal::handleUpdateCoin);
+            app.get("/settings/pending-restart", settingsControllerFinal::handlePendingRestart);
+
             if (config.telegramEnabled()) {
                 app.get("/auth_channels/telegram", webUiPageControllerFinal::handleTelegramPage);
                 app.post("/auth_channels/telegram/approve", telegramWebController::handleApprove);
@@ -579,7 +601,7 @@ public class KonkinWebServer {
         if (telegramNotifier != null && requestRepo != null && voteRepo != null && historyRepo != null) {
             ensureTelegramChannel();
             telegramCallbackPoller = new TelegramCallbackPoller(
-                    telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, config, voteService
+                    telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, configManager, voteService
             );
             telegramCallbackPoller.start();
         }
@@ -654,6 +676,7 @@ public class KonkinWebServer {
     }
 
     private void startAgentEndpoints() {
+        KonkinConfig config = configManager.get();
         if (dataSource == null) {
             log.warn("No DataSource available — skipping agent endpoints");
             return;

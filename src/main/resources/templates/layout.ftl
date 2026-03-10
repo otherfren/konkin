@@ -11,6 +11,11 @@
     <link rel="stylesheet" href="${assetsPath}/css/landing.css?v=${assetsVersion}">
 </head>
 <body<#if bodyClass?has_content> class="${bodyClass}"</#if>>
+    <#if (pendingRestartFields![])?has_content>
+    <div class="restart-banner">
+        Settings changed — restart required for: ${pendingRestartFields?join(", ")}
+    </div>
+    </#if>
     <#nested>
 </body>
 </html>

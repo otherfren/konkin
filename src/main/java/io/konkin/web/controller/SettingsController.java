@@ -17,6 +17,8 @@
 package io.konkin.web.controller;
 
 import io.javalin.http.Context;
+import io.konkin.config.ConfigManager;
+import io.konkin.config.ConfigUpdateResult;
 import io.konkin.config.KonkinConfig;
 import io.konkin.web.LandingPageMapper;
 import io.konkin.web.service.LandingPageService;
@@ -26,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -39,7 +42,7 @@ public class SettingsController {
 
     private final LandingPageService landingPageService;
     private final LandingPageMapper mapper;
-    private final KonkinConfig config;
+    private final ConfigManager configManager;
     private final boolean passwordProtectionEnabled;
     private final Path restApiSecretFilePath;
     private final AtomicReference<String> activeApiKey;
@@ -49,7 +52,7 @@ public class SettingsController {
     public SettingsController(
             LandingPageService landingPageService,
             LandingPageMapper mapper,
-            KonkinConfig config,
+            ConfigManager configManager,
             boolean passwordProtectionEnabled,
             Path restApiSecretFilePath,
             AtomicReference<String> activeApiKey,
@@ -58,12 +61,16 @@ public class SettingsController {
     ) {
         this.landingPageService = landingPageService;
         this.mapper = mapper;
-        this.config = config;
+        this.configManager = configManager;
         this.passwordProtectionEnabled = passwordProtectionEnabled;
         this.restApiSecretFilePath = restApiSecretFilePath;
         this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
         this.sessionValidator = sessionValidator;
         this.loginRedirect = loginRedirect;
+    }
+
+    private KonkinConfig config() {
+        return configManager.get();
     }
 
     public void handleDriverAgentPage(Context ctx) {
@@ -87,7 +94,7 @@ public class SettingsController {
             return;
         }
 
-        boolean restApiEnabled = config.restApiEnabled();
+        boolean restApiEnabled = config().restApiEnabled();
         boolean hasKey = activeApiKey.get() != null;
         String secretFile = restApiSecretFilePath != null ? restApiSecretFilePath.toString() : "";
         ctx.contentType("text/html; charset=UTF-8");
@@ -103,7 +110,7 @@ public class SettingsController {
             return;
         }
 
-        if (!config.restApiEnabled() || restApiSecretFilePath == null) {
+        if (!config().restApiEnabled() || restApiSecretFilePath == null) {
             ctx.redirect("/auth_channels/api_keys");
             return;
         }
@@ -121,6 +128,125 @@ public class SettingsController {
                 true, true, newKey, secretFile,
                 mapper.buildRestApiChannelModel()));
     }
+
+    public void handleSettingsPage(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            loginRedirect.accept(ctx);
+            return;
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderSettings(
+                passwordProtectionEnabled,
+                mapper.buildSettingsModel()
+        ));
+    }
+
+    // ── Settings update endpoints ────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateServer(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateServer(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("server", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateDatabase(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateDatabase(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("database", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateWebUi(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateWebUi(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("web-ui", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateRestApi(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateRestApi(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("rest-api", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateTelegram(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateTelegram(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("telegram", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateAgent(Context ctx) {
+        if (!checkSession(ctx)) return;
+        String name = ctx.pathParam("name");
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateAgent(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+
+        String sectionPrefix;
+        if ("primary".equals(name)) {
+            sectionPrefix = "agents.primary";
+        } else {
+            if (!config().secondaryAgents().containsKey(name)) {
+                ctx.json(ConfigUpdateResult.error("Unknown agent: " + name));
+                return;
+            }
+            sectionPrefix = "agents.secondary." + name;
+        }
+        ctx.json(configManager.updateSection(sectionPrefix, body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateDebug(Context ctx) {
+        if (!checkSession(ctx)) return;
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateDebug(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("debug", body));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleUpdateCoin(Context ctx) {
+        if (!checkSession(ctx)) return;
+        String coin = ctx.pathParam("coin").toLowerCase();
+        if (config().resolveCoinConfig(coin) == null) {
+            ctx.json(ConfigUpdateResult.error("Unknown coin: " + coin));
+            return;
+        }
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String error = SettingsValidator.validateCoin(body);
+        if (error != null) { ctx.json(ConfigUpdateResult.error(error)); return; }
+        ctx.json(configManager.updateSection("coins." + coin, body));
+    }
+
+    public void handlePendingRestart(Context ctx) {
+        if (!checkSession(ctx)) return;
+        ctx.json(Map.of("fields", configManager.pendingRestartFields()));
+    }
+
+    private boolean checkSession(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            ctx.status(401).json(ConfigUpdateResult.error("Unauthorized"));
+            return false;
+        }
+        return true;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static String generateApiKey() {
         byte[] random = new byte[32];

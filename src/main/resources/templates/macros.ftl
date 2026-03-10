@@ -39,6 +39,7 @@
         <#if telegramPageAvailable>
             <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${telegramPath}" class="menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#if>
+        <#if activePage == "settings"><span class="menu-active">settings</span><#else><a href="/settings">settings</a></#if>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
                 <button type="submit" class="logout-btn">logout</button>
@@ -331,6 +332,172 @@
             expandedRow = detailsRow;
             expandedTrigger = trigger;
             expandedTrigger.classList.add('is-open');
+        });
+    }
+})();
+</script>
+</#macro>
+
+<#-- Settings page JavaScript - AJAX form save with collapsible sections -->
+<#macro settingsScript>
+<script>
+(() => {
+    // Collapsible card headers
+    const headers = document.querySelectorAll('.settings-card-header');
+    for (const header of headers) {
+        header.addEventListener('click', () => {
+            const body = header.nextElementSibling;
+            const icon = header.querySelector('.settings-toggle-icon');
+            const expanded = header.getAttribute('aria-expanded') === 'true';
+            header.setAttribute('aria-expanded', String(!expanded));
+            body.hidden = expanded;
+            if (icon) icon.textContent = expanded ? '\u25B6' : '\u25BC';
+        });
+        header.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+        });
+    }
+
+    // Save buttons
+    const saveBtns = document.querySelectorAll('.settings-save-btn');
+    for (const btn of saveBtns) {
+        btn.addEventListener('click', async () => {
+            const form = btn.closest('.settings-form');
+            if (!form) return;
+            const endpoint = form.dataset.endpoint;
+            const status = form.querySelector('.settings-status');
+            const body = {};
+
+            const inputs = form.querySelectorAll('input, select');
+            for (const input of inputs) {
+                const name = input.name;
+                if (!name) continue;
+                if (input.type === 'checkbox') {
+                    body[name] = input.checked;
+                } else if (input.type === 'number') {
+                    body[name] = input.value === '' ? '' : Number(input.value);
+                } else {
+                    body[name] = input.value;
+                }
+            }
+
+            btn.disabled = true;
+            if (status) { status.textContent = 'saving...'; status.className = 'settings-status'; }
+
+            try {
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    if (status) {
+                        status.textContent = result.restartRequired ? 'saved to config.toml (restart required)' : 'saved to config.toml';
+                        status.className = 'settings-status ' + (result.restartRequired ? 'settings-status-warn' : 'settings-status-ok');
+                    }
+                    if (result.restartRequired) {
+                        checkRestartBanner();
+                    }
+                } else {
+                    if (status) { status.textContent = result.errorMessage || 'error'; status.className = 'settings-status settings-status-error'; }
+                }
+            } catch (err) {
+                if (status) { status.textContent = 'network error'; status.className = 'settings-status settings-status-error'; }
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+
+    async function checkRestartBanner() {
+        try {
+            const resp = await fetch('/settings/pending-restart');
+            const data = await resp.json();
+            const banner = document.querySelector('.restart-banner');
+            if (data.fields && data.fields.length > 0) {
+                if (banner) {
+                    banner.textContent = 'Settings changed \u2014 restart required for: ' + data.fields.join(', ');
+                    banner.hidden = false;
+                } else {
+                    const div = document.createElement('div');
+                    div.className = 'restart-banner';
+                    div.textContent = 'Settings changed \u2014 restart required for: ' + data.fields.join(', ');
+                    document.body.insertBefore(div, document.body.firstChild);
+                }
+            }
+        } catch (ignored) {}
+    }
+})();
+</script>
+</#macro>
+
+<#-- Coin auth editor JavaScript - inline editing on wallets page -->
+<#macro coinAuthEditorScript>
+<script>
+(() => {
+    // Collapsible editor headers
+    const headers = document.querySelectorAll('.coin-auth-editor-header');
+    for (const header of headers) {
+        header.addEventListener('click', () => {
+            const body = header.nextElementSibling;
+            const toggle = header.querySelector('.coin-auth-editor-toggle');
+            const expanded = header.getAttribute('aria-expanded') === 'true';
+            header.setAttribute('aria-expanded', String(!expanded));
+            body.hidden = expanded;
+            if (toggle) toggle.textContent = (expanded ? '\u25B6' : '\u25BC') + ' edit auth channels';
+        });
+        header.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); header.click(); }
+        });
+    }
+
+    // Save buttons (reuse same pattern as settings page)
+    const saveBtns = document.querySelectorAll('.coin-auth-editor .settings-save-btn');
+    for (const btn of saveBtns) {
+        btn.addEventListener('click', async () => {
+            const form = btn.closest('.settings-form');
+            if (!form) return;
+            const endpoint = form.dataset.endpoint;
+            const status = form.querySelector('.settings-status');
+            const body = {};
+
+            const inputs = form.querySelectorAll('input, select');
+            for (const input of inputs) {
+                const name = input.name;
+                if (!name) continue;
+                if (input.type === 'checkbox') {
+                    body[name] = input.checked;
+                } else if (input.type === 'number') {
+                    body[name] = input.value === '' ? '' : Number(input.value);
+                } else {
+                    body[name] = input.value;
+                }
+            }
+
+            btn.disabled = true;
+            if (status) { status.textContent = 'saving...'; status.className = 'settings-status'; }
+
+            try {
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const result = await resp.json();
+                if (result.success) {
+                    if (status) {
+                        status.textContent = 'saved to config.toml';
+                        status.className = 'settings-status settings-status-ok';
+                    }
+                } else {
+                    if (status) { status.textContent = result.errorMessage || 'error'; status.className = 'settings-status settings-status-error'; }
+                }
+            } catch (err) {
+                if (status) { status.textContent = 'network error'; status.className = 'settings-status settings-status-error'; }
+            } finally {
+                btn.disabled = false;
+            }
         });
     }
 })();

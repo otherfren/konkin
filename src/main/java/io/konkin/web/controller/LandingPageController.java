@@ -20,6 +20,7 @@ import io.javalin.http.Context;
 import io.javalin.http.Cookie;
 import io.javalin.http.SameSite;
 import io.konkin.config.CoinConfig;
+import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
@@ -96,7 +97,7 @@ public class LandingPageController {
     private final ChannelRepository channelRepo;
     private final HistoryRepository historyRepo;
     private final RequestDependencyLoader depLoader;
-    private final KonkinConfig config;
+    private final ConfigManager configManager;
     private final LandingPageMapper mapper;
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final VoteService voteService;
@@ -105,6 +106,7 @@ public class LandingPageController {
 
     private final Map<String, Instant> activeSessions = new ConcurrentHashMap<>();
 
+    /** Convenience constructor — wraps config in a ConfigManager. */
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
@@ -122,10 +124,11 @@ public class LandingPageController {
     ) {
         this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, null, null,
+                channelRepo, historyRepo, depLoader, new ConfigManager(config), mapper, null, null,
                 null, null);
     }
 
+    /** Convenience constructor — wraps config in a ConfigManager. */
     public LandingPageController(
             LandingPageService landingPageService,
             boolean passwordProtectionEnabled,
@@ -145,7 +148,7 @@ public class LandingPageController {
     ) {
         this(landingPageService, passwordProtectionEnabled, passwordFilePath, passwordFileManager,
                 telegramEnabled, telegramWebController, requestRepo, voteRepo,
-                channelRepo, historyRepo, depLoader, config, mapper, walletSupervisors, voteService,
+                channelRepo, historyRepo, depLoader, new ConfigManager(config), mapper, walletSupervisors, voteService,
                 null, null);
     }
 
@@ -161,15 +164,15 @@ public class LandingPageController {
             ChannelRepository channelRepo,
             HistoryRepository historyRepo,
             RequestDependencyLoader depLoader,
-            KonkinConfig config,
+            ConfigManager configManager,
             LandingPageMapper mapper,
             Map<Coin, WalletSupervisor> walletSupervisors,
             VoteService voteService,
             Path restApiSecretFilePath,
             AtomicReference<String> activeApiKey
     ) {
-        if (config == null) {
-            throw new IllegalArgumentException("config is required");
+        if (configManager == null) {
+            throw new IllegalArgumentException("configManager is required");
         }
 
         this.landingPageService = landingPageService;
@@ -183,7 +186,7 @@ public class LandingPageController {
         this.channelRepo = channelRepo;
         this.historyRepo = historyRepo;
         this.depLoader = depLoader;
-        this.config = config;
+        this.configManager = configManager;
         this.mapper = mapper;
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.voteService = voteService;
@@ -941,7 +944,7 @@ public class LandingPageController {
     }
 
     private CoinConfig resolveCoinConfig(String coin) {
-        return config.resolveCoinConfig(coin);
+        return configManager.get().resolveCoinConfig(coin);
     }
 
     // ── History export ──────────────────────────────────────────────────────
