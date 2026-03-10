@@ -120,4 +120,41 @@ class AgentTokenStoreTest {
         AgentTokenStore anotherInstance = new AgentTokenStore(dataSource);
         assertEquals("agent-a", anotherInstance.validateToken(token).orElseThrow());
     }
+
+    // ── Activity scoping ────────────────────────────────────────────────────
+
+    @Test
+    void validateToken_doesNotRecordActivity() {
+        String token = store.issueToken("agent-a");
+        store.validateToken(token);
+        assertTrue(store.lastActivity("agent-a").isEmpty(),
+                "validateToken must not update lastActivity");
+    }
+
+    @Test
+    void recordActivity_updatesLastActivityForSpecificAgent() {
+        store.issueToken("agent-a");
+        store.issueToken("agent-b");
+
+        store.recordActivity("agent-a");
+
+        assertTrue(store.lastActivity("agent-a").isPresent(),
+                "recordActivity should set lastActivity for agent-a");
+        assertTrue(store.lastActivity("agent-b").isEmpty(),
+                "recordActivity for agent-a must not affect agent-b");
+    }
+
+    @Test
+    void validatingTokenOfAgentA_doesNotRecordActivityForAgentA() {
+        String tokenA = store.issueToken("agent-a");
+        store.issueToken("agent-b");
+
+        // validate agent-a's token multiple times
+        store.validateToken(tokenA);
+        store.validateToken(tokenA);
+
+        assertTrue(store.lastActivity("agent-a").isEmpty(),
+                "validateToken must never update lastActivity regardless of how many calls");
+        assertTrue(store.lastActivity("agent-b").isEmpty());
+    }
 }

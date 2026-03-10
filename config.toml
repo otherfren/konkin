@@ -6,11 +6,6 @@ config-version = 1
 	[web-ui.template]
 		directory = "./src/main/resources/templates"
 
-	[web-ui.password-protection]
-		# rotate keys by deleting the referenced file
-		password-file = "{secrets-dir}/web-ui.password"
-		enabled = true
-
 	[web-ui.static]
 		hosted-path = "/assets"
 		directory = "./src/main/resources/static"
@@ -19,18 +14,23 @@ config-version = 1
 		assets-enabled = true
 		enabled = true
 
+	[web-ui.password-protection]
+		# rotate keys by deleting the referenced file
+		password-file = "{secrets-dir}/web-ui.password"
+		enabled = true
+
 [rest-api]
 	# auto-generated when missing
 	secret-file = "{secrets-dir}/rest-api.secret"
 	enabled = true
 
 [server]
-	host = "127.0.0.1"
 	log-rotate-max-size-mb = 10
-	log-file = "./logs/konkin.log"
 	port = 7070
 	log-level = "info"
 	secrets-dir = "./secrets"
+	host = "127.0.0.1"
+	log-file = "./logs/konkin.log"
 
 [database]
 	pool-size = 5
@@ -41,6 +41,31 @@ config-version = 1
 [debug]
 	seed-fake-data = false
 	enabled = false
+
+	[coins.litecoin]
+		enabled = false
+
+		[coins.litecoin.secret-files]
+			litecoin-wallet-config-file = "{secrets-dir}/litecoin-wallet.conf"
+			litecoin-daemon-config-file = "{secrets-dir}/litecoin-daemon.conf"
+
+		#example values for future litecoin auth config
+		[coins.litecoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = false
+			mcp = "ltc-main"
+			min-approvals-required = 1
+				[[coins.litecoin.auth.auto-deny]]
+					[coins.litecoin.auth.auto-deny.criteria]
+						period = "48h"
+						type = "cumulated-value-gt"
+						value = 8.0
+
+				[[coins.litecoin.auth.auto-accept]]
+					[coins.litecoin.auth.auto-accept.criteria]
+						type = "value-lt"
+						value = 1.25
 
 	[coins.monero]
 		enabled = true
@@ -59,39 +84,14 @@ config-version = 1
 			min-approvals-required = 2
 				[[coins.monero.auth.auto-deny]]
 					[coins.monero.auth.auto-deny.criteria]
+						period = "24h"
 						type = "cumulated-value-gt"
 						value = 5
-						period = "24h"
 
 				[[coins.monero.auth.auto-accept]]
 					[coins.monero.auth.auto-accept.criteria]
 						type = "value-lt"
 						value = 0.01
-
-	[coins.litecoin]
-		enabled = false
-
-		[coins.litecoin.secret-files]
-			litecoin-wallet-config-file = "{secrets-dir}/litecoin-wallet.conf"
-			litecoin-daemon-config-file = "{secrets-dir}/litecoin-daemon.conf"
-
-		#example values for future litecoin auth config
-		[coins.litecoin.auth]
-			web-ui = true
-			rest-api = true
-			telegram = false
-			mcp = "ltc-main"
-			min-approvals-required = 1
-				[[coins.litecoin.auth.auto-deny]]
-					[coins.litecoin.auth.auto-deny.criteria]
-						type = "cumulated-value-gt"
-						value = 8.0
-						period = "48h"
-
-				[[coins.litecoin.auth.auto-accept]]
-					[coins.litecoin.auth.auto-accept.criteria]
-						type = "value-lt"
-						value = 1.25
 
 	[coins.testdummycoin]
 		enabled = false
@@ -143,16 +143,34 @@ config-version = 1
 	enabled = true
 	auto-deny-timeout = "3m"
 
+		[agents.secondary.agent-arthur]
+			bind = "127.0.0.1"
+			port = 9560
+			secret-file = "{secrets-dir}/agent-arthur.secret"
+			enabled = true
+
+		[agents.secondary.agent-morgana]
+			bind = "127.0.0.1"
+			port = 9564
+			secret-file = "{secrets-dir}/agent-morgana.secret"
+			enabled = true
+
+		[agents.secondary.agent-lancelot]
+			bind = "127.0.0.1"
+			port = 9562
+			secret-file = "{secrets-dir}/agent-lancelot.secret"
+			enabled = true
+
 		[agents.secondary.agent-merlin]
 			bind = "127.0.0.1"
 			port = 9561
 			secret-file = "{secrets-dir}/agent-merlin.secret"
 			enabled = true
 
-		[agents.secondary.agent-arthur]
+		[agents.secondary.agent-guinevere]
 			bind = "127.0.0.1"
-			port = 9560
-			secret-file = "{secrets-dir}/agent-arthur.secret"
+			port = 9563
+			secret-file = "{secrets-dir}/agent-guinevere.secret"
 			enabled = true
 
 	[agents.primary]

@@ -53,6 +53,7 @@ public class LandingPageService {
     private static final String DRIVER_AGENT_TEMPLATE_NAME = "landing-driver-agent.ftl";
     private static final String API_KEYS_TEMPLATE_NAME = "landing-api-keys.ftl";
     private static final String SETTINGS_TEMPLATE_NAME = "landing-settings.ftl";
+    private static final String AUTH_AGENT_TEMPLATE_NAME = "landing-auth-agent.ftl";
 
     private static final String APP_VERSION = loadAppVersion();
 
@@ -67,6 +68,7 @@ public class LandingPageService {
     private volatile Supplier<Map<String, Boolean>> walletDisconnectedSupplier = Map::of;
     private volatile Supplier<Collection<String>> pendingRestartFieldsSupplier = List::of;
     private volatile List<String> enabledCoins = List.of();
+    private volatile Supplier<List<String>> secondaryAgentNamesSupplier = List::of;
 
     public LandingPageService(
             Path templateDirectory,
@@ -141,6 +143,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -198,6 +201,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -230,6 +234,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -262,6 +267,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -269,6 +275,42 @@ public class LandingPageService {
         model.put("authChannels", authChannelsData == null ? Map.of() : authChannelsData);
 
         return renderTemplate(AUTH_CHANNELS_TEMPLATE_NAME, model);
+    }
+
+    public String renderAuthAgent(boolean showLogout, String agentName, Map<String, Object> agentData, Map<String, Object> settingsData, Map<String, Object> mcpRegistration) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("assetsPath", staticHostedPath);
+        model.put("assetsVersion", staticAssetsVersion.get());
+        model.put("queuePath", "/");
+        model.put("auditLogPath", "/history");
+        model.put("telegramPath", "/auth_channels/telegram");
+        model.put("walletsPath", "/wallets");
+        model.put("driverAgentPath", "/driver_agent");
+        model.put("authChannelsPath", "/auth_channels");
+        model.put("apiKeysPath", "/auth_channels/api_keys");
+        model.put("restApiKeyMissing", restApiKeyMissing);
+        model.put("driverAgentWarn", driverAgentWarnSupplier.getAsBoolean());
+        model.put("telegramWarn", telegramWarnSupplier.getAsBoolean());
+        model.put("queueCount", queueCountSupplier.getAsInt());
+        model.put("githubPath", "https://github.com/otherfren/konkin");
+        model.put("title", "KONKIN.io");
+        model.put("appVersion", APP_VERSION);
+        model.put("showLogout", showLogout);
+        model.put("activePage", "auth_channel_agent_" + agentName);
+        model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
+        model.put("telegramPageAvailable", telegramEnabled);
+        model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
+        model.put("disconnectedWallets", disconnected);
+        model.put("walletsWarn", !disconnected.isEmpty()
+                && disconnected.values().stream().allMatch(Boolean::booleanValue));
+        model.put("agentName", agentName);
+        model.put("agent", agentData == null ? Map.of() : agentData);
+        model.put("settings", settingsData == null ? Map.of() : settingsData);
+        model.put("mcpRegistration", mcpRegistration == null ? Map.of() : mcpRegistration);
+
+        return renderTemplate(AUTH_AGENT_TEMPLATE_NAME, model);
     }
 
     public String renderAuthChannelWebUi(boolean showLogout, Map<String, Object> webUiData, String revealedPassword, Map<String, Object> settingsData) {
@@ -294,6 +336,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -342,6 +385,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -385,6 +429,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -446,6 +491,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -482,6 +528,7 @@ public class LandingPageService {
         model.put("pendingRestartFields", List.copyOf(pendingRestartFieldsSupplier.get()));
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
+        model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -512,6 +559,10 @@ public class LandingPageService {
 
     public void setEnabledCoins(List<String> coins) {
         this.enabledCoins = coins == null ? List.of() : List.copyOf(coins);
+    }
+
+    public void setSecondaryAgentNamesSupplier(Supplier<List<String>> supplier) {
+        this.secondaryAgentNamesSupplier = supplier;
     }
 
     public void setWalletDisconnectedSupplier(Supplier<Map<String, Boolean>> supplier) {

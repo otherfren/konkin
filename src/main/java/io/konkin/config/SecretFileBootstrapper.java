@@ -116,10 +116,8 @@ final class SecretFileBootstrapper {
 
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
             AgentConfig agentConfig = entry.getValue();
-            if (agentConfig.enabled()) {
-                if (ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "auth")) {
-                    freshlyCreated.add(entry.getKey());
-                }
+            if (ensureAgentSecretFileExists(Path.of(agentConfig.secretFile()), entry.getKey(), "auth")) {
+                freshlyCreated.add(entry.getKey());
             }
         }
 
@@ -167,10 +165,7 @@ final class SecretFileBootstrapper {
             paths.add(config.primaryAgent().secretFile());
         }
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
-            AgentConfig agentConfig = entry.getValue();
-            if (agentConfig.enabled()) {
-                paths.add(agentConfig.secretFile());
-            }
+            paths.add(entry.getValue().secretFile());
         }
 
         // Coin daemon/wallet secret files

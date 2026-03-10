@@ -238,6 +238,20 @@ public class McpAgentServer {
         // Tokens are persisted in H2 — do NOT revoke on shutdown so they survive restarts.
     }
 
+    /**
+     * Disconnects all active MCP/SSE client sessions by restarting the agent endpoint.
+     * The endpoint is stopped and immediately restarted, so new connections can be
+     * established with fresh credentials.
+     */
+    public void disconnectAllClients() {
+        stop();
+        try {
+            start();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to restart agent endpoint after session reset: " + agentName, e);
+        }
+    }
+
     public McpSyncServer mcpSyncServer() {
         return mcpSyncServer;
     }

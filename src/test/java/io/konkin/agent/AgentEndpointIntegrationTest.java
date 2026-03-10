@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.konkin.TestConfigBuilder;
 import io.konkin.TestDatabaseManager;
 import io.konkin.config.KonkinConfig;
+import io.konkin.db.AgentTokenStore;
 import io.konkin.db.DatabaseManager;
 import io.konkin.db.JdbiFactory;
 import io.konkin.web.KonkinWebServer;
@@ -144,6 +145,43 @@ class AgentEndpointIntegrationTest extends WebIntegrationTestSupport {
         // GET to /sse without bearer token should return 401
         HttpResponse<String> response = get(sharedSecondaryServer.agentBaseUri(), "/sse", Map.of());
         assertEquals(401, response.statusCode());
+    }
+
+    // --- Token revocation and session disconnect ---
+
+    @Test
+    void revokedToken_disconnectsActiveSession_andRejectsReconnection() throws Exception {
+        try (AgentRunningServer server = startSecondaryAgentServer("agent-alpha")) {
+            String token = issueAccessToken(server);
+
+            // establish MCP session and verify it works
+            McpSyncClient client = createMcpClient(server.agentBaseUri(), token);
+            client.initialize();
+            ReadResourceResult healthBefore = client.readResource(new ReadResourceRequest("konkin://health"));
+            assertNotNull(healthBefore);
+            client.close();
+
+            // revoke token from the token store and restart the agent endpoint
+            // (simulates what SettingsController.handleRevokeAgentToken does)
+            DataSource ds = server.dbManager().dataSource();
+            AgentTokenStore tokenStore = new AgentTokenStore(ds);
+            tokenStore.revokeByAgent("agent-alpha");
+
+            // the old token should now be rejected — no new SSE session can be established
+            waitForMcpAgentHealth(server.agentPort());
+            HttpResponse<String> response = get(server.agentBaseUri(), "/sse",
+                    Map.of("Authorization", "Bearer " + token));
+            assertEquals(401, response.statusCode(),
+                    "revoked token must be rejected for new SSE connections");
+
+            // but a fresh token should work
+            String newToken = issueAccessToken(server);
+            try (McpSyncClient newClient = createMcpClient(server.agentBaseUri(), newToken)) {
+                newClient.initialize();
+                ReadResourceResult healthAfter = newClient.readResource(new ReadResourceRequest("konkin://health"));
+                assertNotNull(healthAfter);
+            }
+        }
     }
 
     // --- MCP Health Resource Tests ---

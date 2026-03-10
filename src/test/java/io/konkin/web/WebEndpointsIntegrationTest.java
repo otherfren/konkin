@@ -595,6 +595,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
     @Test
     void authDefinitionsPageShowsTimeoutQuorumAndVetoValues() throws Exception {
         int port = freePort();
+        int agentAPort = freePort();
+        int agentBPort = freePort();
 
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
@@ -624,9 +626,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 .withWebUiStatic(staticDir)
                 .withAutoReload(false)
                 .withTelegramFull(telegramSecretFile, "3m")
-                .withSecondaryAgent("agent-a", true, "127.0.0.1", 9562,
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", agentAPort,
                         tempDir.resolve("secrets/agent-a-auth-defs-timeout-quorum.secret"))
-                .withSecondaryAgent("agent-b", true, "127.0.0.1", 9563,
+                .withSecondaryAgent("agent-b", true, "127.0.0.1", agentBPort,
                         tempDir.resolve("secrets/agent-b-auth-defs-timeout-quorum.secret"))
                 .withBitcoin(daemonSecretFile, walletSecretFile)
                 .withBitcoinAuthWithMcpChannelsAndQuorum(false, false, true,
@@ -648,14 +650,16 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("2-of-N"));
             assertTrue(authDefinitions.body().contains("Veto channels"));
             assertTrue(authDefinitions.body().contains("telegram"));
-            assertTrue(authDefinitions.body().contains("agent-a @ http://127.0.0.1:9562"));
-            assertTrue(authDefinitions.body().contains("agent-b @ http://127.0.0.1:9563"));
+            assertTrue(authDefinitions.body().contains("agent-a @ http://127.0.0.1:" + agentAPort));
+            assertTrue(authDefinitions.body().contains("agent-b @ http://127.0.0.1:" + agentBPort));
         }
     }
 
     @Test
     void authDefinitionsPageShowsFriendlyDurationWindow() throws Exception {
         int port = freePort();
+        int btcMainPort = freePort();
+        int btcBackupPort = freePort();
 
         Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
         Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
@@ -669,9 +673,9 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
                 .withWebUiTemplate(templateDir)
                 .withWebUiStatic(staticDir)
                 .withAutoReload(false)
-                .withSecondaryAgent("btc-main", true, "127.0.0.1", 9564,
+                .withSecondaryAgent("btc-main", true, "127.0.0.1", btcMainPort,
                         tempDir.resolve("secrets/btc-main-auth-defs.secret"))
-                .withSecondaryAgent("btc-backup", true, "127.0.0.1", 9565,
+                .withSecondaryAgent("btc-backup", true, "127.0.0.1", btcBackupPort,
                         tempDir.resolve("secrets/btc-backup-auth-defs.secret"))
                 .withBitcoin(daemonSecretFile, walletSecretFile)
                 .withBitcoinAuthWithMcpAuthChannels(true, false, false, List.of("btc-main", "btc-backup"))
@@ -699,8 +703,8 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertFalse(authDefinitions.body().contains("/assets/img/litecoin.svg"));
             assertFalse(authDefinitions.body().contains("/assets/img/monero.svg"));
             assertTrue(authDefinitions.body().contains("Auth channels"));
-            assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:9564"));
-            assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:9565"));
+            assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:" + btcMainPort));
+            assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:" + btcBackupPort));
             assertTrue(authDefinitions.body().contains(">***<"));
             assertTrue(authDefinitions.body().contains("aria-label=\"Reveal wallet balance\""));
         }
@@ -805,8 +809,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authChannels.body().contains("Auth Agent Bot Channels"));
             assertFalse(authChannels.body().contains("Driver Agent Endpoint"));
             assertTrue(authChannels.body().contains("<span class=\"menu-active\">auth channels</span>"));
-            assertTrue(authChannels.body().contains("<th>Auth Channel ID</th>"));
-            assertTrue(authChannels.body().contains("verification-agent:agent-a"));
+            assertTrue(authChannels.body().contains("Last Lifesign"));
             assertTrue(authChannels.body().contains("mcp-auth-channels"));
             assertFalse(authChannels.body().contains("Reference format"));
             assertFalse(authChannels.body().contains("Runtime checks"));

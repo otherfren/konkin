@@ -123,6 +123,7 @@ public class KonkinWebServer {
     private TelegramApprovalNotifier telegramNotifier;
     private VoteService voteService;
     private AgentTokenStore agentTokenStore;
+    private SettingsController settingsController;
 
     public void start() {
         running = false;
@@ -307,6 +308,11 @@ public class KonkinWebServer {
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
             LandingPageMapper mapper = new LandingPageMapper(configManager, walletSupervisors, kvStore, activeApiKeyRef);
             landingPageService.setEnabledCoins(mapper.getEnabledCoinIds());
+            landingPageService.setSecondaryAgentNamesSupplier(() ->
+                    configManager.get().secondaryAgents().entrySet().stream()
+                            .filter(e -> e.getValue().enabled())
+                            .map(Map.Entry::getKey)
+                            .toList());
             List<String> enabledCoinIds = mapper.getEnabledCoinIds();
             landingPageService.setWalletDisconnectedSupplier(() -> {
                 Map<String, Boolean> result = new LinkedHashMap<>();
@@ -383,6 +389,7 @@ public class KonkinWebServer {
                     lpc::hasValidSession,
                     ctx -> lpc.showLogin(ctx, false)
             );
+            this.settingsController = settingsController;
         }
 
         Path staticDirectoryFinal = landingStaticDirectory;
@@ -530,6 +537,7 @@ public class KonkinWebServer {
             app.post("/wallets/generate-address", walletControllerFinal::handleGenerateDepositAddress);
             app.post("/wallets/reconnect", walletControllerFinal::handleWalletReconnect);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
+            app.get("/auth_channels/agents/{name}", settingsControllerFinal::handleAgentPage);
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
             app.post("/auth_channels/web-ui/rotate-password", webUiPageControllerFinal::handlePasswordRotate);
             app.get("/driver_agent", settingsControllerFinal::handleDriverAgentPage);
@@ -551,6 +559,7 @@ public class KonkinWebServer {
             app.post("/settings/rest-api", settingsControllerFinal::handleUpdateRestApi);
             app.post("/settings/telegram", settingsControllerFinal::handleUpdateTelegram);
             app.post("/settings/agents/{name}", settingsControllerFinal::handleUpdateAgent);
+            app.post("/settings/agents/{name}/revoke-token", settingsControllerFinal::handleRevokeAgentToken);
             app.post("/settings/debug", settingsControllerFinal::handleUpdateDebug);
             app.post("/settings/coins/{coin}", settingsControllerFinal::handleUpdateCoin);
             app.get("/settings/pending-restart", settingsControllerFinal::handlePendingRestart);
@@ -584,6 +593,15 @@ public class KonkinWebServer {
                 app = null;
             }
             throw e;
+        }
+        if (agentTokenStore != null) {
+            if (settingsController != null) {
+                settingsController.setAgentTokenStore(agentTokenStore);
+                settingsController.setAgentEndpointsSupplier(() -> agentEndpoints);
+            }
+            if (landingPageController != null) {
+                landingPageController.setAgentTokenStore(agentTokenStore);
+            }
         }
 
         running = true;
@@ -719,9 +737,6 @@ public class KonkinWebServer {
 
         for (Map.Entry<String, AgentConfig> entry : config.secondaryAgents().entrySet()) {
             AgentConfig secondaryAgent = entry.getValue();
-            if (!secondaryAgent.enabled()) {
-                continue;
-            }
 
             McpAgentServer endpoint = new McpAgentServer(
                     entry.getKey(),
@@ -824,6 +839,7 @@ public class KonkinWebServer {
     }
 
     public void stop() {
+        configManager.flushTomlWriteBack();
         stopAgentEndpoints();
 
         if (approvalExpiryService != null) {

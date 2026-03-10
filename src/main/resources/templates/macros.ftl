@@ -31,7 +31,8 @@
             <#assign coinDisconnected = (disconnectedWallets[ec])!false>
             <#if activePage == "wallet_" + ec><span class="menu-active menu-sub">${ec}<#if coinDisconnected> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="/wallets/${ec}" class="menu-sub">${ec}<#if coinDisconnected> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#list>
-        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"]>
+        <#assign agentNames = (secondaryAgentNames![])>
+        <#assign authChannelSubPages = ["auth_channel_webui", "auth_channel_api_keys", "auth_channel_telegram"] + agentNames?map(a -> "auth_channel_agent_" + a)>
         <#assign isAuthChannelSubActive = authChannelSubPages?seq_contains(activePage)>
         <#if activePage == "auth_channels"><span class="menu-active">auth channels</span><#else><a href="${authChannelsPath}"<#if isAuthChannelSubActive> class="menu-group-active"</#if>>auth channels</a></#if>
         <#if activePage == "auth_channel_webui"><span class="menu-active menu-sub">web ui</span><#else><a href="/auth_channels/web-ui" class="menu-sub">web ui</a></#if>
@@ -39,6 +40,9 @@
         <#if telegramPageAvailable>
             <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${telegramPath}" class="menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#if>
+        <#list agentNames as agentName>
+            <#if activePage == "auth_channel_agent_" + agentName><span class="menu-active menu-sub">${agentName}</span><#else><a href="/auth_channels/agents/${agentName}" class="menu-sub">${agentName}</a></#if>
+        </#list>
         <#if activePage == "settings"><span class="menu-active">settings</span><#else><a href="/settings">settings</a></#if>
         <#if showLogout>
             <form method="post" action="/logout" class="logout-form">
@@ -629,6 +633,57 @@
             }
         });
     }
+})();
+</script>
+</#macro>
+
+<#-- Confirm modal HTML + JS for delete-style actions -->
+<#macro confirmModal id="confirm-modal">
+<div id="${id}" class="queue-confirm-modal" hidden>
+    <div class="queue-confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="${id}-title">
+        <h3 id="${id}-title" class="queue-confirm-modal-title"></h3>
+        <p id="${id}-message" class="queue-confirm-modal-copy"></p>
+        <div class="queue-confirm-modal-actions">
+            <button type="button" id="${id}-cancel" class="queue-action-btn queue-action-cancel">cancel</button>
+            <button type="button" id="${id}-submit" class="queue-action-btn queue-action-deny">confirm</button>
+        </div>
+    </div>
+</div>
+<script>
+window.confirmModal = window.confirmModal || {};
+window.confirmModal['${id}'] = (function() {
+    const modal = document.getElementById('${id}');
+    const titleEl = document.getElementById('${id}-title');
+    const messageEl = document.getElementById('${id}-message');
+    const cancelBtn = document.getElementById('${id}-cancel');
+    const submitBtn = document.getElementById('${id}-submit');
+    let resolver = null;
+
+    function close() {
+        if (modal) { modal.classList.remove('is-open'); modal.hidden = true; }
+        if (resolver) { resolver(false); resolver = null; }
+    }
+
+    if (cancelBtn) cancelBtn.addEventListener('click', close);
+    if (modal) modal.addEventListener('click', function(e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && modal.classList.contains('is-open')) close();
+    });
+
+    if (submitBtn) submitBtn.addEventListener('click', function() {
+        if (modal) { modal.classList.remove('is-open'); modal.hidden = true; }
+        if (resolver) { resolver(true); resolver = null; }
+    });
+
+    return function open(title, message, confirmLabel) {
+        if (!modal || !titleEl || !messageEl || !submitBtn) return Promise.resolve(false);
+        titleEl.textContent = title;
+        messageEl.textContent = message;
+        submitBtn.textContent = confirmLabel || 'confirm';
+        modal.hidden = false;
+        window.requestAnimationFrame(function() { modal.classList.add('is-open'); });
+        return new Promise(function(resolve) { resolver = resolve; });
+    };
 })();
 </script>
 </#macro>

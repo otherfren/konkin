@@ -17,8 +17,9 @@
 package io.konkin.config;
 
 import com.electronwill.nightconfig.core.Config;
-import com.electronwill.nightconfig.core.file.FileConfig;
+import com.electronwill.nightconfig.core.io.WritingMode;
 import com.electronwill.nightconfig.toml.TomlParser;
+import com.electronwill.nightconfig.toml.TomlWriter;
 import io.konkin.db.ConfigOverrideStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +68,7 @@ public class ConfigManager {
     private final Set<String> pendingRestartFields = ConcurrentHashMap.newKeySet();
     private final ConfigOverrideStore overrideStore;
     private final Semaphore tomlWriteSemaphore = new Semaphore(1);
-    private final byte[] startupTomlBytes;
+    private volatile byte[] startupTomlBytes;
 
     /**
      * Production constructor: persists config overrides to DB and writes back to TOML.
@@ -94,6 +95,8 @@ public class ConfigManager {
     public KonkinConfig get() {
         return configRef.get();
     }
+
+    // (agents are always present in config — show/hide is controlled via the enabled flag)
 
     /**
      * Update a section: all keys are prefixed with sectionPrefix + ".".
@@ -185,13 +188,11 @@ public class ConfigManager {
             // Write to temp file, never touch original directly
             Files.copy(path, tempFile, StandardCopyOption.REPLACE_EXISTING);
 
-            try (FileConfig toml = FileConfig.of(tempFile)) {
-                toml.load();
-                for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
-                    toml.set(entry.getKey(), entry.getValue());
-                }
-                toml.save();
+            Config toml = new TomlParser().parse(Files.readString(tempFile, StandardCharsets.UTF_8));
+            for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
+                toml.set(entry.getKey(), entry.getValue());
             }
+            new TomlWriter().write(toml, tempFile, WritingMode.REPLACE);
 
             // Verify non-empty before replacing
             if (Files.size(tempFile) == 0) {
@@ -210,7 +211,7 @@ public class ConfigManager {
             }
 
             // Atomic move: only replaces original after validation passes
-            Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            moveWithFallback(tempFile, path);
 
             List<String> changedPaths = new ArrayList<>(pathValues.keySet());
             boolean restartRequired = false;
@@ -295,13 +296,11 @@ public class ConfigManager {
             // Write to a temp file, never touch the original directly
             Files.copy(path, tempFile, StandardCopyOption.REPLACE_EXISTING);
 
-            try (FileConfig toml = FileConfig.of(tempFile)) {
-                toml.load();
-                for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
-                    toml.set(entry.getKey(), entry.getValue());
-                }
-                toml.save();
+            Config toml = new TomlParser().parse(Files.readString(tempFile, StandardCharsets.UTF_8));
+            for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
+                toml.set(entry.getKey(), entry.getValue());
             }
+            new TomlWriter().write(toml, tempFile, WritingMode.REPLACE);
 
             // Verify the temp file is non-empty before replacing original
             long size = Files.size(tempFile);
@@ -312,13 +311,39 @@ public class ConfigManager {
             }
 
             // Atomic move: replaces original only after temp is fully written
-            Files.move(tempFile, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            moveWithFallback(tempFile, path);
             log.debug("TOML write-back complete for {} paths", pathValues.size());
         } catch (IOException e) {
             log.error("Failed to write config changes back to TOML file: {}", configFilePath, e);
         } finally {
             tomlWriteSemaphore.release();
         }
+    }
+
+    /**
+     * Move temp file to target, trying atomic move first, falling back to regular move.
+     */
+    private static void moveWithFallback(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /**
+     * Blocks until any in-flight TOML write-back completes.
+     * Call during graceful shutdown to ensure config.toml is up to date.
+     */
+    public void flushTomlWriteBack() {
+        try {
+            tomlWriteSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for TOML write-back flush");
+            return;
+        }
+        tomlWriteSemaphore.release();
     }
 
     private boolean isRestartRequired(String tomlPath) {

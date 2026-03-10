@@ -21,9 +21,14 @@ import io.konkin.config.ConfigManager;
 import io.konkin.config.ConfigUpdateResult;
 import io.konkin.config.KonkinConfig;
 import io.konkin.web.LandingPageMapper;
+import io.konkin.web.UiFormattingUtils;
 import io.konkin.web.service.LandingPageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.konkin.db.AgentTokenStore;
+
+import io.konkin.agent.McpAgentServer;
 
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -35,6 +40,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
  * Handles settings-related web UI pages: API keys, driver agent.
@@ -51,6 +57,8 @@ public class SettingsController {
     private final AtomicReference<String> activeApiKey;
     private final Predicate<Context> sessionValidator;
     private final Consumer<Context> loginRedirect;
+    private volatile AgentTokenStore agentTokenStore;
+    private volatile Supplier<List<McpAgentServer>> agentEndpointsSupplier;
 
     public SettingsController(
             LandingPageService landingPageService,
@@ -72,8 +80,50 @@ public class SettingsController {
         this.loginRedirect = loginRedirect;
     }
 
+    public void setAgentTokenStore(AgentTokenStore agentTokenStore) {
+        this.agentTokenStore = agentTokenStore;
+    }
+
+    public void setAgentEndpointsSupplier(Supplier<List<McpAgentServer>> supplier) {
+        this.agentEndpointsSupplier = supplier;
+    }
+
     private KonkinConfig config() {
         return configManager.get();
+    }
+
+    public void handleAgentPage(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            loginRedirect.accept(ctx);
+            return;
+        }
+
+        String name = ctx.pathParam("name");
+        Map<String, Object> agentData = mapper.buildAgentDetailModel(name);
+        if (agentData == null) {
+            ctx.redirect("/auth_channels");
+            return;
+        }
+
+        Map<String, Object> settingsData = mapper.buildAgentSettingsModel(name);
+        if (settingsData != null && agentTokenStore != null) {
+            settingsData = new LinkedHashMap<>(settingsData);
+            settingsData.put("hasToken", agentTokenStore.hasTokens(name));
+            settingsData.put("lastActivity",
+                    agentTokenStore.lastActivity(name).map(UiFormattingUtils::formatInstantMinute).orElse(""));
+            settingsData = Map.copyOf(settingsData);
+        }
+
+        Map<String, Object> mcpRegistration = mapper.buildAgentMcpRegistration(name);
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderAuthAgent(
+                passwordProtectionEnabled,
+                name,
+                agentData,
+                settingsData,
+                mcpRegistration
+        ));
     }
 
     public void handleDriverAgentPage(Context ctx) {
@@ -239,6 +289,24 @@ public class SettingsController {
         ctx.json(configManager.updateSection("coins." + coin, body));
     }
 
+
+    public void handleRevokeAgentToken(Context ctx) {
+        if (!checkSession(ctx)) return;
+        String name = ctx.pathParam("name");
+        if (!config().secondaryAgents().containsKey(name)) {
+            ctx.json(ConfigUpdateResult.error("Unknown agent: " + name));
+            return;
+        }
+        if (agentTokenStore == null) {
+            ctx.json(ConfigUpdateResult.error("Agent token store not available"));
+            return;
+        }
+        agentTokenStore.revokeByAgent(name);
+        disconnectAgentSessions(name);
+        log.info("Agent token revoked via web UI — agent={}", name);
+        ctx.json(ConfigUpdateResult.success(false, List.of()));
+    }
+
     public void handlePendingRestart(Context ctx) {
         if (!checkSession(ctx)) return;
         ctx.json(Map.of("fields", configManager.pendingRestartFields()));
@@ -282,6 +350,22 @@ public class SettingsController {
                 transformed.add(entry);
             }
             body.put(key, transformed);
+        }
+    }
+
+    private void disconnectAgentSessions(String agentName) {
+        Supplier<List<McpAgentServer>> supplier = agentEndpointsSupplier;
+        if (supplier == null) return;
+        for (McpAgentServer endpoint : supplier.get()) {
+            if (agentName.equals(endpoint.agentName())) {
+                try {
+                    endpoint.disconnectAllClients();
+                    log.info("SSE sessions reset after token revocation — agent={}", agentName);
+                } catch (Exception e) {
+                    log.warn("Failed to reset SSE sessions for agent={}", agentName, e);
+                }
+                return;
+            }
         }
     }
 

@@ -198,6 +198,10 @@ public class LandingPageController {
         this.telegramWebController = telegramWebController;
     }
 
+    public void setAgentTokenStore(io.konkin.db.AgentTokenStore agentTokenStore) {
+        mapper.setAgentTokenStore(agentTokenStore);
+    }
+
     // ── Page handlers ──────────────────────────────────────────────────────
 
     public void handleRoot(Context ctx) {

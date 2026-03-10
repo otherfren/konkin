@@ -28,6 +28,7 @@ import io.konkin.crypto.WalletSnapshot;
 import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
+import io.konkin.db.AgentTokenStore;
 import io.konkin.db.KvStore;
 import io.konkin.db.entity.ApprovalChannelRow;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -66,6 +67,7 @@ public class LandingPageMapper {
     private final Map<Coin, WalletSupervisor> walletSupervisors;
     private final KvStore kvStore;
     private final AtomicReference<String> activeApiKey;
+    private volatile AgentTokenStore agentTokenStore;
 
     /** Convenience constructor for tests. */
     public LandingPageMapper(KonkinConfig config, Map<Coin, WalletSupervisor> walletSupervisors) {
@@ -82,6 +84,10 @@ public class LandingPageMapper {
         this.walletSupervisors = walletSupervisors != null ? walletSupervisors : Map.of();
         this.kvStore = kvStore;
         this.activeApiKey = activeApiKey != null ? activeApiKey : new AtomicReference<>();
+    }
+
+    public void setAgentTokenStore(AgentTokenStore agentTokenStore) {
+        this.agentTokenStore = agentTokenStore;
     }
 
     private KonkinConfig config() {
@@ -316,7 +322,6 @@ public class LandingPageMapper {
         root.put("telegramEnabled", telegramEnabled);
         root.put("telegramUsers", buildTelegramChannelUsers(discoveredRequests, secret, configuredTelegramChatIds));
         root.put("authAgents", buildAuthAgentChannels());
-        root.put("authAgentMcpRegistrations", buildAuthAgentMcpRegistrations());
 
         return Map.copyOf(root);
     }
@@ -604,19 +609,24 @@ public class LandingPageMapper {
             String agentName = safe(entry.getKey());
             AgentConfig agentConfig = entry.getValue();
 
-            boolean enabled = agentConfig != null && agentConfig.enabled();
             String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
             int port = agentConfig == null ? 0 : agentConfig.port();
-            String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+            String endpointBase = port > 0 ? "http://" + bind + ":" + port : "-";
+
+            boolean connected = agentTokenStore != null && agentTokenStore.hasTokens(agentName);
+            String lastActivity = agentTokenStore != null
+                    ? agentTokenStore.lastActivity(agentName).map(UiFormattingUtils::formatInstantMinute).orElse("")
+                    : "";
 
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("name", agentName);
             row.put("authChannelId", "verification-agent:" + agentName);
-            row.put("enabled", enabled);
+            row.put("connected", connected);
+            row.put("lastActivity", lastActivity);
             row.put("bind", bind);
             row.put("port", port > 0 ? Integer.toString(port) : "-");
-            row.put("healthPath", enabled ? endpointBase + "/health" : "-");
-            row.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
+            row.put("healthPath", port > 0 ? endpointBase + "/health" : "-");
+            row.put("oauthTokenPath", port > 0 ? endpointBase + "/oauth/token" : "-");
             row.put("secretFile", agentConfig == null ? "-" : safe(agentConfig.secretFile()));
             rows.add(Map.copyOf(row));
         }
@@ -625,48 +635,6 @@ public class LandingPageMapper {
     }
 
     // ── Auth agent MCP registrations ────────────────────────────────────────
-
-    private List<Map<String, Object>> buildAuthAgentMcpRegistrations() {
-        Map<String, AgentConfig> authAgents = config().secondaryAgents();
-        if (authAgents == null || authAgents.isEmpty()) {
-            return List.of();
-        }
-
-        List<Map<String, Object>> registrations = new ArrayList<>();
-        for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
-            String agentName = safe(entry.getKey());
-            AgentConfig agentConfig = entry.getValue();
-
-            boolean enabled = agentConfig != null && agentConfig.enabled();
-            String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
-            int port = agentConfig == null ? 0 : agentConfig.port();
-            String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
-
-            String tokenEndpoint = enabled ? endpointBase + "/oauth/token" : "-";
-            String sseEndpoint = enabled ? endpointBase + "/sse" : "-";
-
-            String tokenCommand = enabled && !"-".equals(tokenEndpoint)
-                    ? """
-                    curl -s -X POST "%s" \\
-                      -d "grant_type=client_credentials" \\
-                      -d "client_id=%s" \\
-                      -d "client_secret=YOUR_SECRET"
-                    """.strip().formatted(tokenEndpoint, agentName)
-                    : "-";
-
-            Map<String, Object> reg = new LinkedHashMap<>();
-            reg.put("agentName", agentName);
-            reg.put("enabled", enabled);
-            reg.put("sseEndpoint", sseEndpoint);
-            reg.put("tokenEndpoint", tokenEndpoint);
-            reg.put("tokenCommand", tokenCommand);
-            reg.put("agentCommands", buildAgentCommands(enabled, sseEndpoint, "konkin-" + agentName));
-            reg.put("skillPath", "documents/SKILL-auth-agent.md");
-            registrations.add(Map.copyOf(reg));
-        }
-
-        return List.copyOf(registrations);
-    }
 
     // ── Wallets model ──────────────────────────────────────────────────────
 
@@ -1038,6 +1006,68 @@ public class LandingPageMapper {
         s.put("telegramApiBaseUrl", safe(c.telegramApiBaseUrl()));
         s.put("telegramAutoDenyTimeout", c.telegramAutoDenyTimeout() != null ? formatDurationFriendly(c.telegramAutoDenyTimeout()) : "");
         return Map.copyOf(s);
+    }
+
+    public Map<String, Object> buildAgentDetailModel(String agentName) {
+        AgentConfig agentConfig = config().secondaryAgents().get(agentName);
+        if (agentConfig == null) return null;
+
+        boolean enabled = agentConfig.enabled();
+        String bind = safe(agentConfig.bind());
+        int port = agentConfig.port();
+        String endpointBase = enabled ? "http://" + bind + ":" + port : "-";
+
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("name", safe(agentName));
+        m.put("authChannelId", "verification-agent:" + agentName);
+        m.put("enabled", enabled);
+        m.put("bind", bind);
+        m.put("port", port > 0 ? Integer.toString(port) : "-");
+        m.put("healthPath", enabled ? endpointBase + "/health" : "-");
+        m.put("oauthTokenPath", enabled ? endpointBase + "/oauth/token" : "-");
+        m.put("ssePath", enabled ? endpointBase + "/sse" : "-");
+        m.put("secretFile", safe(agentConfig.secretFile()));
+        return Map.copyOf(m);
+    }
+
+    public Map<String, Object> buildAgentSettingsModel(String agentName) {
+        AgentConfig ac = config().secondaryAgents().get(agentName);
+        if (ac == null) return null;
+        Map<String, Object> s = new LinkedHashMap<>();
+        s.put("enabled", ac.enabled());
+        s.put("bind", safe(ac.bind()));
+        s.put("port", ac.port());
+        return Map.copyOf(s);
+    }
+
+    public Map<String, Object> buildAgentMcpRegistration(String agentName) {
+        AgentConfig agentConfig = config().secondaryAgents().get(agentName);
+        if (agentConfig == null) return null;
+
+        String bind = safe(agentConfig.bind());
+        int port = agentConfig.port();
+        String endpointBase = port > 0 ? "http://" + bind + ":" + port : "-";
+
+        String tokenEndpoint = port > 0 ? endpointBase + "/oauth/token" : "-";
+        String sseEndpoint = port > 0 ? endpointBase + "/sse" : "-";
+
+        String tokenCommand = port > 0
+                ? """
+                curl -s -X POST "%s" \\
+                  -d "grant_type=client_credentials" \\
+                  -d "client_id=%s" \\
+                  -d "client_secret=YOUR_SECRET"
+                """.strip().formatted(tokenEndpoint, agentName)
+                : "-";
+
+        Map<String, Object> reg = new LinkedHashMap<>();
+        reg.put("agentName", safe(agentName));
+        reg.put("sseEndpoint", sseEndpoint);
+        reg.put("tokenEndpoint", tokenEndpoint);
+        reg.put("tokenCommand", tokenCommand);
+        reg.put("agentCommands", buildAgentCommands(port > 0, sseEndpoint, "konkin-" + agentName));
+        reg.put("skillPath", "documents/SKILL-auth-agent.md");
+        return Map.copyOf(reg);
     }
 
     public Map<String, Object> buildSettingsModel() {

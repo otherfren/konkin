@@ -100,7 +100,7 @@ public final class UiFormattingUtils {
     }
 
     public static String formatInstant(Instant instant) {
-        return instant == null ? "-" : TS_FORMAT.format(instant);
+        return instant == null ? "-" : TS_MINUTE_FORMAT.format(instant);
     }
 
     public static String formatRemaining(Instant expiresAt, Instant now) {

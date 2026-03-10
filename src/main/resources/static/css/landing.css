@@ -349,10 +349,7 @@ p {
     gap: 6px;
 }
 
-.sort-link:hover {
-    color: var(--accent);
-}
-
+.sort-link:hover,
 .sort-link.active {
     color: var(--accent);
 }
@@ -369,16 +366,20 @@ p {
     gap: 8px;
 }
 
-.btn-approve {
+.btn-approve,
+.btn-cancel {
     font-family: 'Share Tech Mono', monospace;
     font-size: 0.8rem;
     letter-spacing: 0.05em;
     background: transparent;
-    border: 1px solid var(--accent);
-    color: var(--accent);
     border-radius: 4px;
     padding: 4px 10px;
     cursor: pointer;
+}
+
+.btn-approve {
+    border: 1px solid var(--accent);
+    color: var(--accent);
 }
 
 .btn-approve:hover {
@@ -387,15 +388,8 @@ p {
 }
 
 .btn-cancel {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.8rem;
-    letter-spacing: 0.05em;
-    background: transparent;
     border: 1px solid var(--line);
     color: var(--muted);
-    border-radius: 4px;
-    padding: 4px 10px;
-    cursor: pointer;
 }
 
 .btn-cancel:hover {
@@ -606,23 +600,38 @@ p {
     color: var(--muted);
 }
 
-.login-input {
-    width: 100%;
+.login-input,
+.telegram-input,
+.log-filter-input,
+.log-filter-select,
+.driver-agent-select,
+.deposit-address-textarea {
     border: 1px solid var(--line);
     background: var(--bg);
     color: var(--text);
     border-radius: 4px;
-    padding: 10px 12px;
     font-family: 'Share Tech Mono', monospace;
-    font-size: 0.95rem;
 }
 
-.login-input:focus {
+.login-input:focus,
+.telegram-input:focus,
+.log-filter-input:focus,
+.log-filter-select:focus,
+.driver-agent-select:focus,
+.deposit-address-textarea:focus,
+.settings-input:focus {
     outline: none;
     border-color: var(--accent);
 }
 
-.login-button {
+.login-input {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+}
+
+.login-button,
+.telegram-button {
     border: 1px solid var(--accent);
     background: var(--accent);
     color: var(--bg);
@@ -631,6 +640,10 @@ p {
     font-family: 'Share Tech Mono', monospace;
     font-weight: 600;
     cursor: pointer;
+}
+
+.telegram-button {
+    width: fit-content;
 }
 
 .login-error {
@@ -758,67 +771,36 @@ p {
 
 .telegram-input {
     width: 100%;
-    border: 1px solid var(--line);
-    background: var(--bg);
-    color: var(--text);
-    border-radius: 4px;
     padding: 10px 12px;
-    font-family: 'Share Tech Mono', monospace;
     font-size: 0.9rem;
     resize: vertical;
     min-height: 96px;
 }
 
-.telegram-input:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-
-.telegram-button {
-    width: fit-content;
-    border: 1px solid var(--accent);
-    background: var(--accent);
-    color: var(--bg);
+/* ── shared notice styles (telegram + queue) ── */
+.telegram-notice,
+.queue-notice {
+    padding: 10px 12px;
     border-radius: 4px;
-    padding: 10px 14px;
-    font-family: 'Share Tech Mono', monospace;
-    font-weight: 600;
-    cursor: pointer;
+    font-size: 0.9rem;
 }
 
 .telegram-notice {
     margin-top: 12px;
-    padding: 10px 12px;
-    border-radius: 4px;
-    font-size: 0.9rem;
 }
 
-.telegram-notice-success {
-    border: 1px solid var(--green-border);
-    background: var(--green-bg);
-    color: var(--green);
-}
-
-.telegram-notice-error {
-    border: 1px solid var(--red-border);
-    background: var(--red-bg);
-    color: var(--red);
-}
-
-/* ── queue notices ── */
 .queue-notice {
     margin: 12px 0 14px;
-    padding: 10px 12px;
-    border-radius: 4px;
-    font-size: 0.9rem;
 }
 
+.telegram-notice-success,
 .queue-notice-success {
     border: 1px solid var(--green-border);
     background: var(--green-bg);
     color: var(--green);
 }
 
+.telegram-notice-error,
 .queue-notice-error {
     border: 1px solid var(--red-border);
     background: var(--red-bg);
@@ -834,7 +816,8 @@ p {
     background: var(--accent-dim);
 }
 
-.queue-confirm-title {
+.queue-confirm-title,
+.queue-confirm-modal-title {
     margin: 0;
     font-size: 0.84rem;
     letter-spacing: 0.1em;
@@ -881,15 +864,6 @@ p {
     padding: 16px;
 }
 
-.queue-confirm-modal-title {
-    margin: 0;
-    font-size: 0.84rem;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 400;
-}
-
 .queue-confirm-modal-copy {
     margin: 10px 0 0;
     color: var(--text);
@@ -929,15 +903,26 @@ p {
 }
 
 /* ── telegram content ── */
-.telegram-content {
+.telegram-content,
+.coins-content,
+.auth-definitions-content {
     display: grid;
     gap: 16px;
 }
 
 .telegram-table th,
-.telegram-table td {
+.telegram-table td,
+.auth-channel-table th,
+.auth-channel-table td,
+.auth-rule-table th,
+.auth-rule-table td {
     vertical-align: middle;
     text-align: center;
+}
+
+.auth-rule-table th,
+.auth-rule-table td {
+    white-space: nowrap;
 }
 
 .telegram-inline-form {
@@ -951,12 +936,9 @@ p {
 }
 
 /* ── coins ── */
-.coins-content {
-    display: grid;
-    gap: 16px;
-}
-
-.coins-subtitle {
+.coins-subtitle,
+.auth-definitions-subtitle,
+.auth-channels-subtitle {
     margin: 8px 0 0;
     color: var(--muted);
     font-size: 0.9rem;
@@ -975,7 +957,8 @@ p {
     padding: 14px;
 }
 
-.coins-card-empty {
+.coins-card-empty,
+.auth-card-empty {
     border-color: var(--line);
     background: var(--bg-soft);
 }
@@ -1000,10 +983,39 @@ p {
     font-weight: 400;
 }
 
-.coins-coin-icon {
+.coins-coin-icon,
+.auth-coin-icon {
     width: 20px;
     height: 20px;
     flex: 0 0 auto;
+}
+
+/* ── shared green/red/yellow chip styles ── */
+.coins-enabled-on,
+.coins-state-on,
+.auth-chip-on,
+.auth-channel-status-approved,
+.auth-rule-type-accept {
+    color: var(--green);
+    border-color: var(--green-border);
+    background: var(--green-bg);
+}
+
+.coins-enabled-off,
+.coins-state-off,
+.auth-chip-off,
+.auth-channel-status-pending,
+.auth-rule-type-deny {
+    color: var(--red);
+    border-color: var(--red-border);
+    background: var(--red-bg);
+}
+
+.auth-chip-warn,
+.auth-channel-status-warn {
+    color: var(--yellow);
+    border-color: var(--yellow-border);
+    background: var(--yellow-bg);
 }
 
 .coins-enabled-chip {
@@ -1015,18 +1027,6 @@ p {
     font-size: 0.7rem;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-}
-
-.coins-enabled-on {
-    color: var(--green);
-    border-color: var(--green-border);
-    background: var(--green-bg);
-}
-
-.coins-enabled-off {
-    color: var(--red);
-    border-color: var(--red-border);
-    background: var(--red-bg);
 }
 
 .coins-status-grid {
@@ -1062,18 +1062,6 @@ p {
     padding: 2px 8px;
 }
 
-.coins-state-on {
-    color: var(--green);
-    border-color: var(--green-border);
-    background: var(--green-bg);
-}
-
-.coins-state-off {
-    color: var(--red);
-    border-color: var(--red-border);
-    background: var(--red-bg);
-}
-
 .coins-balance-item {
     justify-content: flex-start;
     gap: 8px;
@@ -1084,7 +1072,9 @@ p {
     letter-spacing: 0.08em;
 }
 
-.coins-balance-toggle {
+/* ── shared reveal-toggle styles (balance + secret) ── */
+.coins-balance-toggle,
+.auth-secret-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1100,27 +1090,17 @@ p {
     padding: 0;
 }
 
-.coins-balance-toggle:hover {
+.coins-balance-toggle:hover,
+.auth-secret-toggle:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
 
-.coins-balance-toggle.is-revealed {
+.coins-balance-toggle.is-revealed,
+.auth-secret-toggle.is-revealed {
     border-color: var(--green-border);
     color: var(--green);
     background: var(--green-bg);
-}
-
-/* ── auth definitions ── */
-.auth-definitions-content {
-    display: grid;
-    gap: 16px;
-}
-
-.auth-definitions-subtitle {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 0.9rem;
 }
 
 /* ── auth channels ── */
@@ -1137,12 +1117,6 @@ p {
 .auth-channels-content .queue-title,
 .auth-channels-subtitle {
     text-align: center;
-}
-
-.auth-channels-subtitle {
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 0.9rem;
 }
 
 .auth-channels-content .telegram-empty {
@@ -1164,22 +1138,32 @@ p {
     text-align: center;
 }
 
-/* ── auth kv grid ── */
-.auth-kv-grid {
+/* ── shared kv/meta grid styles ── */
+.auth-kv-grid,
+.auth-meta-grid {
     margin-top: 12px;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 10px;
 }
 
-.auth-kv-item {
+.auth-kv-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.auth-meta-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.auth-kv-item,
+.auth-meta-item {
     border: 1px solid var(--line);
     border-radius: 4px;
     padding: 10px;
     background: var(--bg);
 }
 
-.auth-kv-label {
+.auth-kv-label,
+.auth-meta-label {
     display: block;
     font-size: 0.68rem;
     color: var(--muted);
@@ -1187,7 +1171,8 @@ p {
     letter-spacing: 0.08em;
 }
 
-.auth-kv-value {
+.auth-kv-value,
+.auth-meta-value {
     display: block;
     margin-top: 4px;
     color: var(--text);
@@ -1199,10 +1184,8 @@ p {
     font-size: 0.82rem;
 }
 
-.auth-channel-table th,
 .auth-channel-table td {
-    text-align: center;
-    vertical-align: middle;
+    white-space: nowrap;
 }
 
 .auth-channel-status {
@@ -1213,18 +1196,6 @@ p {
     font-size: 0.66rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-}
-
-.auth-channel-status-approved {
-    color: var(--green);
-    border-color: var(--green-border);
-    background: var(--green-bg);
-}
-
-.auth-channel-status-pending {
-    color: var(--red);
-    border-color: var(--red-border);
-    background: var(--red-bg);
 }
 
 .auth-channel-secret-wrap {
@@ -1319,24 +1290,6 @@ p {
     text-transform: uppercase;
 }
 
-.auth-chip-on {
-    color: var(--green);
-    border-color: var(--green-border);
-    background: var(--green-bg);
-}
-
-.auth-chip-off {
-    color: var(--red);
-    border-color: var(--red-border);
-    background: var(--red-bg);
-}
-
-.auth-chip-warn {
-    color: var(--yellow);
-    border-color: var(--yellow-border);
-    background: var(--yellow-bg);
-}
-
 /* ── auth card ── */
 .auth-card {
     padding: 16px;
@@ -1347,11 +1300,6 @@ p {
 
 .auth-card-disabled {
     opacity: 0.55;
-}
-
-.auth-card-empty {
-    border-color: var(--line);
-    background: var(--bg-soft);
 }
 
 .auth-card-header {
@@ -1376,41 +1324,6 @@ p {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-}
-
-.auth-coin-icon {
-    width: 20px;
-    height: 20px;
-    flex: 0 0 auto;
-}
-
-/* ── auth meta grid ── */
-.auth-meta-grid {
-    margin-top: 12px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 10px;
-}
-
-.auth-meta-item {
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    padding: 10px;
-    background: var(--bg);
-}
-
-.auth-meta-label {
-    display: block;
-    font-size: 0.68rem;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-
-.auth-meta-value {
-    display: block;
-    margin-top: 4px;
-    color: var(--text);
 }
 
 .auth-inline-meta {
@@ -1455,33 +1368,6 @@ p {
 
 .auth-secret-value {
     letter-spacing: 0.08em;
-}
-
-.auth-secret-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 24px;
-    border: 1px solid rgba(212, 146, 42, 0.35);
-    border-radius: 4px;
-    background: var(--accent-dim);
-    color: var(--gold);
-    cursor: pointer;
-    line-height: 1;
-    font-size: 0.85rem;
-    padding: 0;
-}
-
-.auth-secret-toggle:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.auth-secret-toggle.is-revealed {
-    border-color: var(--green-border);
-    color: var(--green);
-    background: var(--green-bg);
 }
 
 /* ── auth channel grid ── */
@@ -1574,10 +1460,20 @@ p {
     font-size: 0.82rem;
 }
 
-.auth-rule-table th,
-.auth-rule-table td {
-    text-align: center;
-    white-space: nowrap;
+.auth-rule-type {
+    display: inline-flex;
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-size: 0.66rem;
+    letter-spacing: 0.04em;
+}
+
+.auth-rule-type-accept {
+    border: 1px solid var(--green-border);
+}
+
+.auth-rule-type-deny {
+    border: 1px solid var(--red-border);
 }
 
 .auth-definitions-content .queue-table th,
@@ -1589,26 +1485,6 @@ p {
 .auth-definitions-content .queue-table td .auth-secret,
 .auth-definitions-content .queue-table td .auth-channel-secret-wrap {
     justify-content: center;
-}
-
-.auth-rule-type {
-    display: inline-flex;
-    border-radius: 3px;
-    padding: 3px 8px;
-    font-size: 0.66rem;
-    letter-spacing: 0.04em;
-}
-
-.auth-rule-type-accept {
-    color: var(--green);
-    background: var(--green-bg);
-    border: 1px solid var(--green-border);
-}
-
-.auth-rule-type-deny {
-    color: var(--red);
-    background: var(--red-bg);
-    border: 1px solid var(--red-border);
 }
 
 .auth-chip-row-tight {
@@ -1638,19 +1514,9 @@ p {
 }
 
 .driver-agent-select {
-    font-family: 'Share Tech Mono', monospace;
     font-size: 0.8rem;
     padding: 5px 10px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--text);
     cursor: pointer;
-    outline: none;
-}
-
-.driver-agent-select:focus {
-    border-color: var(--accent);
 }
 
 .driver-command-block {
@@ -1888,7 +1754,8 @@ p {
 }
 
 .details-timeline-item.tl-denied::before,
-.details-timeline-item.tl-vote-deny::before {
+.details-timeline-item.tl-vote-deny::before,
+.details-timeline-item.tl-failed::before {
     background: var(--red);
 }
 
@@ -1899,10 +1766,6 @@ p {
 
 .details-timeline-item.tl-executed::before {
     background: var(--accent);
-}
-
-.details-timeline-item.tl-failed::before {
-    background: var(--red);
 }
 
 .details-timeline-item.tl-delivered::before {
@@ -1984,36 +1847,18 @@ p {
     margin-bottom: 10px;
 }
 
-.log-filter-input {
-    font-family: 'Share Tech Mono', monospace;
+.log-filter-input,
+.log-filter-select {
     font-size: 0.78rem;
     padding: 5px 10px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--text);
-    outline: none;
+}
+
+.log-filter-input {
     min-width: 160px;
 }
 
-.log-filter-input:focus {
-    border-color: var(--accent);
-}
-
 .log-filter-select {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 0.78rem;
-    padding: 5px 10px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--text);
     cursor: pointer;
-    outline: none;
-}
-
-.log-filter-select:focus {
-    border-color: var(--accent);
 }
 
 .log-filter-btn {
@@ -2036,7 +1881,8 @@ p {
     flex: 0 0 260px;
 }
 
-.quorum-panel {
+.quorum-panel,
+.deposit-address-panel {
     padding: 14px 16px;
     background: var(--bg);
     border: 1px solid var(--line);
@@ -2052,13 +1898,6 @@ p {
     display: block;
 }
 
-.deposit-address-panel {
-    padding: 14px 16px;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 4px;
-}
-
 .deposit-address-panel h4 {
     margin: 0 0 10px;
 }
@@ -2072,21 +1911,12 @@ p {
 .deposit-address-textarea {
     flex: 1;
     resize: none;
-    font-family: 'Share Tech Mono', monospace;
     font-size: 0.8rem;
     letter-spacing: 0.04em;
-    color: var(--text);
     background: var(--bg-soft);
-    border: 1px solid var(--line);
-    border-radius: 4px;
     padding: 8px 10px;
     line-height: 1.4;
     word-break: break-all;
-}
-
-.deposit-address-textarea:focus {
-    outline: none;
-    border-color: var(--accent);
 }
 
 .deposit-copy-btn {
@@ -2184,7 +2014,9 @@ p {
     opacity: 0.7;
 }
 
-.incoming-tx-status {
+/* ── shared inline badge styles (tx status + direction) ── */
+.incoming-tx-status,
+.tx-direction {
     display: inline-block;
     padding: 2px 8px;
     font-size: 0.7rem;
@@ -2203,16 +2035,6 @@ p {
     color: var(--yellow);
     background: var(--yellow-bg);
     border: 1px solid var(--yellow-border);
-}
-
-/* ── transaction direction ── */
-.tx-direction {
-    display: inline-block;
-    padding: 2px 8px;
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    border-radius: 3px;
 }
 
 .tx-direction-incoming {
@@ -2415,11 +2237,6 @@ p {
     font-size: 0.85rem;
     padding: 6px 10px;
     border-radius: 4px;
-}
-
-.settings-input:focus {
-    outline: none;
-    border-color: var(--accent);
 }
 
 .settings-select {

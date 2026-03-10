@@ -87,6 +87,7 @@ public class McpAuthServletFilter implements Filter {
             return;
         }
 
+        tokenStore.recordActivity(agentName);
         chain.doFilter(servletRequest, servletResponse);
     }
 

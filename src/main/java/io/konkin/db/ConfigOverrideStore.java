@@ -32,6 +32,7 @@ public class ConfigOverrideStore {
     private static final String UPSERT = "MERGE INTO config_overrides (\"key\", \"value\", last_edit) VALUES (:key, :value, :lastEdit)";
     private static final String SELECT_ALL = "SELECT \"key\", \"value\" FROM config_overrides ORDER BY \"key\"";
     private static final String DELETE_KEY = "DELETE FROM config_overrides WHERE \"key\" = :key";
+    private static final String DELETE_BY_PREFIX = "DELETE FROM config_overrides WHERE \"key\" LIKE :prefix";
     private static final String DELETE_ALL = "DELETE FROM config_overrides";
 
     private final Jdbi jdbi;
@@ -68,6 +69,14 @@ public class ConfigOverrideStore {
         jdbi.useHandle(h ->
                 h.createUpdate(DELETE_KEY)
                         .bind("key", key)
+                        .execute()
+        );
+    }
+
+    public void deleteByPrefix(String prefix) {
+        jdbi.useHandle(h ->
+                h.createUpdate(DELETE_BY_PREFIX)
+                        .bind("prefix", prefix + "%")
                         .execute()
         );
     }

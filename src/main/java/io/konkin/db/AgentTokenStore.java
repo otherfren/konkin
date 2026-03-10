@@ -26,6 +26,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Persists agent bearer tokens in the H2 database so they survive server restarts.
@@ -70,6 +72,7 @@ public class AgentTokenStore {
 
     private final SecureRandom secureRandom = new SecureRandom();
     private final Jdbi jdbi;
+    private final ConcurrentMap<String, Instant> lastActivityByAgent = new ConcurrentHashMap<>();
 
     public AgentTokenStore(DataSource dataSource) {
         this.jdbi = JdbiFactory.create(dataSource);
@@ -100,12 +103,29 @@ public class AgentTokenStore {
         }
 
         String tokenHash = sha256Hex(token);
-        return jdbi.withHandle(h ->
+        Optional<String> agentName = jdbi.withHandle(h ->
                 h.createQuery(SELECT_BY_TOKEN_HASH)
                         .bind("tokenHash", tokenHash)
                         .mapTo(String.class)
                         .findOne()
         );
+        return agentName;
+    }
+
+    /**
+     * Records an authenticated request for the given agent.
+     * Must be called only after confirming the token belongs to this agent.
+     */
+    public void recordActivity(String agentName) {
+        lastActivityByAgent.put(agentName, Instant.now());
+    }
+
+    /**
+     * Returns the last time an MCP request was authenticated for the given agent,
+     * or empty if no activity has been recorded since server start.
+     */
+    public Optional<Instant> lastActivity(String agentName) {
+        return Optional.ofNullable(lastActivityByAgent.get(agentName));
     }
 
     public boolean hasTokens(String agentName) {

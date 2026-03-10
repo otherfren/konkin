@@ -66,7 +66,7 @@ class UiFormattingUtilsTest {
     @Test void formatInstantNull() { assertEquals("-", UiFormattingUtils.formatInstant(null)); }
     @Test void formatInstantValue() {
         Instant i = Instant.parse("2026-01-15T10:30:00Z");
-        assertEquals("2026-01-15 10:30:00 UTC", UiFormattingUtils.formatInstant(i));
+        assertEquals("2026-01-15 10:30", UiFormattingUtils.formatInstant(i));
     }
 
     // ── formatInstantMinute ──
