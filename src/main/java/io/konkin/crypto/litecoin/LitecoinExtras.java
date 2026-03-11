@@ -22,6 +22,9 @@ public final class LitecoinExtras {
     public static final String FEE_CAP_NATIVE = "feeCapNative";
     public static final String MEMO = "memo";
     public static final String WALLET_NAME = "walletName";
+    public static final String NETWORK = "network";
+    public static final String SIGNING_ADDRESS = "signingAddress";
+    public static final String CONFIG_FILE_PATH = "configFilePath";
 
     private LitecoinExtras() {}
 }

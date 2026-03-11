@@ -298,7 +298,8 @@ public class LandingPageController {
                 telegramConfirmChatIdShort,
                 telegramConfirmActionPath,
                 WebUtils.csrfTokenForSession(ctx),
-                mapper.buildTelegramSettingsModel()
+                mapper.buildTelegramSettingsModel(
+                        telegramWebController != null ? telegramWebController.telegramSecretService() : null)
         ));
     }
 

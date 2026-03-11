@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static io.konkin.web.UiFormattingUtils.*;
 import static io.konkin.web.WebUtils.*;
@@ -41,12 +42,14 @@ public class TelegramWebController {
     private static final Logger log = LoggerFactory.getLogger(TelegramWebController.class);
 
     private final List<String> configuredTelegramChatIds;
-    private final TelegramService telegramService;
+    private volatile TelegramService telegramService;
     private final TelegramSecretService telegramSecretService;
     private final LandingPageService landingPageService;
     private final boolean passwordProtectionEnabled;
     private Map<String, Instant> activeSessions;
     private LandingPageController landingPageController;
+    private volatile Consumer<TelegramService> telegramServiceReloadCallback;
+    private volatile String apiBaseUrl;
 
     public TelegramWebController(
             List<String> configuredTelegramChatIds,
@@ -70,6 +73,22 @@ public class TelegramWebController {
 
     public void setActiveSessions(Map<String, Instant> activeSessions) {
         this.activeSessions = activeSessions;
+    }
+
+    public void setApiBaseUrl(String apiBaseUrl) {
+        this.apiBaseUrl = apiBaseUrl;
+    }
+
+    public void setTelegramServiceReloadCallback(Consumer<TelegramService> callback) {
+        this.telegramServiceReloadCallback = callback;
+    }
+
+    public void setTelegramService(TelegramService telegramService) {
+        this.telegramService = telegramService;
+    }
+
+    public TelegramSecretService telegramSecretService() {
+        return telegramSecretService;
     }
 
     // ── Action handlers ────────────────────────────────────────────────────
@@ -206,6 +225,11 @@ public class TelegramWebController {
             return;
         }
 
+        if (telegramService == null) {
+            renderTelegramPage(ctx, "Telegram is not connected — configure the bot token in Settings first.", true, messageInput, null);
+            return;
+        }
+
         List<String> targetChatIds = approvedChatIds();
         TelegramService.SendResult result = telegramService.sendMessage(messageText, targetChatIds);
         if (result.success()) {
@@ -239,10 +263,96 @@ public class TelegramWebController {
 
     public record TelegramConfirmData(String mode, String chatId) {}
 
+    // ── Bot token test & save ───────────────────────────────────────────────
+
+    @SuppressWarnings("unchecked")
+    public void handleTestToken(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            ctx.status(401).json(Map.of("success", false, "error", "Unauthorized"));
+            return;
+        }
+
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String botToken = body.get("bot-token") instanceof String s ? s.trim() : "";
+        if (botToken.isEmpty()) {
+            ctx.json(Map.of("success", false, "error", "Bot token cannot be empty"));
+            return;
+        }
+
+        String baseUrl = apiBaseUrl != null ? apiBaseUrl : "https://api.telegram.org";
+        String error = TelegramService.testBotToken(baseUrl, botToken);
+        if (error != null) {
+            ctx.json(Map.of("success", false, "error", error));
+        } else {
+            ctx.json(Map.of("success", true));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void handleSaveBotToken(Context ctx) {
+        if (passwordProtectionEnabled && !WebUtils.hasValidSession(ctx, activeSessions)) {
+            ctx.status(401).json(Map.of("success", false, "error", "Unauthorized"));
+            return;
+        }
+
+        Map<String, Object> body = ctx.bodyAsClass(Map.class);
+        String botToken = body.get("bot-token") instanceof String s ? s.trim() : "";
+        if (botToken.isEmpty()) {
+            ctx.json(Map.of("success", false, "error", "Bot token cannot be empty"));
+            return;
+        }
+
+        // Test connection first
+        String baseUrl = apiBaseUrl != null ? apiBaseUrl : "https://api.telegram.org";
+        String testError = TelegramService.testBotToken(baseUrl, botToken);
+        if (testError != null) {
+            ctx.json(Map.of("success", false, "error", "Connection test failed: " + testError));
+            return;
+        }
+
+        // Save to secret file
+        TelegramSecretService.TelegramSecret current = telegramSecretService.readSecret();
+        TelegramSecretService.TelegramSecret updated = new TelegramSecretService.TelegramSecret(
+                botToken, current.chatIds(), current.chatMetaById()
+        );
+        if (!telegramSecretService.writeSecret(updated)) {
+            ctx.json(Map.of("success", false, "error", "Failed to write secret file"));
+            return;
+        }
+
+        // Hot-reload: create new TelegramService and swap it in
+        List<String> approvedChatIds = TelegramSecretService.mergeChatIds(configuredTelegramChatIds, current.chatIds());
+        TelegramService newService = new TelegramService(baseUrl, botToken, approvedChatIds);
+        this.telegramService = newService;
+
+        Consumer<TelegramService> callback = telegramServiceReloadCallback;
+        if (callback != null) {
+            callback.accept(newService);
+        }
+
+        log.info("Bot token updated and connection verified via web UI");
+
+        // Mask the token for the response
+        String masked = maskBotToken(botToken);
+        ctx.json(Map.of("success", true, "maskedToken", masked));
+    }
+
+    public static String maskBotToken(String token) {
+        if (token == null || token.isBlank()) {
+            return "not configured";
+        }
+        if (token.length() <= 8) {
+            return "*".repeat(token.length());
+        }
+        return "*".repeat(token.length() - 4) + token.substring(token.length() - 4);
+    }
+
     // ── Data loading ───────────────────────────────────────────────────────
 
     public TelegramPageData loadTelegramPageData() {
-        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService != null
+                ? telegramService.discoverChatRequests()
+                : List.of();
         if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
             log.warn("Failed to persist discovered Telegram chat metadata");
         }
@@ -341,7 +451,9 @@ public class TelegramWebController {
     }
 
     public DiscoveredChats discoverAndPersistChats() {
-        List<TelegramService.ChatRequest> discoveredRequests = telegramService.discoverChatRequests();
+        List<TelegramService.ChatRequest> discoveredRequests = telegramService != null
+                ? telegramService.discoverChatRequests()
+                : List.of();
         if (!telegramSecretService.rememberDiscoveredChats(discoveredRequests)) {
             log.warn("Failed to persist discovered Telegram chat metadata for auth_channels page");
         }

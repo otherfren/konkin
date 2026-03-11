@@ -210,9 +210,15 @@
             <#if verificationAgents?size gt 0>
                 <div class="auth-chip-row auth-chip-row-tight">
                     <#list verificationAgents as agent>
-                        <span class="auth-chip <#if (agent.enabled!false)>auth-chip-on<#else>auth-chip-off</#if>">
-                            ${(agent.name!'unknown')} @ ${(agent.connectUrl!'unknown')}:${(agent.port!'unknown')}
-                        </span>
+                        <#if (agent.enabled!false)>
+                            <span class="auth-chip auth-chip-on">
+                                ${(agent.name!'unknown')} @ ${(agent.connectUrl!'unknown')}:${(agent.port!'unknown')}
+                            </span>
+                        <#else>
+                            <span class="auth-chip auth-chip-warn">
+                                ${(agent.name!'unknown')} — no mcp auth channel configured
+                            </span>
+                        </#if>
                     </#list>
                 </div>
             </#if>

@@ -146,6 +146,19 @@ final class SecretFileBootstrapper {
                     defaultMoneroWalletRpcSecretContent()
             );
         }
+
+        if (config.litecoin().enabled()) {
+            ensureSecretFileExists(
+                    Path.of(config.litecoin().daemonConfigSecretFile()),
+                    "coins.litecoin.secret-files.litecoin-daemon-config-file",
+                    defaultLitecoinDaemonSecretContent()
+            );
+            ensureSecretFileExists(
+                    Path.of(config.litecoin().walletConfigSecretFile()),
+                    "coins.litecoin.secret-files.litecoin-wallet-config-file",
+                    defaultLitecoinWalletSecretContent()
+            );
+        }
         return freshlyCreated;
     }
 
@@ -176,6 +189,10 @@ final class SecretFileBootstrapper {
         if (config.monero().enabled()) {
             paths.add(config.monero().daemonConfigSecretFile());
             paths.add(config.monero().walletConfigSecretFile());
+        }
+        if (config.litecoin().enabled()) {
+            paths.add(config.litecoin().daemonConfigSecretFile());
+            paths.add(config.litecoin().walletConfigSecretFile());
         }
 
         // REST API secret file
@@ -324,6 +341,26 @@ final class SecretFileBootstrapper {
                 # Fill with your wallet details.
                 wallet=REPLACE_WITH_BITCOIN_WALLET_NAME
                 wallet-passphrase=REPLACE_WITH_BITCOIN_WALLET_PASSPHRASE
+                """;
+    }
+
+    private static String defaultLitecoinDaemonSecretContent() {
+        return """
+                # KONKIN Litecoin daemon secret config
+                # Fill with your node RPC credentials.
+                rpcuser=REPLACE_WITH_LITECOIN_RPC_USER
+                rpcpassword=REPLACE_WITH_LITECOIN_RPC_PASSWORD
+                rpcconnect=127.0.0.1
+                rpcport=9332
+                """;
+    }
+
+    private static String defaultLitecoinWalletSecretContent() {
+        return """
+                # KONKIN Litecoin wallet secret config
+                # Fill with your wallet details.
+                wallet=REPLACE_WITH_LITECOIN_WALLET_NAME
+                wallet-passphrase=REPLACE_WITH_LITECOIN_WALLET_PASSPHRASE
                 """;
     }
 

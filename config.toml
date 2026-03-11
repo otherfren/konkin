@@ -1,180 +1,181 @@
 config-version = 1
 
 [web-ui]
-enabled = true
+	enabled = true
 
-[web-ui.template]
-directory = "./src/main/resources/templates"
+	[web-ui.template]
+		directory = "./src/main/resources/templates"
 
-[web-ui.static]
-hosted-path = "/assets"
-directory = "./src/main/resources/static"
+	[web-ui.static]
+		hosted-path = "/assets"
+		directory = "./src/main/resources/static"
 
-[web-ui.auto-reload]
-assets-enabled = true
-enabled = true
+	[web-ui.auto-reload]
+		assets-enabled = true
+		enabled = true
 
-[web-ui.password-protection]
-# rotate keys by deleting the referenced file
-password-file = "{secrets-dir}/web-ui.password"
-enabled = true
+	[web-ui.password-protection]
+		# rotate keys by deleting the referenced file
+		password-file = "{secrets-dir}/web-ui.password"
+		enabled = true
 
 [rest-api]
-# auto-generated when missing
-secret-file = "{secrets-dir}/rest-api.secret"
-enabled = true
+	# auto-generated when missing
+	secret-file = "{secrets-dir}/rest-api.secret"
+	enabled = true
 
 [server]
-log-rotate-max-size-mb = 10
-port = 7070
-log-level = "info"
-secrets-dir = "./secrets"
-host = "127.0.0.1"
-log-file = "./logs/konkin.log"
+	log-rotate-max-size-mb = 10
+	port = 7070
+	log-level = "info"
+	secrets-dir = "./secrets"
+	host = "127.0.0.1"
+	log-file = "./logs/konkin.log"
 
 [database]
-pool-size = 5
-password = "sa"
-user = "sa"
-url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
+	pool-size = 5
+	password = "sa"
+	user = "sa"
+	url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
 
 [debug]
-seed-fake-data = false
-enabled = false
+	seed-fake-data = false
+	enabled = false
 
-[coins.litecoin]
-enabled = false
+	[coins.litecoin]
+		enabled = true
 
-[coins.litecoin.secret-files]
-litecoin-wallet-config-file = "{secrets-dir}/litecoin-wallet.conf"
-litecoin-daemon-config-file = "{secrets-dir}/litecoin-daemon.conf"
+		[coins.litecoin.secret-files]
+			litecoin-wallet-config-file = "{secrets-dir}/litecoin-wallet.conf"
+			litecoin-daemon-config-file = "{secrets-dir}/litecoin-daemon.conf"
 
-#example values for future litecoin auth config
-[coins.litecoin.auth]
-web-ui = true
-rest-api = true
-telegram = false
-mcp = "ltc-main"
-min-approvals-required = 1
-[[coins.litecoin.auth.auto-deny]]
-[coins.litecoin.auth.auto-deny.criteria]
-period = "48h"
-type = "cumulated-value-gt"
-value = 8.0
+		#example values for future litecoin auth config
+		[coins.litecoin.auth]
+			web-ui = true
+			rest-api = false
+			telegram = true
+			mcp = "ltc-main"
+			veto-channels = ["web-ui"]
+			min-approvals-required = 1
+				[[coins.litecoin.auth.auto-deny]]
+					[coins.litecoin.auth.auto-deny.criteria]
+						period = "48h"
+						type = "cumulated-value-gt"
+						value = 8.0
 
-[[coins.litecoin.auth.auto-accept]]
-[coins.litecoin.auth.auto-accept.criteria]
-type = "value-lt"
-value = 1.25
+				[[coins.litecoin.auth.auto-accept]]
+					[coins.litecoin.auth.auto-accept.criteria]
+						type = "value-lt"
+						value = 1.25
 
-[coins.monero]
-enabled = true
+	[coins.monero]
+		enabled = true
 
-[coins.monero.secret-files]
-monero-daemon-config-file = "{secrets-dir}/monero-daemon.conf"
-monero-wallet-rpc-config-file = "{secrets-dir}/monero-wallet-rpc.conf"
+		[coins.monero.secret-files]
+			monero-daemon-config-file = "{secrets-dir}/monero-daemon.conf"
+			monero-wallet-rpc-config-file = "{secrets-dir}/monero-wallet-rpc.conf"
 
-[coins.monero.auth]
-web-ui = true
-rest-api = false
-telegram = true
-mcp = "xmr-main"
-veto-channels = ["telegram", "web-ui"]
-mcp-auth-channels = ["agent-merlin"]
-min-approvals-required = 2
-[[coins.monero.auth.auto-deny]]
-[coins.monero.auth.auto-deny.criteria]
-period = "24h"
-type = "cumulated-value-gt"
-value = 5
+		[coins.monero.auth]
+			web-ui = true
+			rest-api = false
+			telegram = true
+			mcp = "xmr-main"
+			veto-channels = ["telegram", "web-ui"]
+			mcp-auth-channels = ["agent-merlin"]
+			min-approvals-required = 2
+				[[coins.monero.auth.auto-deny]]
+					[coins.monero.auth.auto-deny.criteria]
+						period = "24h"
+						type = "cumulated-value-gt"
+						value = 5
 
-[[coins.monero.auth.auto-accept]]
-[coins.monero.auth.auto-accept.criteria]
-type = "value-lt"
-value = 0.01
+				[[coins.monero.auth.auto-accept]]
+					[coins.monero.auth.auto-accept.criteria]
+						type = "value-lt"
+						value = 0.01
 
-[coins.testdummycoin]
-enabled = false
+	[coins.testdummycoin]
+		enabled = false
 
-[coins.testdummycoin.auth]
-web-ui = true
-rest-api = true
-telegram = true
-mcp = "tdc-main"
-mcp-auth-channels = ["agent-arthur"]
-min-approvals-required = 1
+		[coins.testdummycoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = true
+			mcp = "tdc-main"
+			mcp-auth-channels = ["agent-arthur"]
+			min-approvals-required = 1
 
-[coins.bitcoin]
-signing-address = "mzHczkFvqn5DwcRc62Q1cym4ns33ygShEU"
-enabled = true
+	[coins.bitcoin]
+		signing-address = "mzHczkFvqn5DwcRc62Q1cym4ns33ygShEU"
+		enabled = true
 
-[coins.bitcoin.secret-files]
-bitcoin-wallet-config-file = "{secrets-dir}/bitcoin-wallet.conf"
-# files are auto-generated on startup when missing
-bitcoin-daemon-config-file = "{secrets-dir}/bitcoin-daemon.conf"
+		[coins.bitcoin.secret-files]
+			bitcoin-wallet-config-file = "{secrets-dir}/bitcoin-wallet.conf"
+			# files are auto-generated on startup when missing
+			bitcoin-daemon-config-file = "{secrets-dir}/bitcoin-daemon.conf"
 
-[coins.bitcoin.auth]
-web-ui = true
-rest-api = true
-telegram = true
-auto-accept = []
-veto-channels = ["telegram", "agent-merlin", "web-ui"]
-# MCP auth channel identifiers shown in Auth Definitions
-mcp-auth-channels = ["agent-arthur", "agent-merlin"]
-min-approvals-required = 2
-#[[coins.bitcoin.auth.auto-accept]]
-#[coins.bitcoin.auth.auto-accept.criteria]
-#type = "value-lt"
-#value = 0.01
-#
-#[[coins.bitcoin.auth.auto-accept]]
-#[coins.bitcoin.auth.auto-accept.criteria]
-#type = "cumulated-value-lt"
-#value = 0.6
-#period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
-[[coins.bitcoin.auth.auto-deny]]
+		[coins.bitcoin.auth]
+			web-ui = true
+			rest-api = true
+			telegram = true
+			auto-accept = []
+			veto-channels = ["telegram", "agent-merlin", "web-ui"]
+			# MCP auth channel identifiers shown in Auth Definitions
+			mcp-auth-channels = ["agent-arthur", "agent-merlin"]
+			min-approvals-required = 2
+			#[[coins.bitcoin.auth.auto-accept]]
+			#[coins.bitcoin.auth.auto-accept.criteria]
+			#type = "value-lt"
+			#value = 0.01
+			#
+			#[[coins.bitcoin.auth.auto-accept]]
+			#[coins.bitcoin.auth.auto-accept.criteria]
+			#type = "cumulated-value-lt"
+			#value = 0.6
+			#period = "24h" # duration examples: 24h, 7d 2h, 7 days and 2 hours (ISO still supported)
+			[[coins.bitcoin.auth.auto-deny]]
 
-[coins.bitcoin.auth.auto-deny.criteria]
-type = "value-gt"
-value = 0.5
+				[coins.bitcoin.auth.auto-deny.criteria]
+					type = "value-gt"
+					value = 0.5
 
 [telegram]
-api-base-url = "https://api.telegram.org"
-secret-file = "{secrets-dir}/telegram.secret"
-enabled = true
-auto-deny-timeout = "3m"
+	api-base-url = "https://api.telegram.org"
+	secret-file = "{secrets-dir}/telegram.secret"
+	enabled = true
+	auto-deny-timeout = "3m"
 
-[agents.secondary.agent-arthur]
-bind = "127.0.0.1"
-visible = true
-port = 9560
-secret-file = "{secrets-dir}/agent-arthur.secret"
+		[agents.secondary.agent-arthur]
+			bind = "127.0.0.1"
+			visible = true
+			port = 9560
+			secret-file = "{secrets-dir}/agent-arthur.secret"
 
-[agents.secondary.agent-morgana]
-bind = "127.0.0.1"
-visible = false
-port = 9564
-secret-file = "{secrets-dir}/agent-morgana.secret"
+		[agents.secondary.agent-morgana]
+			bind = "127.0.0.1"
+			visible = false
+			port = 9564
+			secret-file = "{secrets-dir}/agent-morgana.secret"
 
-[agents.secondary.agent-lancelot]
-bind = "127.0.0.1"
-visible = false
-port = 9562
-secret-file = "{secrets-dir}/agent-lancelot.secret"
+		[agents.secondary.agent-lancelot]
+			bind = "127.0.0.1"
+			visible = false
+			port = 9562
+			secret-file = "{secrets-dir}/agent-lancelot.secret"
 
-[agents.secondary.agent-merlin]
-bind = "127.0.0.1"
-visible = false
-port = 9561
-secret-file = "{secrets-dir}/agent-merlin.secret"
+		[agents.secondary.agent-merlin]
+			bind = "127.0.0.1"
+			visible = false
+			port = 9561
+			secret-file = "{secrets-dir}/agent-merlin.secret"
 
-[agents.secondary.agent-guinevere]
-bind = "127.0.0.1"
-visible = false
-port = 9563
-secret-file = "{secrets-dir}/agent-guinevere.secret"
+		[agents.secondary.agent-guinevere]
+			bind = "127.0.0.1"
+			visible = false
+			port = 9563
+			secret-file = "{secrets-dir}/agent-guinevere.secret"
 
-[agents.primary]
-bind = "127.0.0.1"
-port = 9550
-secret-file = "{secrets-dir}/agent-primary.secret"
+	[agents.primary]
+		bind = "127.0.0.1"
+		port = 9550
+		secret-file = "{secrets-dir}/agent-primary.secret"

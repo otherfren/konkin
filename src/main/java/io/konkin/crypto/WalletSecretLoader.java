@@ -17,6 +17,7 @@
 package io.konkin.crypto;
 
 import io.konkin.crypto.bitcoin.BitcoinExtras;
+import io.konkin.crypto.litecoin.LitecoinExtras;
 import io.konkin.crypto.monero.MoneroExtras;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,32 @@ public final class WalletSecretLoader {
                 rpcUrl, walletName.isEmpty() ? "(default)" : walletName, extras.get(BitcoinExtras.NETWORK));
 
         return new WalletConnectionConfig(Coin.BTC, rpcUrl, rpcUser, rpcPassword, extras);
+    }
+
+    public static WalletConnectionConfig loadLitecoin(String daemonSecretPath, String walletSecretPath) {
+        Properties daemon = loadProperties(Path.of(daemonSecretPath), "litecoin daemon");
+        Properties wallet = loadProperties(Path.of(walletSecretPath), "litecoin wallet");
+
+        String rpcUser = daemon.getProperty("rpcuser", "").trim();
+        String rpcPassword = daemon.getProperty("rpcpassword", "").trim();
+        String rpcConnect = daemon.getProperty("rpcconnect", "127.0.0.1").trim();
+        String rpcPort = daemon.getProperty("rpcport", "9332").trim();
+
+        warnIfNotLoopback(rpcConnect, "Litecoin RPC");
+        String rpcUrl = "http://" + rpcConnect + ":" + rpcPort;
+
+        String walletName = wallet.getProperty("wallet", "").trim();
+
+        Map<String, String> extras = new LinkedHashMap<>();
+        if (!walletName.isEmpty()) {
+            extras.put(LitecoinExtras.WALLET_NAME, walletName);
+        }
+        extras.put(LitecoinExtras.NETWORK, detectLitecoinNetwork(rpcPort));
+
+        log.info("Loaded Litecoin wallet config — rpcUrl={}, wallet={}, network={}",
+                rpcUrl, walletName.isEmpty() ? "(default)" : walletName, extras.get(LitecoinExtras.NETWORK));
+
+        return new WalletConnectionConfig(Coin.LTC, rpcUrl, rpcUser, rpcPassword, extras);
     }
 
     public static WalletConnectionConfig loadMonero(String daemonSecretPath, String walletRpcSecretPath) {
@@ -157,6 +184,14 @@ public final class WalletSecretLoader {
             case "18332", "18443" -> "testnet";
             case "38332" -> "signet";
             case "18444" -> "regtest";
+            default -> "mainnet";
+        };
+    }
+
+    private static String detectLitecoinNetwork(String port) {
+        return switch (port) {
+            case "19332" -> "testnet";
+            case "19443" -> "regtest";
             default -> "mainnet";
         };
     }

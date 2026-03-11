@@ -179,6 +179,7 @@ public class WalletController {
         if (coinId == null) return null;
         return switch (coinId.toLowerCase(Locale.ROOT)) {
             case "bitcoin" -> Coin.BTC;
+            case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
             default -> null;
         };

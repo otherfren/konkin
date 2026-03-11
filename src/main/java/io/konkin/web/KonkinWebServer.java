@@ -184,6 +184,21 @@ public class KonkinWebServer {
             }
         }
 
+        if (config.litecoin().enabled()) {
+            try {
+                WalletConnectionConfig ltcConfig = WalletSecretLoader.loadLitecoin(
+                        config.litecoin().daemonConfigSecretFile(),
+                        config.litecoin().walletConfigSecretFile()
+                );
+                ltcConfig = withLitecoinExtras(ltcConfig, config);
+                WalletSupervisor ltcSupervisor = new WalletSupervisor(ltcConfig, new io.konkin.crypto.litecoin.LitecoinWalletFactory());
+                ltcSupervisor.start();
+                walletSupervisors.put(Coin.LTC, ltcSupervisor);
+            } catch (Exception e) {
+                log.warn("Failed to start Litecoin wallet supervisor: {}", e.getMessage());
+            }
+        }
+
         LandingPageController landingPageController = null;
         WalletController walletController = null;
         SettingsController settingsController = null;
@@ -194,58 +209,55 @@ public class KonkinWebServer {
         TelegramService telegramService = null;
         TelegramSecretService telegramSecretService = null;
         TelegramWebController telegramWebController = null;
+        boolean telegramDegraded = false;
 
         if (config.telegramEnabled()) {
             Path secretFile = Path.of(config.telegramSecretFile());
             telegramSecretService = new TelegramSecretService(secretFile);
 
             if (!telegramSecretService.ensureExists()) {
-                logTelegramStartupAction(
-                        "Secret file could not be created.",
-                        "KONKIN kept startup in safe mode and did not start HTTP services.",
-                        secretFile
-                );
-                return;
+                log.warn("Telegram secret file could not be created at {}. Telegram will run in degraded mode.", secretFile.toAbsolutePath().normalize());
+                telegramDegraded = true;
             }
 
-            TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
-            if (!telegramSecretService.hasConfiguredBotToken(secret)) {
-                logTelegramStartupAction(
-                        "Missing required key 'bot-token' in telegram secret file.",
-                        "KONKIN kept startup in safe mode and did not start HTTP services.",
-                        secretFile
-                );
-                return;
+            TelegramSecretService.TelegramSecret secret = telegramDegraded ? null : telegramSecretService.readSecret();
+            if (!telegramDegraded && !telegramSecretService.hasConfiguredBotToken(secret)) {
+                log.warn("Missing or placeholder 'bot-token' in telegram secret file {}. Telegram will run in degraded mode — configure via /auth_channels/telegram.", secretFile.toAbsolutePath().normalize());
+                telegramDegraded = true;
             }
 
-            List<String> approvedChatIds = TelegramSecretService.mergeChatIds(config.telegramChatIds(), secret.chatIds());
+            if (!telegramDegraded) {
+                List<String> approvedChatIds = TelegramSecretService.mergeChatIds(config.telegramChatIds(), secret.chatIds());
 
-            if (!approvedChatIds.equals(secret.chatIds())) {
-                boolean persisted = telegramSecretService.writeSecret(
-                        new TelegramSecretService.TelegramSecret(secret.botToken(), approvedChatIds, secret.chatMetaById())
-                );
-                if (persisted) {
-                    log.info("Telegram approved chat IDs synced to secret file {}: {}",
-                            secretFile.toAbsolutePath().normalize(),
-                            approvedChatIds.isEmpty() ? "(none)" : String.join(",", approvedChatIds));
-                } else {
-                    log.warn("Failed to sync approved Telegram chat IDs to secret file {}", secretFile.toAbsolutePath().normalize());
+                if (!approvedChatIds.equals(secret.chatIds())) {
+                    boolean persisted = telegramSecretService.writeSecret(
+                            new TelegramSecretService.TelegramSecret(secret.botToken(), approvedChatIds, secret.chatMetaById())
+                    );
+                    if (persisted) {
+                        log.info("Telegram approved chat IDs synced to secret file {}: {}",
+                                secretFile.toAbsolutePath().normalize(),
+                                approvedChatIds.isEmpty() ? "(none)" : String.join(",", approvedChatIds));
+                    } else {
+                        log.warn("Failed to sync approved Telegram chat IDs to secret file {}", secretFile.toAbsolutePath().normalize());
+                    }
                 }
-            }
 
-            telegramService = new TelegramService(
-                    config.telegramApiBaseUrl(),
-                    secret.botToken(),
-                    approvedChatIds
-            );
+                telegramService = new TelegramService(
+                        config.telegramApiBaseUrl(),
+                        secret.botToken(),
+                        approvedChatIds
+                );
 
-            telegramNotifier = new TelegramApprovalNotifier(telegramService, config);
+                telegramNotifier = new TelegramApprovalNotifier(telegramService, config);
 
-            if (approvedChatIds.isEmpty()) {
-                log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /auth_channels/telegram.",
-                        secretFile.toAbsolutePath().normalize());
+                if (approvedChatIds.isEmpty()) {
+                    log.info("Telegram initialized with bot token but no approved chat IDs yet. Web UI is optional; fill chat-ids in {} or approve via /auth_channels/telegram.",
+                            secretFile.toAbsolutePath().normalize());
+                } else {
+                    log.info("Telegram initialized with {} explicitly approved chat id(s): {}", approvedChatIds.size(), String.join(",", approvedChatIds));
+                }
             } else {
-                log.info("Telegram initialized with {} explicitly approved chat id(s): {}", approvedChatIds.size(), String.join(",", approvedChatIds));
+                log.warn("Telegram is in degraded mode — bot features are disabled. Configure the bot token via /auth_channels/telegram settings.");
             }
         }
 
@@ -298,12 +310,16 @@ public class KonkinWebServer {
             });
 
             TelegramSecretService telegramSecretServiceRef = telegramSecretService;
+            boolean telegramIsDegraded = telegramDegraded;
             landingPageService.setTelegramWarn(() -> {
+                if (telegramIsDegraded) {
+                    return true;
+                }
                 if (telegramSecretServiceRef == null) {
                     return false;
                 }
                 TelegramSecretService.TelegramSecret secret = telegramSecretServiceRef.readSecret();
-                return secret.chatIds().isEmpty() || telegramSecretServiceRef.hasPlaceholderEntries(secret);
+                return secret.chatIds().isEmpty() || telegramSecretServiceRef.hasPlaceholderEntries(secret) || !telegramSecretServiceRef.hasConfiguredBotToken(secret);
             });
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
@@ -351,6 +367,7 @@ public class KonkinWebServer {
                     config.landingPasswordProtectionEnabled(),
                     null // Will be set after landingPageController creation
             );
+            telegramWebController.setApiBaseUrl(config.telegramApiBaseUrl());
 
             landingPageController = new LandingPageController(
                     landingPageService,
@@ -568,11 +585,14 @@ public class KonkinWebServer {
             app.get("/settings/pending-restart", settingsControllerFinal::handlePendingRestart);
 
             if (config.telegramEnabled()) {
+                TelegramWebController telegramWebControllerFinal = telegramWebController;
                 app.get("/auth_channels/telegram", webUiPageControllerFinal::handleTelegramPage);
-                app.post("/auth_channels/telegram/approve", telegramWebController::handleApprove);
-                app.post("/auth_channels/telegram/unapprove", telegramWebController::handleUnapprove);
-                app.post("/auth_channels/telegram/reset", telegramWebController::handleReset);
-                app.post("/auth_channels/telegram/send", telegramWebController::handleSend);
+                app.post("/auth_channels/telegram/approve", telegramWebControllerFinal::handleApprove);
+                app.post("/auth_channels/telegram/unapprove", telegramWebControllerFinal::handleUnapprove);
+                app.post("/auth_channels/telegram/reset", telegramWebControllerFinal::handleReset);
+                app.post("/auth_channels/telegram/send", telegramWebControllerFinal::handleSend);
+                app.post("/settings/telegram/test-token", telegramWebControllerFinal::handleTestToken);
+                app.post("/settings/telegram/bot-token", telegramWebControllerFinal::handleSaveBotToken);
             }
 
             landingResourceWatcher = new LandingResourceWatcher(
@@ -626,6 +646,29 @@ public class KonkinWebServer {
             );
             telegramCallbackPoller.setTelegramSecretService(telegramSecretService);
             telegramCallbackPoller.start();
+        }
+
+        // Set hot-reload callback for bot token changes via web UI
+        if (telegramWebController != null) {
+            TelegramWebController twc = telegramWebController;
+            twc.setTelegramServiceReloadCallback(newService -> {
+                // Update notifier if it exists, or create a new one
+                telegramNotifier = new TelegramApprovalNotifier(newService, configManager.get());
+
+                // Restart callback poller if repos are available
+                if (telegramCallbackPoller != null) {
+                    telegramCallbackPoller.stop();
+                }
+                if (requestRepo != null && voteRepo != null && historyRepo != null) {
+                    ensureTelegramChannel();
+                    telegramCallbackPoller = new TelegramCallbackPoller(
+                            newService, requestRepo, voteRepo, historyRepo, configManager, voteService
+                    );
+                    telegramCallbackPoller.setTelegramSecretService(twc.telegramSecretService());
+                    telegramCallbackPoller.start();
+                }
+                log.info("Telegram service hot-reloaded after bot token change");
+            });
         }
 
         if (landingResourceWatcher != null) {
@@ -903,6 +946,22 @@ public class KonkinWebServer {
         }
         if (configFilePath != null) {
             extras.put(io.konkin.crypto.bitcoin.BitcoinExtras.CONFIG_FILE_PATH, configFilePath);
+        }
+        return new WalletConnectionConfig(base.coin(), base.rpcUrl(), base.username(), base.password(), extras);
+    }
+
+    private static WalletConnectionConfig withLitecoinExtras(WalletConnectionConfig base, KonkinConfig config) {
+        String signingAddress = config.litecoin().signingAddress();
+        String configFilePath = config.configFilePath();
+        if ((signingAddress == null || signingAddress.isBlank()) && configFilePath == null) {
+            return base;
+        }
+        var extras = new java.util.LinkedHashMap<>(base.extras());
+        if (signingAddress != null && !signingAddress.isBlank()) {
+            extras.put(io.konkin.crypto.litecoin.LitecoinExtras.SIGNING_ADDRESS, signingAddress);
+        }
+        if (configFilePath != null) {
+            extras.put(io.konkin.crypto.litecoin.LitecoinExtras.CONFIG_FILE_PATH, configFilePath);
         }
         return new WalletConnectionConfig(base.coin(), base.rpcUrl(), base.username(), base.password(), extras);
     }

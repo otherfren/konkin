@@ -1016,6 +1016,7 @@ public class LandingPageMapper {
         if (coinId == null) return null;
         Coin coin = switch (coinId.toLowerCase(Locale.ROOT)) {
             case "bitcoin" -> Coin.BTC;
+            case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
             default -> null;
         };
@@ -1040,11 +1041,26 @@ public class LandingPageMapper {
     }
 
     public Map<String, Object> buildTelegramSettingsModel() {
+        return buildTelegramSettingsModel(null);
+    }
+
+    public Map<String, Object> buildTelegramSettingsModel(io.konkin.telegram.TelegramSecretService telegramSecretService) {
         KonkinConfig c = config();
         Map<String, Object> s = new LinkedHashMap<>();
         s.put("telegramEnabled", c.telegramEnabled());
         s.put("telegramApiBaseUrl", safe(c.telegramApiBaseUrl()));
         s.put("telegramAutoDenyTimeout", c.telegramAutoDenyTimeout() != null ? formatDurationFriendly(c.telegramAutoDenyTimeout()) : "");
+
+        if (telegramSecretService != null) {
+            io.konkin.telegram.TelegramSecretService.TelegramSecret secret = telegramSecretService.readSecret();
+            boolean hasToken = telegramSecretService.hasConfiguredBotToken(secret);
+            s.put("telegramBotTokenConfigured", hasToken);
+            s.put("telegramBotTokenMasked", io.konkin.telegram.TelegramWebController.maskBotToken(hasToken ? secret.botToken() : ""));
+        } else {
+            s.put("telegramBotTokenConfigured", false);
+            s.put("telegramBotTokenMasked", "not configured");
+        }
+
         return Map.copyOf(s);
     }
 

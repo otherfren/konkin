@@ -52,6 +52,30 @@
                     <span class="settings-status"></span>
                 </div>
             </div>
+
+            <div class="settings-separator"></div>
+
+            <div class="settings-form telegram-bot-token-form">
+                <div class="settings-field">
+                    <label class="settings-label">Bot Token <span class="settings-restart" title="Hot-reloaded on save">&#128274;</span></label>
+                    <div class="telegram-token-current">
+                        <span class="telegram-token-masked mono" id="telegram-token-masked">${settings.telegramBotTokenMasked!''}</span>
+                        <#if settings.telegramBotTokenConfigured!false>
+                            <span class="telegram-token-badge telegram-token-badge-ok">configured</span>
+                        <#else>
+                            <span class="telegram-token-badge telegram-token-badge-warn">not configured</span>
+                        </#if>
+                    </div>
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">New Bot Token</label>
+                    <input type="password" class="settings-input" id="telegram-bot-token-input" placeholder="Paste new bot token from @BotFather" autocomplete="off" />
+                </div>
+                <div class="settings-actions">
+                    <button type="button" class="settings-save-btn" id="telegram-test-save-btn">Test &amp; Save</button>
+                    <span class="settings-status" id="telegram-token-status"></span>
+                </div>
+            </div>
         </div>
     </section>
     </#if>
@@ -195,6 +219,77 @@
 </div></main>
 
 <@m.settingsScript />
+
+<script>
+(() => {
+    const testSaveBtn = document.getElementById('telegram-test-save-btn');
+    const tokenInput = document.getElementById('telegram-bot-token-input');
+    const tokenStatus = document.getElementById('telegram-token-status');
+    const tokenMasked = document.getElementById('telegram-token-masked');
+
+    if (testSaveBtn && tokenInput && tokenStatus) {
+        testSaveBtn.addEventListener('click', async () => {
+            const token = tokenInput.value.trim();
+            if (!token) {
+                tokenStatus.textContent = 'Enter a bot token first.';
+                tokenStatus.className = 'settings-status settings-status-error';
+                return;
+            }
+
+            testSaveBtn.disabled = true;
+            tokenStatus.textContent = 'Testing connection...';
+            tokenStatus.className = 'settings-status settings-status-pending';
+
+            try {
+                const testResp = await fetch('/settings/telegram/test-token', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({'bot-token': token})
+                });
+                const testResult = await testResp.json();
+
+                if (!testResult.success) {
+                    tokenStatus.textContent = testResult.error || 'Test failed';
+                    tokenStatus.className = 'settings-status settings-status-error';
+                    testSaveBtn.disabled = false;
+                    return;
+                }
+
+                tokenStatus.textContent = 'Saving...';
+
+                const saveResp = await fetch('/settings/telegram/bot-token', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({'bot-token': token})
+                });
+                const saveResult = await saveResp.json();
+
+                if (saveResult.success) {
+                    tokenStatus.textContent = 'Saved & connected!';
+                    tokenStatus.className = 'settings-status settings-status-ok';
+                    tokenInput.value = '';
+                    if (tokenMasked && saveResult.maskedToken) {
+                        tokenMasked.textContent = saveResult.maskedToken;
+                    }
+                    const badge = document.querySelector('.telegram-token-badge');
+                    if (badge) {
+                        badge.textContent = 'configured';
+                        badge.className = 'telegram-token-badge telegram-token-badge-ok';
+                    }
+                } else {
+                    tokenStatus.textContent = saveResult.error || 'Save failed';
+                    tokenStatus.className = 'settings-status settings-status-error';
+                }
+            } catch (e) {
+                tokenStatus.textContent = 'Request failed: ' + e.message;
+                tokenStatus.className = 'settings-status settings-status-error';
+            }
+
+            testSaveBtn.disabled = false;
+        });
+    }
+})();
+</script>
 
 <script>
 (() => {

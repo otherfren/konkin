@@ -425,6 +425,51 @@ public class TelegramService {
     }
 
     /**
+     * Tests whether a bot token is valid by calling the Telegram getMe endpoint.
+     * Returns null on success, or an error message on failure.
+     */
+    public static String testBotToken(String apiBaseUrl, String botToken) {
+        String normalizedBase = apiBaseUrl.endsWith("/")
+                ? apiBaseUrl.substring(0, apiBaseUrl.length() - 1)
+                : apiBaseUrl;
+
+        URI getMeEndpoint = URI.create(normalizedBase + "/bot" + botToken + "/getMe");
+
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .build();
+
+        HttpRequest request = HttpRequest.newBuilder(getMeEndpoint)
+                .timeout(Duration.ofSeconds(10))
+                .GET()
+                .build();
+
+        try {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 401 || response.statusCode() == 404) {
+                return "Invalid bot token (HTTP " + response.statusCode() + ")";
+            }
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                return "Telegram API returned HTTP " + response.statusCode();
+            }
+
+            JsonNode root = JSON.readTree(response.body());
+            if (!root.path("ok").asBoolean(false)) {
+                String description = root.path("description").asText("unknown error");
+                return "Telegram API error: " + description;
+            }
+
+            return null; // success
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "Connection interrupted";
+        } catch (IOException e) {
+            String msg = e.getMessage();
+            return "Connection failed: " + (msg != null ? msg : e.getClass().getSimpleName());
+        }
+    }
+
+    /**
      * Returns the list of approved chat IDs this service is configured with.
      */
     public List<String> approvedChatIds() {

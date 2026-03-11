@@ -492,7 +492,7 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
     }
 
     @Test
-    void telegramSecretFileIsBootstrappedAndStartupStaysStoppedUntilReplaced() throws Exception {
+    void telegramSecretFileIsBootstrappedAndAppStartsInDegradedMode() throws Exception {
         int port = freePort();
         Path landingPasswordFile = tempDir.resolve("unused-landing.password");
         Path secretFile = tempDir.resolve("secrets/telegram.secret");
@@ -514,19 +514,31 @@ class WebLandingTelegramIntegrationTest extends WebIntegrationTestSupport {
 
         KonkinConfig config = KonkinConfig.load(configFile.toString());
 
-        KonkinWebServer firstServer = new KonkinWebServer(config, "test-version");
-        firstServer.start();
-        assertFalse(firstServer.isRunning());
-        assertTrue(Files.exists(secretFile));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+        try {
+            // App should start in degraded mode (not abort)
+            assertTrue(server.isRunning());
+            assertTrue(Files.exists(secretFile));
 
-        String bootstrap = Files.readString(secretFile, StandardCharsets.UTF_8);
-        assertTrue(bootstrap.contains("chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS"));
-        assertTrue(bootstrap.contains("bot-token=REPLACE_WITH_TELEGRAM_BOT_TOKEN"));
-        assertTrue(bootstrap.contains("@BotFather"));
+            String bootstrap = Files.readString(secretFile, StandardCharsets.UTF_8);
+            assertTrue(bootstrap.contains("chat-ids=REPLACE_WITH_TELEGRAM_CHAT_IDS"));
+            assertTrue(bootstrap.contains("bot-token=REPLACE_WITH_TELEGRAM_BOT_TOKEN"));
+            assertTrue(bootstrap.contains("@BotFather"));
 
-        KonkinWebServer secondServer = new KonkinWebServer(config, "test-version");
-        secondServer.start();
-        assertFalse(secondServer.isRunning());
+            // Telegram page should still be accessible in degraded mode
+            try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+                waitForHealth(port);
+                HttpResponse<String> telegramPage = get(runningServer, "/auth_channels/telegram", Map.of());
+                assertEquals(200, telegramPage.statusCode());
+                // Sidebar should show warning symbol for telegram
+                HttpResponse<String> root = get(runningServer, "/", Map.of());
+                assertEquals(200, root.statusCode());
+                assertTrue(root.body().contains("href=\"/auth_channels/telegram\""));
+            }
+        } finally {
+            server.stop();
+        }
     }
 
     @Test

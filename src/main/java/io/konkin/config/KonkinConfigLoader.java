@@ -133,9 +133,7 @@ final class KonkinConfigLoader {
         Map<String, AgentConfig> secondaryAgents = loadSecondaryAgentConfigs(toml, secretsDir);
 
         CoinConfig bitcoin = loadBitcoinConfig(toml, secretsDir);
-        CoinConfig litecoin = loadCoinConfig(toml, "litecoin", "ltc-main",
-                "litecoin-daemon-config-file", "litecoin-wallet-config-file",
-                "litecoin-daemon.conf", "litecoin-wallet.conf", secretsDir);
+        CoinConfig litecoin = loadLitecoinConfig(toml, secretsDir);
         CoinConfig monero = loadCoinConfig(toml, "monero", "xmr-main",
                 "monero-daemon-config-file", "monero-wallet-rpc-config-file",
                 "monero-daemon.conf", "monero-wallet-rpc.conf", secretsDir);
@@ -296,6 +294,41 @@ final class KonkinConfigLoader {
 
         int minApprovalsRequired = toml.getIntOrElse("coins.bitcoin.auth.min-approvals-required", 1);
         List<String> vetoChannels = loadVetoChannels(toml, "coins.bitcoin.auth");
+
+        return new CoinConfig(
+                enabled,
+                daemonSecretFile,
+                walletSecretFile,
+                signingAddress,
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
+        );
+    }
+
+    private static CoinConfig loadLitecoinConfig(UnmodifiableConfig toml, String secretsDir) {
+        boolean enabled = toml.getOrElse("coins.litecoin.enabled", false);
+
+        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
+                "coins.litecoin.secret-files.litecoin-daemon-config-file",
+                secretsDir + "litecoin-daemon.conf"
+        ), secretsDir);
+        String walletSecretFile = resolveSecretsDir(toml.getOrElse(
+                "coins.litecoin.secret-files.litecoin-wallet-config-file",
+                secretsDir + "litecoin-wallet.conf"
+        ), secretsDir);
+
+        String signingAddress = toml.getOrElse("coins.litecoin.signing-address", "");
+
+        boolean webUi = toml.getOrElse("coins.litecoin.auth.web-ui", true);
+        boolean restApi = toml.getOrElse("coins.litecoin.auth.rest-api", true);
+        boolean telegram = toml.getOrElse("coins.litecoin.auth.telegram", false);
+        String mcp = toml.getOrElse("coins.litecoin.auth.mcp", "ltc-main");
+        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, "coins.litecoin.auth", mcp);
+
+        List<ApprovalRule> autoAccept = readApprovalRules(toml, "coins.litecoin.auth.auto-accept");
+        List<ApprovalRule> autoDeny = readApprovalRules(toml, "coins.litecoin.auth.auto-deny");
+
+        int minApprovalsRequired = toml.getIntOrElse("coins.litecoin.auth.min-approvals-required", 1);
+        List<String> vetoChannels = loadVetoChannels(toml, "coins.litecoin.auth");
 
         return new CoinConfig(
                 enabled,
