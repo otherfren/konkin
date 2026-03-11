@@ -29,11 +29,7 @@
                             title="${coin.coin!'-'}"
                         >
                     </#if>
-                    <#if (coin.enabled!false)>
-                        <a href="/wallets/${coin.coin!''}" class="auth-coin-link">${(coin.coin!'-')?upper_case}</a>
-                    <#else>
-                        <span>${(coin.coin!'-')?upper_case}</span>
-                    </#if>
+                    <a href="/wallets/${coin.coin!''}" class="auth-coin-link">${(coin.coin!'-')?upper_case}</a>
                 </h3>
                 <#if (coin.enabled!false)>
                     <#if (coin.disconnected!false)>
@@ -71,6 +67,7 @@
                     <span class="auth-channel-badge <#if (channels.telegram!false)>auth-channel-enabled<#else>auth-channel-disabled</#if>">telegram <strong>${(channels.telegram!false)?string('on', 'off')}</strong></span>
                 </div>
             </#if>
+
         </section>
     </#list>
 </div></main>

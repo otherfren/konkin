@@ -122,7 +122,7 @@ config-version = 1
 			auto-accept = []
 			veto-channels = ["telegram", "web-ui"]
 			# MCP auth channel identifiers shown in Auth Definitions
-			mcp-auth-channels = ["agent-morgana", "agent-lancelot"]
+			mcp-auth-channels = ["agent-arthur"]
 			min-approvals-required = 2
 			#[[coins.bitcoin.auth.auto-accept]]
 			#[coins.bitcoin.auth.auto-accept.criteria]

@@ -70,6 +70,91 @@
             </span>
         </section>
 
+        <#-- Connection wizard — works without JS via <details> + form POST -->
+        <#assign coinId = (coin.coin!'unknown')>
+        <#assign configured = (coin.configured!false)>
+        <#assign maskedCfg = (coin.maskedConfig!{})>
+        <#assign defaultRpcPort = "8332">
+        <#if coinId == "litecoin"><#assign defaultRpcPort = "9332"></#if>
+
+        <details class="wizard-details" data-coin="${coinId}">
+            <summary class="wizard-open-btn<#if !configured> wizard-add-btn</#if>">
+                <#if configured>&#9998; Edit Connection<#else>+ Configure Connection</#if>
+            </summary>
+
+            <form class="wizard-panel" data-coin="${coinId}" data-mode="${configured?string('edit', 'add')}" method="post" action="/wallets/${coinId}/save-connection">
+                <h4 class="wizard-title">${coinId?upper_case} Connection Setup</h4>
+                <div class="wizard-fields">
+                    <#if coinId == "bitcoin" || coinId == "litecoin">
+                        <label class="wizard-field">
+                            <span class="wizard-label">RPC Host</span>
+                            <input type="text" class="settings-input" name="rpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.rpcEndpoint??>${maskedCfg.rpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
+                        </label>
+                        <label class="wizard-field">
+                            <span class="wizard-label">RPC Port</span>
+                            <input type="text" class="settings-input" name="rpcPort" value="<#if configured && maskedCfg?has_content && maskedCfg.rpcEndpoint?? && (maskedCfg.rpcEndpoint?split(':')?size > 1)>${maskedCfg.rpcEndpoint?split(':')[1]}<#else>${defaultRpcPort}</#if>" required />
+                        </label>
+                        <label class="wizard-field">
+                            <span class="wizard-label">RPC User</span>
+                            <input type="text" class="settings-input" name="rpcUser" value="<#if configured && maskedCfg?has_content>${maskedCfg.rpcUser!''}</#if>" required />
+                        </label>
+                        <label class="wizard-field">
+                            <span class="wizard-label">RPC Password</span>
+                            <input type="password" class="settings-input" name="rpcPassword" placeholder="${configured?string('unchanged', '')}"<#if !configured> required</#if> />
+                        </label>
+                        <label class="wizard-field">
+                            <span class="wizard-label">Wallet Name</span>
+                            <input type="text" class="settings-input" name="walletName" value="<#if configured && maskedCfg?has_content>${maskedCfg.walletName!''}</#if>" placeholder="optional" />
+                        </label>
+                    <#elseif coinId == "monero">
+                        <fieldset class="wizard-fieldset">
+                            <legend>Daemon RPC</legend>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Host</span>
+                                <input type="text" class="settings-input" name="daemonHost" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint??>${maskedCfg.daemonEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Port</span>
+                                <input type="text" class="settings-input" name="daemonPort" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint?? && (maskedCfg.daemonEndpoint?split(':')?size > 1)>${maskedCfg.daemonEndpoint?split(':')[1]}<#else>18081</#if>" required />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">User</span>
+                                <input type="text" class="settings-input" name="daemonUser" placeholder="optional" />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Password</span>
+                                <input type="password" class="settings-input" name="daemonPassword" placeholder="${configured?string('unchanged', 'optional')}" />
+                            </label>
+                        </fieldset>
+                        <fieldset class="wizard-fieldset">
+                            <legend>Wallet RPC</legend>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Host</span>
+                                <input type="text" class="settings-input" name="walletRpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint??>${maskedCfg.walletRpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Port</span>
+                                <input type="text" class="settings-input" name="walletRpcPort" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint?? && (maskedCfg.walletRpcEndpoint?split(':')?size > 1)>${maskedCfg.walletRpcEndpoint?split(':')[1]}<#else>18083</#if>" required />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">User</span>
+                                <input type="text" class="settings-input" name="walletRpcUser" value="<#if configured && maskedCfg?has_content>${maskedCfg.walletRpcUser!''}</#if>" required />
+                            </label>
+                            <label class="wizard-field">
+                                <span class="wizard-label">Password</span>
+                                <input type="password" class="settings-input" name="walletRpcPassword" placeholder="${configured?string('unchanged', '')}"<#if !configured> required</#if> />
+                            </label>
+                        </fieldset>
+                    </#if>
+                </div>
+                <div class="wizard-actions">
+                    <button type="button" class="wizard-test-btn">Test Connection</button>
+                    <div class="wizard-test-result"></div>
+                    <button type="submit" class="wizard-save-btn">Save &amp; Enable</button>
+                </div>
+            </form>
+        </details>
+
         <section class="auth-card settings-section" data-section="coin-settings" style="margin-top:1rem">
             <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
                 <h3 class="auth-coin-name">Settings</h3>
@@ -636,4 +721,132 @@
 
 <@m.footer />
 </div>
+
+<script>
+(() => {
+    // ── Test Connection (JS enhancement — form POST works without this) ──
+    const testButtons = document.querySelectorAll('.wizard-test-btn');
+    for (const testBtn of testButtons) {
+        testBtn.addEventListener('click', async () => {
+            const panel = testBtn.closest('.wizard-panel');
+            if (!panel) return;
+            const coinId = panel.dataset.coin;
+            const resultEl = panel.querySelector('.wizard-test-result');
+
+            const extraWarnings = panel.querySelectorAll('.wizard-test-result.warning');
+            for (const w of extraWarnings) {
+                if (w !== resultEl) w.remove();
+            }
+
+            const body = {};
+            const inputs = panel.querySelectorAll('input[name]');
+            for (const input of inputs) {
+                body[input.name] = input.value;
+            }
+
+            testBtn.disabled = true;
+            testBtn.textContent = 'Testing...';
+            if (resultEl) {
+                resultEl.textContent = '';
+                resultEl.className = 'wizard-test-result';
+            }
+
+            try {
+                const resp = await fetch('/wallets/' + encodeURIComponent(coinId) + '/test-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    if (resultEl) {
+                        resultEl.textContent = data.message || 'Connection successful';
+                        resultEl.className = 'wizard-test-result success';
+                    }
+                    if (data.warnings && data.warnings.length > 0) {
+                        const warningDiv = document.createElement('div');
+                        warningDiv.className = 'wizard-test-result warning';
+                        warningDiv.textContent = data.warnings.join('; ');
+                        if (resultEl) resultEl.after(warningDiv);
+                    }
+                } else {
+                    if (resultEl) {
+                        resultEl.textContent = data.message || 'Connection failed';
+                        resultEl.className = 'wizard-test-result error';
+                    }
+                }
+            } catch (err) {
+                if (resultEl) {
+                    resultEl.textContent = 'Network error — could not reach server';
+                    resultEl.className = 'wizard-test-result error';
+                }
+            } finally {
+                testBtn.disabled = false;
+                testBtn.textContent = 'Test Connection';
+            }
+        });
+    }
+
+    // ── Save Connection (progressive enhancement over <form> POST) ──
+    const wizardForms = document.querySelectorAll('form.wizard-panel');
+    for (const form of wizardForms) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const coinId = form.dataset.coin;
+            const resultEl = form.querySelector('.wizard-test-result');
+            const saveBtn = form.querySelector('.wizard-save-btn');
+
+            const body = {};
+            const inputs = form.querySelectorAll('input[name]');
+            for (const input of inputs) {
+                body[input.name] = input.value;
+            }
+
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = 'Saving...';
+            }
+
+            try {
+                const resp = await fetch('/wallets/' + encodeURIComponent(coinId) + '/save-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    if (resultEl) {
+                        resultEl.textContent = 'Saved successfully — reloading...';
+                        resultEl.className = 'wizard-test-result success';
+                    }
+                    setTimeout(() => {
+                        window.location.href = '/wallets/' + encodeURIComponent(coinId);
+                    }, 600);
+                } else {
+                    if (resultEl) {
+                        resultEl.textContent = data.message || 'Save failed';
+                        resultEl.className = 'wizard-test-result error';
+                    }
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save & Enable';
+                    }
+                }
+            } catch (err) {
+                if (resultEl) {
+                    resultEl.textContent = 'Network error — could not reach server';
+                    resultEl.className = 'wizard-test-result error';
+                }
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Save & Enable';
+                }
+            }
+        });
+    }
+})();
+</script>
+
 </@layout.page>

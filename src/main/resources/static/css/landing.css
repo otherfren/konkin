@@ -910,7 +910,6 @@ p {
 
 /* ── telegram content ── */
 .telegram-content,
-.coins-content,
 .auth-definitions-content {
     display: grid;
     gap: 16px;
@@ -941,8 +940,6 @@ p {
     font-size: 0.88rem;
 }
 
-/* ── coins ── */
-.coins-subtitle,
 .auth-definitions-subtitle,
 .auth-channels-subtitle {
     margin: 8px 0 0;
@@ -950,46 +947,11 @@ p {
     font-size: 0.9rem;
 }
 
-.coins-grid {
-    display: grid;
-    gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-}
-
-.coins-card {
-    border: 1px solid var(--line-light);
-    border-radius: 4px;
-    background: var(--bg-panel);
-    padding: 14px;
-}
-
-.coins-card-empty,
 .auth-card-empty {
     border-color: var(--line);
     background: var(--bg-soft);
 }
 
-.coins-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.coins-coin-title {
-    margin: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.9rem;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
-    color: var(--gold);
-    font-weight: 400;
-}
-
-.coins-coin-icon,
 .auth-coin-icon {
     width: 20px;
     height: 20px;
@@ -997,8 +959,6 @@ p {
 }
 
 /* ── shared green/red/yellow chip styles ── */
-.coins-enabled-on,
-.coins-state-on,
 .auth-chip-on,
 .auth-channel-status-approved,
 .auth-rule-type-accept {
@@ -1007,8 +967,6 @@ p {
     background: var(--green-bg);
 }
 
-.coins-enabled-off,
-.coins-state-off,
 .auth-chip-off,
 .auth-channel-status-pending,
 .auth-rule-type-deny {
@@ -1024,62 +982,7 @@ p {
     background: var(--yellow-bg);
 }
 
-.coins-enabled-chip {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-    padding: 4px 9px;
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.coins-status-grid {
-    margin-top: 12px;
-    display: grid;
-    gap: 8px;
-}
-
-.coins-status-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    border: 1px solid var(--line);
-    border-radius: 4px;
-    background: var(--bg);
-    padding: 8px 10px;
-}
-
-.coins-status-label {
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-}
-
-.coins-state {
-    font-size: 0.74rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-    padding: 2px 8px;
-}
-
-.coins-balance-item {
-    justify-content: flex-start;
-    gap: 8px;
-}
-
-.coins-balance-value {
-    color: var(--text);
-    letter-spacing: 0.08em;
-}
-
-/* ── shared reveal-toggle styles (balance + secret) ── */
-.coins-balance-toggle,
+/* ── shared reveal-toggle styles (secret) ── */
 .auth-secret-toggle {
     display: inline-flex;
     align-items: center;
@@ -1096,17 +999,225 @@ p {
     padding: 0;
 }
 
-.coins-balance-toggle:hover,
 .auth-secret-toggle:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
 
-.coins-balance-toggle.is-revealed,
 .auth-secret-toggle.is-revealed {
     border-color: var(--green-border);
     color: var(--green);
     background: var(--green-bg);
+}
+
+/* ── wizard details / summary ── */
+.wizard-details {
+    margin-top: 16px;
+}
+
+.wizard-details > summary {
+    list-style: none;
+    display: block;
+}
+
+.wizard-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.wizard-details > summary::marker {
+    content: "";
+}
+
+/* ── wizard panel ── */
+.wizard-panel {
+    margin-top: 14px;
+    border: 1px solid var(--line-light);
+    border-radius: 4px;
+    background: var(--bg-soft);
+    padding: 14px;
+}
+
+.wizard-title {
+    margin: 0 0 12px;
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    font-weight: 400;
+}
+
+.wizard-fields {
+    display: grid;
+    gap: 10px;
+}
+
+.wizard-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.wizard-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.wizard-fieldset {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin: 0;
+}
+
+.wizard-fieldset legend {
+    font-size: 0.76rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding: 0 6px;
+}
+
+.wizard-fieldset .wizard-fields {
+    margin-top: 4px;
+}
+
+/* ── wizard actions ── */
+.wizard-actions {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.wizard-test-btn,
+.wizard-save-btn,
+.wizard-cancel-btn {
+    font-family: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+    border: 1px solid var(--line-light);
+    transition: border-color 0.15s, background 0.15s;
+}
+
+.wizard-test-btn {
+    background: var(--accent-dim);
+    border-color: rgba(212, 146, 42, 0.35);
+    color: var(--gold);
+}
+
+.wizard-test-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.wizard-open-btn {
+    display: block;
+    width: 100%;
+    font-family: inherit;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    border-radius: 4px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border: 1px solid rgba(212, 146, 42, 0.5);
+    background: var(--accent-dim);
+    color: var(--gold);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.wizard-open-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(212, 146, 42, 0.22);
+}
+
+.wizard-details[open] > .wizard-open-btn {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(212, 146, 42, 0.22);
+    margin-bottom: 0;
+}
+
+.wizard-add-btn {
+    font-size: 0.88rem;
+    padding: 12px 18px;
+    border-color: rgba(212, 146, 42, 0.6);
+    background: rgba(212, 146, 42, 0.2);
+}
+
+.wizard-add-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(212, 146, 42, 0.28);
+}
+
+.wizard-save-btn {
+    background: var(--green-bg);
+    border-color: var(--green-border);
+    color: var(--green);
+}
+
+.wizard-save-btn:hover:not(:disabled) {
+    border-color: var(--green);
+}
+
+.wizard-save-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.wizard-test-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── wizard test result ── */
+.wizard-test-result {
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    padding: 0;
+    border-radius: 4px;
+    min-height: 0;
+    transition: all 0.15s;
+}
+
+.wizard-test-result:empty {
+    display: none;
+}
+
+.wizard-test-result.success {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    color: var(--green);
+    background: var(--green-bg);
+    border: 1px solid var(--green-border);
+}
+
+.wizard-test-result.error {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    color: var(--red);
+    background: var(--red-bg);
+    border: 1px solid var(--red-border);
+}
+
+.wizard-test-result.warning {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    color: var(--yellow);
+    background: var(--yellow-bg);
+    border: 1px solid var(--yellow-border);
 }
 
 /* ── auth channels ── */

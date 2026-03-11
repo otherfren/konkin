@@ -253,6 +253,55 @@ final class SettingsValidator {
         return null;
     }
 
+    static List<String> validateConnectionForm(String coinId, Map<String, String> params) {
+        List<String> errors = new java.util.ArrayList<>();
+        if ("monero".equals(coinId)) {
+            validateRequiredHost(params.get("daemonHost"), "Daemon Host", errors);
+            validatePort(params.get("daemonPort"), "Daemon Port", errors);
+            validateRequiredHost(params.get("walletRpcHost"), "Wallet RPC Host", errors);
+            validatePort(params.get("walletRpcPort"), "Wallet RPC Port", errors);
+            if (params.get("walletRpcUser") == null || params.get("walletRpcUser").isBlank()) {
+                errors.add("Wallet RPC User is required");
+            }
+            if (params.get("walletRpcPassword") == null || params.get("walletRpcPassword").isBlank()) {
+                errors.add("Wallet RPC Password is required");
+            }
+        } else if ("bitcoin".equals(coinId) || "litecoin".equals(coinId)) {
+            validateRequiredHost(params.get("rpcHost"), "RPC Host", errors);
+            validatePort(params.get("rpcPort"), "RPC Port", errors);
+            if (params.get("rpcUser") == null || params.get("rpcUser").isBlank()) {
+                errors.add("RPC User is required");
+            }
+            if (params.get("rpcPassword") == null || params.get("rpcPassword").isBlank()) {
+                errors.add("RPC Password is required");
+            }
+        } else {
+            errors.add("Unknown coin: " + coinId);
+        }
+        return errors;
+    }
+
+    private static void validateRequiredHost(String host, String label, List<String> errors) {
+        if (host == null || host.isBlank()) {
+            errors.add(label + " is required");
+        }
+    }
+
+    private static void validatePort(String port, String label, List<String> errors) {
+        if (port == null || port.isBlank()) {
+            errors.add(label + " is required");
+            return;
+        }
+        try {
+            int p = Integer.parseInt(port);
+            if (p < 1 || p > 65535) {
+                errors.add(label + " must be between 1 and 65535");
+            }
+        } catch (NumberFormatException e) {
+            errors.add(label + " must be a number");
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private static String validateRuleList(Object value, String field) {
         if (!(value instanceof List<?> list)) {

@@ -24,10 +24,13 @@ import io.konkin.config.CoinConfig;
 import io.konkin.config.ConfigManager;
 import io.konkin.config.KonkinConfig;
 import io.konkin.crypto.Transaction;
+import io.konkin.crypto.WalletConnectionConfig;
+import io.konkin.crypto.WalletSecretLoader;
 import io.konkin.crypto.WalletSnapshot;
 import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.Coin;
 import io.konkin.crypto.WalletSupervisor;
+import io.konkin.crypto.monero.MoneroExtras;
 import io.konkin.db.AgentTokenStore;
 import io.konkin.db.KvStore;
 import io.konkin.db.entity.ApprovalChannelRow;
@@ -44,8 +47,11 @@ import io.konkin.telegram.TelegramService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -651,26 +657,53 @@ public class LandingPageMapper {
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
 
         List<Map<String, Object>> coins = new ArrayList<>();
-        coins.add(buildWalletOverviewEntry("bitcoin", config().bitcoin(),
-                "coins.bitcoin", "coins.bitcoin.secret-files.bitcoin-daemon-config-file",
-                "coins.bitcoin.secret-files.bitcoin-wallet-config-file"));
-        coins.add(buildWalletOverviewEntry("litecoin", config().litecoin(),
-                "coins.litecoin", "coins.litecoin.secret-files.litecoin-daemon-config-file",
-                "coins.litecoin.secret-files.litecoin-wallet-config-file"));
-        coins.add(buildWalletOverviewEntry("monero", config().monero(),
-                "coins.monero", "coins.monero.secret-files.monero-daemon-config-file",
-                "coins.monero.secret-files.monero-wallet-rpc-config-file"));
+        for (String coinId : getAllKnownCoinIds()) {
+            CoinConfig coinConfig = config().resolveCoinConfig(coinId);
+            if (coinConfig != null) {
+                String configSection = "coins." + coinId;
+                String daemonConfigKey = configSection + ".secret-files." + coinId + "-daemon-config-file";
+                String walletConfigKey;
+                if ("monero".equals(coinId)) {
+                    walletConfigKey = configSection + ".secret-files.monero-wallet-rpc-config-file";
+                } else {
+                    walletConfigKey = configSection + ".secret-files." + coinId + "-wallet-config-file";
+                }
+                coins.add(buildWalletOverviewEntry(coinId, coinConfig, configSection, daemonConfigKey, walletConfigKey));
+            } else {
+                coins.add(buildUnconfiguredCoinEntry(coinId));
+            }
+        }
         coins.sort((a, b) -> Integer.compare(coinSortOrder(a), coinSortOrder(b)));
         root.put("coins", List.copyOf(coins));
         return Map.copyOf(root);
     }
 
+    public List<String> getAllKnownCoinIds() {
+        return List.of("bitcoin", "litecoin", "monero");
+    }
+
     private static int coinSortOrder(Map<String, Object> coin) {
+        boolean configured = Boolean.TRUE.equals(coin.get("configured"));
         boolean enabled = Boolean.TRUE.equals(coin.get("enabled"));
         boolean disconnected = Boolean.TRUE.equals(coin.get("disconnected"));
-        if (enabled && !disconnected) return 0;
-        if (enabled) return 1;
+        if (configured && enabled && !disconnected) return 0;
+        if (configured && enabled) return 1;
+        if (!configured) return 3;
         return 2;
+    }
+
+    private Map<String, Object> buildUnconfiguredCoinEntry(String coinId) {
+        Map<String, Object> coin = new LinkedHashMap<>();
+        coin.put("coin", coinId);
+        coin.put("coinIconName", coinIconName(coinId));
+        coin.put("enabled", false);
+        coin.put("configured", false);
+        coin.put("maskedConfig", null);
+        coin.put("connectionStatus", "not configured");
+        coin.put("lastLifeSign", "n/a");
+        coin.put("disconnected", true);
+        coin.put("channels", Map.of());
+        return Collections.unmodifiableMap(coin);
     }
 
     private Map<String, Object> buildWalletOverviewEntry(
@@ -685,6 +718,18 @@ public class LandingPageMapper {
         coin.put("walletConfigKey", walletConfigKey);
         coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
         coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
+
+        // Determine configured status and masked config
+        boolean configured = false;
+        Map<String, String> maskedConfig = null;
+        try {
+            maskedConfig = buildMaskedConfig(coinId, coinConfig);
+            configured = maskedConfig != null;
+        } catch (Exception e) {
+            log.debug("Failed to load masked config for {}: {}", coinId, e.getMessage());
+        }
+        coin.put("configured", configured);
+        coin.put("maskedConfig", maskedConfig);
 
         // Raw auth config for inline editing
         CoinAuthConfig auth = coinConfig.auth();
@@ -706,21 +751,94 @@ public class LandingPageMapper {
             WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
             if (walletSupervisor != null) {
                 WalletSnapshot snap = walletSupervisor.snapshot();
+                boolean available = snap.status() == WalletStatus.AVAILABLE;
                 coin.put("connectionStatus", snap.status().name().toLowerCase());
                 coin.put("lastLifeSign", snap.lastHeartbeat() == null ? "never" : formatInstant(snap.lastHeartbeat()));
-                coin.put("disconnected", snap.status() != WalletStatus.AVAILABLE);
+                coin.put("disconnected", !available);
+                coin.put("connected", available || snap.status() == WalletStatus.SYNCING);
+                coin.put("readable", available);
+                coin.put("writable", available);
+                if (snap.totalBalance() != null) {
+                    coin.put("balanceValue", snap.totalBalance().toPlainString());
+                } else {
+                    coin.put("balanceValue", "-");
+                }
             } else {
-                coin.put("connectionStatus", "not connected");
+                coin.put("connectionStatus", configured ? "not connected" : "not configured");
                 coin.put("lastLifeSign", "n/a");
                 coin.put("disconnected", true);
+                coin.put("connected", false);
+                coin.put("readable", false);
+                coin.put("writable", false);
+                coin.put("balanceValue", "-");
             }
         } else {
             coin.put("channels", Map.of());
-            coin.put("connectionStatus", "disabled");
+            coin.put("connectionStatus", configured ? "disabled" : "not configured");
             coin.put("lastLifeSign", "n/a");
             coin.put("disconnected", true);
+            coin.put("connected", false);
+            coin.put("readable", false);
+            coin.put("writable", false);
+            coin.put("balanceValue", "-");
         }
-        return Map.copyOf(coin);
+        return Collections.unmodifiableMap(coin);
+    }
+
+    private Map<String, String> buildMaskedConfig(String coinId, CoinConfig coinConfig) {
+        if (coinConfig == null) return null;
+
+        String daemonPath = coinConfig.daemonConfigSecretFile();
+        String walletPath = coinConfig.walletConfigSecretFile();
+        if (daemonPath == null || daemonPath.isBlank() || walletPath == null || walletPath.isBlank()) {
+            return null;
+        }
+
+        // Check that secret files exist
+        if (!Files.isReadable(Path.of(daemonPath)) || !Files.isReadable(Path.of(walletPath))) {
+            return null;
+        }
+
+        try {
+            return switch (coinId.toLowerCase(Locale.ROOT)) {
+                case "bitcoin" -> {
+                    WalletConnectionConfig wcc = WalletSecretLoader.loadBitcoin(daemonPath, walletPath);
+                    Map<String, String> m = new LinkedHashMap<>();
+                    // Extract host:port from rpcUrl (strip "http://")
+                    String endpoint = wcc.rpcUrl().replaceFirst("^https?://", "");
+                    m.put("rpcEndpoint", endpoint);
+                    m.put("rpcUser", wcc.username() != null ? wcc.username() : "");
+                    String walletName = wcc.extras().getOrDefault("walletName", "");
+                    m.put("walletName", walletName);
+                    yield Map.copyOf(m);
+                }
+                case "litecoin" -> {
+                    WalletConnectionConfig wcc = WalletSecretLoader.loadLitecoin(daemonPath, walletPath);
+                    Map<String, String> m = new LinkedHashMap<>();
+                    String endpoint = wcc.rpcUrl().replaceFirst("^https?://", "");
+                    m.put("rpcEndpoint", endpoint);
+                    m.put("rpcUser", wcc.username() != null ? wcc.username() : "");
+                    String walletName = wcc.extras().getOrDefault("walletName", "");
+                    m.put("walletName", walletName);
+                    yield Map.copyOf(m);
+                }
+                case "monero" -> {
+                    WalletConnectionConfig wcc = WalletSecretLoader.loadMonero(daemonPath, walletPath);
+                    Map<String, String> m = new LinkedHashMap<>();
+                    String daemonEndpoint = wcc.extras().getOrDefault(MoneroExtras.DAEMON_RPC_URL, "");
+                    daemonEndpoint = daemonEndpoint.replaceFirst("^https?://", "");
+                    m.put("daemonEndpoint", daemonEndpoint);
+                    String walletRpcEndpoint = wcc.rpcUrl().replaceFirst("^https?://", "");
+                    m.put("walletRpcEndpoint", walletRpcEndpoint);
+                    m.put("walletRpcUser", wcc.username() != null ? wcc.username() : "");
+                    yield Map.copyOf(m);
+                }
+                default -> null;
+            };
+        } catch (Exception e) {
+            log.debug("Failed to read secret files for {}: {}", coinId, e.getMessage());
+            return null;
+        }
     }
 
     public List<String> getEnabledCoinIds() {
@@ -734,7 +852,11 @@ public class LandingPageMapper {
     public Map<String, Object> buildSingleCoinWalletModel(String coinId) {
         CoinConfig coinConfig = config().resolveCoinConfig(coinId);
         if (coinConfig == null || !coinConfig.enabled()) {
-            return null;
+            // Return an unconfigured model so the wizard can be shown
+            Map<String, Object> root = new LinkedHashMap<>();
+            root.put("configuredAuthChannels", buildConfiguredAuthChannels());
+            root.put("coin", buildUnconfiguredCoinEntry(coinId));
+            return Map.copyOf(root);
         }
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("configuredAuthChannels", buildConfiguredAuthChannels());
@@ -836,6 +958,18 @@ public class LandingPageMapper {
         coin.put("enabled", coinConfig.enabled());
         coin.put("daemonSecretFile", safe(coinConfig.daemonConfigSecretFile()));
         coin.put("walletSecretFile", safe(coinConfig.walletConfigSecretFile()));
+
+        // Masked config for connection editing wizard
+        boolean configured = false;
+        Map<String, String> maskedConfig = null;
+        try {
+            maskedConfig = buildMaskedConfig(coinId, coinConfig);
+            configured = maskedConfig != null;
+        } catch (Exception e) {
+            log.debug("Failed to load masked config for {}: {}", coinId, e.getMessage());
+        }
+        coin.put("configured", configured);
+        coin.put("maskedConfig", maskedConfig);
 
         WalletSupervisor walletSupervisor = resolveSupervisor(coinId);
         if (walletSupervisor != null) {

@@ -397,7 +397,9 @@ public class KonkinWebServer {
                     landingPageService, mapper, walletSupervisors,
                     config.landingPasswordProtectionEnabled(),
                     lpc::hasValidSession,
-                    ctx -> lpc.showLogin(ctx, false)
+                    ctx -> lpc.showLogin(ctx, false),
+                    configManager,
+                    Path.of(config.secretsDir())
             );
 
             settingsController = new SettingsController(
@@ -554,6 +556,8 @@ public class KonkinWebServer {
             app.get("/wallets/{coin}", walletControllerFinal::handleWalletPage);
             app.post("/wallets/generate-address", walletControllerFinal::handleGenerateDepositAddress);
             app.post("/wallets/reconnect", walletControllerFinal::handleWalletReconnect);
+            app.post("/wallets/{coin}/test-connection", walletControllerFinal::handleTestConnection);
+            app.post("/wallets/{coin}/save-connection", walletControllerFinal::handleSaveConnection);
             app.post("/wallets/{coin}/rules", settingsControllerFinal::handleUpdateRulesForm);
             app.post("/wallets/{coin}/mcp-auth-channels", settingsControllerFinal::handleUpdateMcpAuthChannelsForm);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
