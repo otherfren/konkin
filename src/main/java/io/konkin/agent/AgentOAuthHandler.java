@@ -43,7 +43,7 @@ public class AgentOAuthHandler {
     private final AgentTokenStore tokenStore;
     private final String agentName;
     private final String expectedClientId;
-    private final String expectedClientSecret;
+    private volatile String expectedClientSecret;
     private final Deque<Instant> failedAuthAttempts = new ArrayDeque<>();
 
     public AgentOAuthHandler(String agentName, Path secretFile, AgentTokenStore tokenStore) {
@@ -118,6 +118,10 @@ public class AgentOAuthHandler {
         while (!failedAuthAttempts.isEmpty() && !failedAuthAttempts.peekFirst().isAfter(cutoff)) {
             failedAuthAttempts.removeFirst();
         }
+    }
+
+    public void rotateSecret(String newClientSecret) {
+        this.expectedClientSecret = newClientSecret;
     }
 
     public boolean validateCredentials(String clientId, String clientSecret) {

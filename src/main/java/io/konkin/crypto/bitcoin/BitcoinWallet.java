@@ -68,10 +68,12 @@ public final class BitcoinWallet extends CoinWallet {
             }
             return WalletStatus.AVAILABLE;
         } catch (JsonRpcStatusException e) {
-            log.warn("Bitcoin RPC error during status check: {}", e.getMessage());
+            log.warn("Bitcoin RPC error during status check (getblockchaininfo → {}): {}",
+                    client.getServerURI(), e.getMessage());
             return WalletStatus.OFFLINE;
         } catch (IOException e) {
-            log.warn("Could not reach Bitcoin node: {}", e.getMessage());
+            log.warn("Could not reach Bitcoin node (getblockchaininfo → {}): {} ({})",
+                    client.getServerURI(), e.getMessage(), e.getClass().getSimpleName());
             return WalletStatus.OFFLINE;
         }
     }
@@ -84,9 +86,9 @@ public final class BitcoinWallet extends CoinWallet {
             // Bitcoin Core's getbalance returns the spendable (confirmed) balance
             return new WalletBalance(Coin.BTC, total, total);
         } catch (JsonRpcStatusException e) {
-            throw new WalletConnectionException("Failed to get BTC balance: " + e.getMessage(), e);
+            throw new WalletConnectionException("Failed to get BTC balance (getbalance → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (getbalance → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -97,9 +99,9 @@ public final class BitcoinWallet extends CoinWallet {
             org.bitcoinj.base.Address addr = client.getNewAddress(label);
             return new DepositAddress(Coin.BTC, addr.toString(), Map.of());
         } catch (JsonRpcStatusException e) {
-            throw new WalletOperationException("Failed to generate BTC deposit address: " + e.getMessage(), e);
+            throw new WalletOperationException("Failed to generate BTC deposit address (getnewaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (getnewaddress → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -129,9 +131,9 @@ public final class BitcoinWallet extends CoinWallet {
             if (isInsufficientFunds(e)) {
                 throw new WalletInsufficientFundsException(request.amount(), safeBalance());
             }
-            throw new WalletOperationException("BTC send failed: " + e.getMessage(), e);
+            throw new WalletOperationException("BTC send failed (sendtoaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (sendtoaddress → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -161,9 +163,9 @@ public final class BitcoinWallet extends CoinWallet {
             if (isInsufficientFunds(e)) {
                 throw new WalletInsufficientFundsException(BigDecimal.ONE, safeBalance());
             }
-            throw new WalletOperationException("BTC sweep failed: " + e.getMessage(), e);
+            throw new WalletOperationException("BTC sweep failed (sendtoaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (sendtoaddress → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -194,9 +196,9 @@ public final class BitcoinWallet extends CoinWallet {
             String signature = client.send("signmessage", String.class, addr, message);
             return new SignedMessage(Coin.BTC, addr, message, signature);
         } catch (JsonRpcStatusException e) {
-            throw new WalletOperationException("BTC signMessage failed: " + e.getMessage(), e);
+            throw new WalletOperationException("BTC signMessage failed (signmessage → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (signmessage → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -233,9 +235,9 @@ public final class BitcoinWallet extends CoinWallet {
         try {
             return client.send("verifymessage", Boolean.class, address, signature, message);
         } catch (JsonRpcStatusException e) {
-            throw new WalletOperationException("BTC verifyMessage failed: " + e.getMessage(), e);
+            throw new WalletOperationException("BTC verifyMessage failed (verifymessage → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (verifymessage → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -251,9 +253,9 @@ public final class BitcoinWallet extends CoinWallet {
             }
             return List.copyOf(pending);
         } catch (JsonRpcStatusException e) {
-            throw new WalletOperationException("Failed to list BTC pending transactions: " + e.getMessage(), e);
+            throw new WalletOperationException("Failed to list BTC pending transactions (listtransactions → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (listtransactions → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -268,9 +270,9 @@ public final class BitcoinWallet extends CoinWallet {
             }
             return List.copyOf(recent);
         } catch (JsonRpcStatusException e) {
-            throw new WalletOperationException("Failed to list BTC recent transactions: " + e.getMessage(), e);
+            throw new WalletOperationException("Failed to list BTC recent transactions (listtransactions → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
-            throw new WalletConnectionException("Failed to connect to Bitcoin node", e);
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (listtransactions → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 

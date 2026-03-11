@@ -40,6 +40,11 @@ public final class UiFormattingUtils {
         return value == null || value.isBlank() ? "-" : value;
     }
 
+    public static String displayBind(String bind) {
+        if (bind == null || bind.isBlank()) return "127.0.0.1";
+        return "0.0.0.0".equals(bind) ? "127.0.0.1" : bind;
+    }
+
     public static String normalizeState(String state) {
         if (state == null || state.isBlank()) {
             return "UNKNOWN";

@@ -172,35 +172,36 @@ public class WalletSupervisor {
 
             WalletStatus status = wallet.status();
             if (status == WalletStatus.OFFLINE) {
-                handleOffline(previousStatus);
+                handleOffline(previousStatus, "wallet status check returned OFFLINE");
                 return;
             }
 
             // Fetch balance for snapshot
             BigDecimal totalBalance = null;
             BigDecimal spendableBalance = null;
+            String balanceError = null;
             try {
                 WalletBalance balance = wallet.balance();
                 totalBalance = balance.total();
                 spendableBalance = balance.spendable();
             } catch (WalletException e) {
-                log.debug("Balance fetch failed during heartbeat: {}", e.getMessage());
+                log.warn("Balance fetch failed during heartbeat for {}: {}", config.coin(), e.getMessage());
+                balanceError = e.getMessage();
             }
 
-            WalletSnapshot newSnapshot = new WalletSnapshot(
-                    config.coin(), status, totalBalance, spendableBalance, Instant.now());
-            snapshot = newSnapshot;
+            snapshot = new WalletSnapshot(
+                    config.coin(), status, totalBalance, spendableBalance, Instant.now(), balanceError);
 
             if (previousStatus != status) {
                 log.info("Wallet {} status: {} → {}", config.coin(), previousStatus, status);
             }
         } catch (Exception e) {
             log.warn("Heartbeat failed for {}: {}", config.coin(), e.getMessage());
-            handleOffline(previousStatus);
+            handleOffline(previousStatus, e.getMessage());
         }
     }
 
-    private void handleOffline(WalletStatus previousStatus) {
+    private void handleOffline(WalletStatus previousStatus, String reason) {
         // Let the factory prepare the node (e.g., Bitcoin's loadwallet after node restart)
         walletFactory.prepareNode(config);
 
@@ -223,12 +224,15 @@ public class WalletSupervisor {
             }
         } catch (Exception e) {
             log.debug("Wallet reconnect failed: {}", e.getMessage());
+            if (reason == null) {
+                reason = e.getMessage();
+            }
         }
 
         if (previousStatus != WalletStatus.OFFLINE) {
             log.warn("Wallet {} went OFFLINE (was {})", config.coin(), previousStatus);
         }
-        snapshot = new WalletSnapshot(config.coin(), WalletStatus.OFFLINE, null, null, snapshot.lastHeartbeat());
+        snapshot = new WalletSnapshot(config.coin(), WalletStatus.OFFLINE, null, null, snapshot.lastHeartbeat(), reason);
     }
 
     private void connectWallet() {

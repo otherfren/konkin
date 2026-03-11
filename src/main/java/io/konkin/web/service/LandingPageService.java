@@ -406,7 +406,7 @@ public class LandingPageService {
         return renderTemplate(TELEGRAM_TEMPLATE_NAME, model);
     }
 
-    public String renderDriverAgent(boolean showLogout, Map<String, Object> driverAgentData, Map<String, Object> settingsData) {
+    public String renderDriverAgent(boolean showLogout, Map<String, Object> driverAgentData, Map<String, Object> settingsData, String revealedClientSecret) {
         Map<String, Object> model = new HashMap<>();
         model.put("assetsPath", staticHostedPath);
         model.put("assetsVersion", staticAssetsVersion.get());
@@ -436,6 +436,7 @@ public class LandingPageService {
                 && disconnected.values().stream().allMatch(Boolean::booleanValue));
         model.put("driverAgent", driverAgentData == null ? Map.of() : driverAgentData);
         model.put("driverSettings", settingsData);
+        model.put("revealedClientSecret", revealedClientSecret != null ? revealedClientSecret : "");
 
         return renderTemplate(DRIVER_AGENT_TEMPLATE_NAME, model);
     }

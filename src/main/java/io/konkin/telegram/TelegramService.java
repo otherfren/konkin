@@ -329,7 +329,7 @@ public class TelegramService {
         String url = updatesEndpoint.toString()
                 + "?offset=" + offset
                 + "&timeout=" + timeoutSeconds
-                + "&allowed_updates=" + encode("[\"callback_query\"]");
+                + "&allowed_updates=" + encode("[\"callback_query\",\"message\",\"channel_post\"]");
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .timeout(Duration.ofSeconds(timeoutSeconds + 5))

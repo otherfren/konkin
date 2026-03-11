@@ -586,7 +586,7 @@ public class LandingPageMapper {
 
         String bind = safe(driverAgent.bind());
         int port = driverAgent.port();
-        String endpointBase = "http://" + bind + ":" + port;
+        String endpointBase = "http://" + displayBind(bind) + ":" + port;
 
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("configured", true);
@@ -619,7 +619,7 @@ public class LandingPageMapper {
 
             String bind = agentConfig == null ? "-" : safe(agentConfig.bind());
             int port = agentConfig == null ? 0 : agentConfig.port();
-            String endpointBase = port > 0 ? "http://" + bind + ":" + port : "-";
+            String endpointBase = port > 0 ? "http://" + displayBind(bind) + ":" + port : "-";
 
             boolean connected = agentTokenStore != null && agentTokenStore.hasTokens(agentName);
             String lastActivity = agentTokenStore != null
@@ -850,6 +850,10 @@ public class LandingPageMapper {
             } else {
                 coin.put("transactions", List.of());
             }
+
+            if (snap.lastError() != null) {
+                coin.put("connectionError", safe(snap.lastError()));
+            }
         } else {
             coin.put("connectionStatus", coinConfig.enabled() ? "not connected" : "disabled");
             coin.put("lastLifeSign", "n/a");
@@ -1050,7 +1054,7 @@ public class LandingPageMapper {
 
         String bind = safe(agentConfig.bind());
         int port = agentConfig.port();
-        String endpointBase = "http://" + bind + ":" + port;
+        String endpointBase = "http://" + displayBind(bind) + ":" + port;
 
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("name", safe(agentName));
@@ -1080,7 +1084,7 @@ public class LandingPageMapper {
 
         String bind = safe(agentConfig.bind());
         int port = agentConfig.port();
-        String endpointBase = port > 0 ? "http://" + bind + ":" + port : "-";
+        String endpointBase = port > 0 ? "http://" + displayBind(bind) + ":" + port : "-";
 
         String tokenEndpoint = port > 0 ? endpointBase + "/oauth/token" : "-";
         String sseEndpoint = port > 0 ? endpointBase + "/sse" : "-";

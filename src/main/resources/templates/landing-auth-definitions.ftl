@@ -45,6 +45,11 @@
                     <#else>
                         <span class="auth-chip auth-chip-on">enabled</span>
                     </#if>
+                    <#if (coin.connectionError!'')?has_content>
+                        <div class="auth-warning-list" style="margin-top:0.5rem;width:100%">
+                            <li>${coin.connectionError}</li>
+                        </div>
+                    </#if>
                 <#else>
                     <span class="auth-chip auth-chip-off">disabled</span>
                 </#if>

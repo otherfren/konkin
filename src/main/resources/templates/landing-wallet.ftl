@@ -44,6 +44,11 @@
                     coin: enabled
                 </span>
             </#if>
+            <#if (coin.connectionError!'')?has_content>
+                <div class="auth-warning-list" style="margin-top:0.5rem;width:100%">
+                    <li>${coin.connectionError}</li>
+                </div>
+            </#if>
         </div>
         <br/>
         <section class="auth-meta-item auth-compact-block" aria-label="Connection and secrets">

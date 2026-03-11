@@ -25,6 +25,8 @@ import io.konkin.web.service.LandingPageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -88,10 +90,18 @@ public class WalletController {
             return;
         }
 
-        String ruleError = ctx.queryParam("error");
-        if (ruleError != null && !ruleError.isBlank()) {
+        String errorParam = ctx.queryParam("error");
+        if (errorParam != null && !errorParam.isBlank()) {
             walletData = new java.util.LinkedHashMap<>(walletData);
-            walletData.put("ruleFlash", ruleError);
+            walletData.put("ruleFlash", errorParam);
+            // Also surface on the coin header for wallet operation errors
+            @SuppressWarnings("unchecked")
+            Map<String, Object> coinData = (Map<String, Object>) walletData.get("coin");
+            if (coinData != null) {
+                Map<String, Object> mutableCoin = new java.util.LinkedHashMap<>(coinData);
+                mutableCoin.put("connectionError", errorParam);
+                walletData.put("coin", mutableCoin);
+            }
         }
 
         ctx.contentType("text/html; charset=UTF-8");
@@ -132,6 +142,8 @@ public class WalletController {
             log.info("Generated new {} deposit address and persisted to KvStore", coinId);
         } catch (Exception e) {
             log.warn("Failed to generate deposit address for {}: {}", coinId, e.getMessage());
+            ctx.redirect("/wallets/" + coinId + "?error=" + URLEncoder.encode(e.getMessage(), StandardCharsets.UTF_8));
+            return;
         }
 
         ctx.redirect("/wallets/" + coinId);

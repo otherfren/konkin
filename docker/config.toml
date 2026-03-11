@@ -1,0 +1,99 @@
+config-version = 1
+
+[server]
+    host = "0.0.0.0"
+    port = 7070
+    secrets-dir = "./secrets"
+    log-file = "./logs/konkin.log"
+    log-level = "info"
+    log-rotate-max-size-mb = 10
+
+[web-ui]
+    enabled = true
+
+    [web-ui.template]
+        directory = "./templates"
+
+    [web-ui.static]
+        hosted-path = "/assets"
+        directory = "./static"
+
+    [web-ui.auto-reload]
+        enabled = false
+
+    [web-ui.password-protection]
+        password-file = "{secrets-dir}/web-ui.password"
+        enabled = true
+
+[rest-api]
+    secret-file = "{secrets-dir}/rest-api.secret"
+    enabled = false
+
+[database]
+    url = "jdbc:h2:./data/konkin;AUTO_SERVER=TRUE"
+    user = "sa"
+    password = "sa"
+    pool-size = 5
+
+[telegram]
+    api-base-url = "https://api.telegram.org"
+    secret-file = "{secrets-dir}/telegram.secret"
+    enabled = true
+    auto-deny-timeout = "3m"
+
+[agents.primary]
+    bind = "0.0.0.0"
+    port = 9550
+    secret-file = "{secrets-dir}/agent-primary.secret"
+
+[agents.secondary.agent-arthur]
+    bind = "0.0.0.0"
+    visible = true
+    port = 9560
+    secret-file = "{secrets-dir}/agent-arthur.secret"
+
+[agents.secondary.agent-merlin]
+    bind = "0.0.0.0"
+    visible = false
+    port = 9561
+    secret-file = "{secrets-dir}/agent-merlin.secret"
+
+[agents.secondary.agent-lancelot]
+    bind = "0.0.0.0"
+    visible = false
+    port = 9562
+    secret-file = "{secrets-dir}/agent-lancelot.secret"
+
+[agents.secondary.agent-guinevere]
+    bind = "0.0.0.0"
+    visible = false
+    port = 9563
+    secret-file = "{secrets-dir}/agent-guinevere.secret"
+
+[agents.secondary.agent-morgana]
+    bind = "0.0.0.0"
+    visible = false
+    port = 9564
+    secret-file = "{secrets-dir}/agent-morgana.secret"
+
+[debug]
+    enabled = false
+    seed-fake-data = false
+
+[coins.bitcoin]
+    enabled = true
+
+    [coins.bitcoin.secret-files]
+        bitcoin-wallet-config-file = "{secrets-dir}/bitcoin-wallet.conf"
+        # files are auto-generated on startup when missing
+        bitcoin-daemon-config-file = "{secrets-dir}/bitcoin-daemon.conf"
+
+    [coins.bitcoin.auth]
+        web-ui = true
+        rest-api = false
+        telegram = true
+        auto-accept = []
+        veto-channels = ["telegram", "agent-arthur", "web-ui"]
+        # MCP auth channel identifiers shown in Auth Definitions
+        mcp-auth-channels = ["agent-arthur"]
+        min-approvals-required = 1

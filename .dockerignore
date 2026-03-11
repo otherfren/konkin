@@ -1,0 +1,8 @@
+target/
+.idea/
+*.iml
+data/
+secrets/
+logs/
+.git/
+.mcp.json

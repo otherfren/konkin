@@ -302,7 +302,8 @@ public class KonkinWebServer {
                 if (telegramSecretServiceRef == null) {
                     return false;
                 }
-                return telegramSecretServiceRef.readSecret().chatIds().isEmpty();
+                TelegramSecretService.TelegramSecret secret = telegramSecretServiceRef.readSecret();
+                return secret.chatIds().isEmpty() || telegramSecretServiceRef.hasPlaceholderEntries(secret);
             });
 
             KvStore kvStore = dataSource != null ? new KvStore(dataSource) : null;
@@ -542,6 +543,7 @@ public class KonkinWebServer {
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
             app.post("/auth_channels/web-ui/rotate-password", webUiPageControllerFinal::handlePasswordRotate);
             app.get("/driver_agent", settingsControllerFinal::handleDriverAgentPage);
+            app.post("/driver_agent/rotate-secret", settingsControllerFinal::handleDriverAgentRotateSecret);
             app.get("/setup", webUiPageControllerFinal::handleSetupPage);
             app.post("/setup", webUiPageControllerFinal::handleSetupCreate);
             app.get("/auth_channels/api_keys", settingsControllerFinal::handleApiKeysPage);
@@ -622,6 +624,7 @@ public class KonkinWebServer {
             telegramCallbackPoller = new TelegramCallbackPoller(
                     telegramNotifier.telegramService(), requestRepo, voteRepo, historyRepo, configManager, voteService
             );
+            telegramCallbackPoller.setTelegramSecretService(telegramSecretService);
             telegramCallbackPoller.start();
         }
 

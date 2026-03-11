@@ -1,0 +1,5 @@
+# KONKIN Bitcoin daemon secret config
+rpcuser=${BTC_RPC_USER}
+rpcpassword=${BTC_RPC_PASSWORD}
+rpcconnect=127.0.0.1
+rpcport=${BTC_RPC_PORT}

@@ -63,7 +63,8 @@ public final class BitcoinWalletFactory implements CoinWalletFactory {
                 log.warn("Failed to load Bitcoin wallet '{}': {}", walletName, msg);
             }
         } catch (Exception e) {
-            log.warn("Failed to send loadwallet RPC: {}", e.getMessage());
+            log.warn("Failed to send loadwallet RPC to {}: {} ({})",
+                    config.rpcUrl(), e.getMessage(), e.getClass().getSimpleName());
         }
     }
 }

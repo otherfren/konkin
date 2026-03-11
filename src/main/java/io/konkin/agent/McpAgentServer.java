@@ -89,6 +89,7 @@ public class McpAgentServer {
     private HttpServletSseServerTransportProvider transportProvider;
     private DecisionNotificationPoller decisionNotificationPoller;
     private ApprovalNotificationPoller approvalNotificationPoller;
+    private AgentOAuthHandler oauthHandler;
 
     public McpAgentServer(
             String agentName,
@@ -157,7 +158,7 @@ public class McpAgentServer {
         }
 
         // Set up Jetty with auth filter + MCP servlet
-        AgentOAuthHandler oauthHandler = new AgentOAuthHandler(agentName, Path.of(config.secretFile()), tokenStore);
+        oauthHandler = new AgentOAuthHandler(agentName, Path.of(config.secretFile()), tokenStore);
         McpAuthServletFilter authFilter = new McpAuthServletFilter(agentName, tokenStore, oauthHandler);
 
         ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
@@ -258,6 +259,10 @@ public class McpAgentServer {
 
     public String agentName() {
         return agentName;
+    }
+
+    public AgentOAuthHandler oauthHandler() {
+        return oauthHandler;
     }
 
     public String agentType() {
