@@ -41,7 +41,8 @@
             <#if activePage == "auth_channel_telegram"><span class="menu-active menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="${telegramPath}" class="menu-sub">telegram<#if (telegramWarn!false)> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#if>
         <#list agentNames as agentName>
-            <#if activePage == "auth_channel_agent_" + agentName><span class="menu-active menu-sub">${agentName}</span><#else><a href="/auth_channels/agents/${agentName}" class="menu-sub">${agentName}</a></#if>
+            <#assign agentDisconnected = (disconnectedAgents[agentName])!false>
+            <#if activePage == "auth_channel_agent_" + agentName><span class="menu-active menu-sub">${agentName}<#if agentDisconnected> <span class="menu-warn">&#9888;</span></#if></span><#else><a href="/auth_channels/agents/${agentName}" class="menu-sub">${agentName}<#if agentDisconnected> <span class="menu-warn">&#9888;</span></#if></a></#if>
         </#list>
         <#if activePage == "settings"><span class="menu-active">settings</span><#else><a href="/settings">settings</a></#if>
         <#if showLogout>

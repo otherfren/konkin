@@ -56,6 +56,7 @@ config-version = 1
 			telegram = true
 			mcp = "ltc-main"
 			veto-channels = ["web-ui"]
+			mcp-auth-channels = ["agent-arthur"]
 			min-approvals-required = 1
 				[[coins.litecoin.auth.auto-deny]]
 					[coins.litecoin.auth.auto-deny.criteria]
@@ -81,7 +82,7 @@ config-version = 1
 			telegram = true
 			mcp = "xmr-main"
 			veto-channels = ["telegram", "web-ui"]
-			mcp-auth-channels = ["agent-merlin"]
+			mcp-auth-channels = ["agent-lancelot", "agent-morgana"]
 			min-approvals-required = 2
 				[[coins.monero.auth.auto-deny]]
 					[coins.monero.auth.auto-deny.criteria]
@@ -119,9 +120,9 @@ config-version = 1
 			rest-api = true
 			telegram = true
 			auto-accept = []
-			veto-channels = ["telegram", "agent-merlin", "web-ui"]
+			veto-channels = ["telegram", "web-ui"]
 			# MCP auth channel identifiers shown in Auth Definitions
-			mcp-auth-channels = ["agent-arthur", "agent-merlin"]
+			mcp-auth-channels = ["agent-morgana", "agent-lancelot"]
 			min-approvals-required = 2
 			#[[coins.bitcoin.auth.auto-accept]]
 			#[coins.bitcoin.auth.auto-accept.criteria]

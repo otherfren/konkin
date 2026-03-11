@@ -116,6 +116,44 @@
                         </div>
                         <button type="button" class="rule-add-btn veto-add-btn">+ add veto channel</button>
                     </div>
+                    <h4 class="settings-subsection-title">MCP Auth Channels</h4>
+                    <div class="settings-field mcp-auth-channels-field">
+                        <#assign mcpAuthList = (coin.mcpAuthChannels![])>
+                        <#assign mcpAuthOptions = (coin.mcpAuthChannelOptions![])>
+                        <div class="mcp-auth-channels-list">
+                            <#list mcpAuthList as mac>
+                            <div class="mcp-auth-channel-row">
+                                <select class="settings-input settings-select mcp-auth-channel-input">
+                                    <#list mcpAuthOptions as opt>
+                                    <option value="${opt}"<#if opt == mac> selected</#if>>${opt}</option>
+                                    </#list>
+                                </select>
+                                <button type="button" class="rule-remove-btn mcp-auth-remove-btn" title="Remove">&times;</button>
+                            </div>
+                            </#list>
+                        </div>
+                        <button type="button" class="rule-add-btn mcp-auth-add-btn">+ add mcp auth channel</button>
+                        <#if mcpAuthOptions?size == 0>
+                            <p class="settings-hint">No secondary agents configured.</p>
+                        </#if>
+                    </div>
+                    <noscript>
+                        <form method="POST" action="/wallets/${coin.coin!''}/mcp-auth-channels" class="mcp-auth-noscript-form" style="margin-top:0.5rem">
+                            <#list mcpAuthList as mac>
+                                <input type="hidden" name="channel" value="${mac}" />
+                            </#list>
+                            <div class="settings-field">
+                                <label class="settings-label">Add channel</label>
+                                <select name="channel" class="settings-input settings-select">
+                                    <option value="">— none —</option>
+                                    <#list mcpAuthOptions as opt>
+                                    <option value="${opt}">${opt}</option>
+                                    </#list>
+                                </select>
+                            </div>
+                            <button type="submit" class="settings-save-btn">Save MCP Auth Channels</button>
+                        </form>
+                    </noscript>
                     <div class="settings-actions">
                         <button type="button" class="settings-save-btn coin-settings-save-btn">Save</button>
                         <span class="settings-status"></span>
@@ -495,7 +533,38 @@
         }
     }
 
-    // Coin settings save: collect veto channels + reload on success
+    // MCP auth channel add/remove
+    const mcpList = document.querySelector('.mcp-auth-channels-list');
+    const mcpAddBtn = document.querySelector('.mcp-auth-add-btn');
+    const mcpOptions = [<#list (coin.mcpAuthChannelOptions![]) as opt>'${opt}'<#if opt?has_next>,</#if></#list>];
+    if (mcpAddBtn && mcpList) {
+        mcpAddBtn.addEventListener('click', () => {
+            const row = document.createElement('div');
+            row.className = 'mcp-auth-channel-row';
+            const select = document.createElement('select');
+            select.className = 'settings-input settings-select mcp-auth-channel-input';
+            for (const opt of mcpOptions) {
+                const o = document.createElement('option');
+                o.value = opt;
+                o.textContent = opt;
+                select.appendChild(o);
+            }
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'rule-remove-btn mcp-auth-remove-btn';
+            removeBtn.title = 'Remove';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => row.remove());
+            row.appendChild(select);
+            row.appendChild(removeBtn);
+            mcpList.appendChild(row);
+        });
+        for (const btn of mcpList.querySelectorAll('.mcp-auth-remove-btn')) {
+            btn.addEventListener('click', () => btn.closest('.mcp-auth-channel-row').remove());
+        }
+    }
+
+    // Coin settings save: collect veto channels + MCP auth channels + reload on success
     const coinSaveBtn = document.querySelector('.coin-settings-save-btn');
     if (coinSaveBtn) {
         coinSaveBtn.addEventListener('click', async () => {
@@ -526,6 +595,15 @@
                 if (v) vetoChannels.push(v);
             }
             body['auth.veto-channels'] = vetoChannels;
+
+            // Collect MCP auth channels
+            const mcpInputs = form.querySelectorAll('.mcp-auth-channel-input');
+            const mcpAuthChannels = [];
+            for (const mi of mcpInputs) {
+                const v = mi.value.trim();
+                if (v && !mcpAuthChannels.includes(v)) mcpAuthChannels.push(v);
+            }
+            body['auth.mcp-auth-channels'] = mcpAuthChannels;
 
             coinSaveBtn.disabled = true;
             if (status) { status.textContent = 'saving...'; status.className = 'settings-status'; }

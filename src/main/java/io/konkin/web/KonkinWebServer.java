@@ -555,6 +555,7 @@ public class KonkinWebServer {
             app.post("/wallets/generate-address", walletControllerFinal::handleGenerateDepositAddress);
             app.post("/wallets/reconnect", walletControllerFinal::handleWalletReconnect);
             app.post("/wallets/{coin}/rules", settingsControllerFinal::handleUpdateRulesForm);
+            app.post("/wallets/{coin}/mcp-auth-channels", settingsControllerFinal::handleUpdateMcpAuthChannelsForm);
             app.get("/auth_channels", webUiPageControllerFinal::handleAuthChannelsPage);
             app.get("/auth_channels/agents/{name}", settingsControllerFinal::handleAgentPage);
             app.get("/auth_channels/web-ui", webUiPageControllerFinal::handleAuthChannelWebUiPage);
@@ -625,6 +626,16 @@ public class KonkinWebServer {
             if (landingPageController != null) {
                 landingPageController.setAgentTokenStore(agentTokenStore);
             }
+            AgentTokenStore tokenStoreRef = agentTokenStore;
+            if (landingPageService != null) landingPageService.setDisconnectedAgentsSupplier(() -> {
+                Map<String, Boolean> result = new java.util.LinkedHashMap<>();
+                for (Map.Entry<String, AgentConfig> entry : configManager.get().secondaryAgents().entrySet()) {
+                    if (entry.getValue().visible()) {
+                        result.put(entry.getKey(), !tokenStoreRef.hasTokens(entry.getKey()));
+                    }
+                }
+                return result;
+            });
         }
 
         running = true;

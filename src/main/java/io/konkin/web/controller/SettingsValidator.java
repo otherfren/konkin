@@ -62,7 +62,8 @@ final class SettingsValidator {
             "auth.web-ui", "auth.rest-api", "auth.telegram",
             "auth.min-approvals-required",
             "auth.auto-accept", "auth.auto-deny",
-            "auth.veto-channels"
+            "auth.veto-channels",
+            "auth.mcp-auth-channels"
     );
 
     private static final Set<String> VALID_CRITERIA_TYPES = Set.of(
@@ -241,6 +242,11 @@ final class SettingsValidator {
 
         if (values.containsKey("auth.veto-channels")) {
             String err = validateStringList(values.get("auth.veto-channels"), "auth.veto-channels");
+            if (err != null) return err;
+        }
+
+        if (values.containsKey("auth.mcp-auth-channels")) {
+            String err = validateStringList(values.get("auth.mcp-auth-channels"), "auth.mcp-auth-channels");
             if (err != null) return err;
         }
 

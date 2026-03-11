@@ -563,14 +563,14 @@ public class TestConfigBuilder {
         return this;
     }
 
-    public TestConfigBuilder withSecondaryAgent(String name, boolean enabled, String bind, int agentPort, Path secretFile) {
+    public TestConfigBuilder withSecondaryAgent(String name, boolean visible, String bind, int agentPort, Path secretFile) {
         sections.add("""
                 [agents.secondary.%s]
-                visible = true
+                visible = %s
                 bind = "%s"
                 port = %d
                 secret-file = "%s"
-                """.formatted(name, bind, agentPort, tomlPath(secretFile)));
+                """.formatted(name, visible, bind, agentPort, tomlPath(secretFile)));
         return this;
     }
 

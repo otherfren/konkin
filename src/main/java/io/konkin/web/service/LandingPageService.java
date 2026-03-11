@@ -69,6 +69,7 @@ public class LandingPageService {
     private volatile Supplier<Collection<String>> pendingRestartFieldsSupplier = List::of;
     private volatile List<String> enabledCoins = List.of();
     private volatile Supplier<List<String>> secondaryAgentNamesSupplier = List::of;
+    private volatile Supplier<Map<String, Boolean>> disconnectedAgentsSupplier = Map::of;
 
     public LandingPageService(
             Path templateDirectory,
@@ -144,6 +145,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -202,6 +204,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -235,6 +238,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -268,6 +272,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -301,6 +306,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -337,6 +343,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -386,6 +393,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -430,6 +438,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -494,6 +503,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -531,6 +541,7 @@ public class LandingPageService {
         model.put("telegramPageAvailable", telegramEnabled);
         model.put("enabledCoins", enabledCoins);
         model.put("secondaryAgentNames", secondaryAgentNamesSupplier.get());
+        model.put("disconnectedAgents", disconnectedAgentsSupplier.get());
         Map<String, Boolean> disconnected = walletDisconnectedSupplier.get();
         model.put("disconnectedWallets", disconnected);
         model.put("walletsWarn", !disconnected.isEmpty()
@@ -565,6 +576,10 @@ public class LandingPageService {
 
     public void setSecondaryAgentNamesSupplier(Supplier<List<String>> supplier) {
         this.secondaryAgentNamesSupplier = supplier;
+    }
+
+    public void setDisconnectedAgentsSupplier(Supplier<Map<String, Boolean>> supplier) {
+        this.disconnectedAgentsSupplier = supplier != null ? supplier : Map::of;
     }
 
     public void setWalletDisconnectedSupplier(Supplier<Map<String, Boolean>> supplier) {

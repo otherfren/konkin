@@ -417,6 +417,51 @@ public class SettingsController {
         ctx.redirect("/wallets/" + coin + "#rule-errors");
     }
 
+    /**
+     * Handles HTML form submission for MCP auth channels.
+     * Parses parallel form values (channel[]), validates, saves, and redirects back to the wallet page.
+     */
+    public void handleUpdateMcpAuthChannelsForm(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            loginRedirect.accept(ctx);
+            return;
+        }
+
+        String coin = ctx.pathParam("coin").toLowerCase();
+        if (config().resolveCoinConfig(coin) == null) {
+            ctx.redirect("/wallets");
+            return;
+        }
+
+        List<String> channels = ctx.formParams("channel");
+        List<String> deduplicated = new ArrayList<>(new java.util.LinkedHashSet<>(
+                channels.stream()
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toList()
+        ));
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("auth.mcp-auth-channels", deduplicated);
+
+        String error = SettingsValidator.validateCoin(body);
+        if (error != null) {
+            log.warn("MCP auth channels validation failed for {}: {}", coin, error);
+            ctx.redirect("/wallets/" + coin + "?error=" + java.net.URLEncoder.encode(error, java.nio.charset.StandardCharsets.UTF_8));
+            return;
+        }
+
+        ConfigUpdateResult result = configManager.updateSection("coins." + coin, body);
+        if (!result.success()) {
+            log.warn("MCP auth channels update failed for {}: {}", coin, result.errorMessage());
+            ctx.redirect("/wallets/" + coin + "?error=" + java.net.URLEncoder.encode(result.errorMessage(), java.nio.charset.StandardCharsets.UTF_8));
+            return;
+        }
+
+        log.info("MCP auth channels updated via form — coin={}, channels={}", coin, deduplicated);
+        ctx.redirect("/wallets/" + coin);
+    }
+
     public void handleRevokeAgentToken(Context ctx) {
         if (!checkSession(ctx)) return;
         String name = ctx.pathParam("name");

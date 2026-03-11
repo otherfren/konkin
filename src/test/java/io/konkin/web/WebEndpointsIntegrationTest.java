@@ -994,4 +994,339 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertEquals(200, healthWithoutKey.statusCode());
         }
     }
+
+    @Test
+    void walletPageRendersMcpAuthChannelsSettingsSection() throws Exception {
+        int port = freePort();
+        int agentAPort = freePort();
+        int agentBPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-settings.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-settings.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-settings.conf");
+
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", agentAPort,
+                        tempDir.resolve("secrets/agent-a-mcp-settings.secret"))
+                .withSecondaryAgent("agent-b", true, "127.0.0.1", agentBPort,
+                        tempDir.resolve("secrets/agent-b-mcp-settings.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(true, false, false, List.of("agent-a", "agent-b"))
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-settings-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> walletPage = get(runningServer, "/wallets/bitcoin", Map.of());
+            assertEquals(200, walletPage.statusCode());
+            assertTrue(walletPage.body().contains("MCP Auth Channels"));
+            assertTrue(walletPage.body().contains("/wallets/bitcoin/mcp-auth-channels"));
+            assertTrue(walletPage.body().contains("mcp-auth-channel-input"));
+            assertTrue(walletPage.body().contains("agent-a"));
+            assertTrue(walletPage.body().contains("agent-b"));
+        }
+    }
+
+    @Test
+    void mcpAuthChannelsFormPostUpdatesConfigAndRedirects() throws Exception {
+        int port = freePort();
+        int agentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-form.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-form.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-form.conf");
+
+        String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
+
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", agentPort,
+                        tempDir.resolve("secrets/agent-a-mcp-form.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuth(true, false, false)
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-form-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            // POST MCP auth channels via form
+            HttpResponse<String> response = postForm(runningServer,
+                    "/wallets/bitcoin/mcp-auth-channels",
+                    "channel=agent-a",
+                    Map.of());
+
+            // Should redirect back to wallet page
+            assertEquals(302, response.statusCode());
+            assertTrue(response.headers().firstValue("Location").orElse("").contains("/wallets/bitcoin"));
+        }
+    }
+
+    @Test
+    void mcpAuthChannelsFormPostDeduplicatesChannels() throws Exception {
+        int port = freePort();
+        int agentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-dedup.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-dedup.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-dedup.conf");
+
+        String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
+
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", agentPort,
+                        tempDir.resolve("secrets/agent-a-mcp-dedup.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuth(true, false, false)
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-dedup-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            // POST with duplicate channels
+            HttpResponse<String> response = postForm(runningServer,
+                    "/wallets/bitcoin/mcp-auth-channels",
+                    "channel=agent-a&channel=agent-a&channel=agent-a",
+                    Map.of());
+
+            assertEquals(302, response.statusCode());
+            assertTrue(response.headers().firstValue("Location").orElse("").contains("/wallets/bitcoin"));
+        }
+    }
+
+    @Test
+    void mcpAuthChannelsFormPostRejectsUnknownCoin() throws Exception {
+        int port = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-unknown.password");
+
+        String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
+
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-unknown-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            HttpResponse<String> response = postForm(runningServer,
+                    "/wallets/dogecoin/mcp-auth-channels",
+                    "channel=agent-a",
+                    Map.of());
+
+            // Should redirect to /wallets (unknown coin)
+            assertEquals(302, response.statusCode());
+            assertTrue(response.headers().firstValue("Location").orElse("").contains("/wallets"));
+        }
+    }
+
+    @Test
+    void mcpAuthChannelsJsonPostViaSettingsEndpoint() throws Exception {
+        int port = freePort();
+        int agentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-json.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-json.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-json.conf");
+
+        String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
+
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-a", true, "127.0.0.1", agentPort,
+                        tempDir.resolve("secrets/agent-a-mcp-json.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuth(true, false, false)
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-json-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+
+            // POST via JSON settings endpoint (JS-enhanced path)
+            String json = "{\"auth.mcp-auth-channels\":[\"agent-a\"]}";
+            HttpResponse<String> response = postJson(runningServer,
+                    "/settings/coins/bitcoin",
+                    json,
+                    Map.of());
+
+            assertEquals(200, response.statusCode());
+            assertTrue(response.body().contains("\"success\":true") || response.body().contains("\"success\" : true"));
+        }
+    }
+
+    @Test
+    void mcpAuthChannelOptionsExcludeInvisibleAgents() throws Exception {
+        int port = freePort();
+        int visiblePort = freePort();
+        int hiddenPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-mcp-visible.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-mcp-visible.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-mcp-visible.conf");
+
+        String configToml = TestConfigBuilder.create(port)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-visible", true, "127.0.0.1", visiblePort,
+                        tempDir.resolve("secrets/agent-visible-mcp.secret"))
+                .withSecondaryAgent("agent-hidden", false, "127.0.0.1", hiddenPort,
+                        tempDir.resolve("secrets/agent-hidden-mcp.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuthWithMcpAuthChannels(true, false, false, List.of("agent-visible"))
+                .build();
+
+        Path configFile = tempDir.resolve("config-mcp-visible-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        KonkinWebServer server = new KonkinWebServer(config, "test-version");
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port))) {
+            waitForHealth(port);
+            HttpResponse<String> walletPage = get(runningServer, "/wallets/bitcoin", Map.of());
+            assertEquals(200, walletPage.statusCode());
+            String body = walletPage.body();
+            // The MCP auth channel select should contain agent-visible as an option
+            int mcpFieldStart = body.indexOf("mcp-auth-channels-field");
+            assertTrue(mcpFieldStart > 0, "MCP Auth Channels field should exist");
+            // Extract the HTML between mcp-auth-channels-field and the noscript section
+            int noscriptIdx = body.indexOf("<noscript>", mcpFieldStart);
+            String mcpHtml = body.substring(mcpFieldStart, noscriptIdx);
+            assertTrue(mcpHtml.contains("<option value=\"agent-visible\""),
+                    "Visible agent should appear in MCP auth channel select options");
+            assertFalse(mcpHtml.contains("agent-hidden"),
+                    "Invisible agent should not appear in MCP auth channel options");
+        }
+    }
+
+    @Test
+    void sidebarShowsWarnIconForDisconnectedAgents() throws Exception {
+        int port = freePort();
+        int agentPort = freePort();
+
+        Path templateDir = Path.of("src/main/resources/templates").toAbsolutePath().normalize();
+        Path staticDir = Path.of("src/main/resources/static").toAbsolutePath().normalize();
+        Path webUiPasswordFile = tempDir.resolve("unused-web-ui-sidebar-warn.password");
+        Path daemonSecretFile = tempDir.resolve("secrets/bitcoin-daemon-sidebar-warn.conf");
+        Path walletSecretFile = tempDir.resolve("secrets/bitcoin-wallet-sidebar-warn.conf");
+
+        String dbUrl = "jdbc:h2:mem:web-endpoints-test;DB_CLOSE_DELAY=-1";
+
+        String configToml = TestConfigBuilder.create(port)
+                .withDatabase(dbUrl)
+                .withWebUi(true)
+                .withWebUiPasswordProtection(false, webUiPasswordFile)
+                .withWebUiTemplate(templateDir)
+                .withWebUiStatic(staticDir)
+                .withAutoReload(false)
+                .withSecondaryAgent("agent-lonely", true, "127.0.0.1", agentPort,
+                        tempDir.resolve("secrets/agent-lonely-sidebar.secret"))
+                .withBitcoin(daemonSecretFile, walletSecretFile)
+                .withBitcoinAuth(true, false, false)
+                .build();
+
+        Path configFile = tempDir.resolve("config-sidebar-warn-%d.toml".formatted(System.nanoTime()));
+        Files.writeString(configFile, configToml, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+
+        KonkinConfig config = KonkinConfig.load(configFile.toString());
+        DatabaseManager dbManager = new DatabaseManager(TestDatabaseManager.dataSource("web-endpoints-test"));
+        KonkinWebServer server = new KonkinWebServer(config, "test-version", dbManager.dataSource());
+        server.start();
+
+        try (RunningServer runningServer = new RunningServer(server, URI.create("http://127.0.0.1:" + port), dbManager)) {
+            waitForHealth(port);
+            HttpResponse<String> page = get(runningServer, "/wallets/bitcoin", Map.of());
+            assertEquals(200, page.statusCode());
+            // agent-lonely is visible but has no tokens (not connected) → should show warn icon
+            String body = page.body();
+            assertTrue(body.contains("agent-lonely"),
+                    "Visible agent should appear in sidebar");
+            // The warn icon (⚠ = &#9888;) should appear near the agent name in the sidebar
+            int agentIdx = body.indexOf("agent-lonely");
+            assertTrue(agentIdx > 0);
+            // Find the menu-warn span near the agent name
+            String vicinity = body.substring(Math.max(0, agentIdx - 50), Math.min(body.length(), agentIdx + 100));
+            assertTrue(vicinity.contains("menu-warn"),
+                    "Disconnected agent should have warn icon in sidebar, but found: " + vicinity);
+        }
+    }
 }

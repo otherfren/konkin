@@ -877,10 +877,23 @@ public class LandingPageMapper {
         vetoChannelOptions.add("web-ui");
         vetoChannelOptions.add("rest-api");
         vetoChannelOptions.add("telegram");
-        for (String agentName : authAgents.keySet()) {
-            vetoChannelOptions.add(agentName);
+        for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().visible()) {
+                vetoChannelOptions.add(entry.getKey());
+            }
         }
         coin.put("vetoChannelOptions", vetoChannelOptions);
+
+        List<String> mcpAuthChannels = auth.mcpAuthChannels() == null ? List.of() : auth.mcpAuthChannels();
+        coin.put("mcpAuthChannels", mcpAuthChannels);
+
+        List<String> mcpAuthChannelOptions = new ArrayList<>();
+        for (Map.Entry<String, AgentConfig> entry : authAgents.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().visible()) {
+                mcpAuthChannelOptions.add(entry.getKey());
+            }
+        }
+        coin.put("mcpAuthChannelOptions", mcpAuthChannelOptions);
 
         // Deposit address from KvStore
         String lastDepositAddress = readLastDepositAddress(coinId);
