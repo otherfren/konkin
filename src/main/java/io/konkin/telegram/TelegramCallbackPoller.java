@@ -56,6 +56,7 @@ public class TelegramCallbackPoller {
     private final HistoryRepository historyRepo;
     private final ConfigManager configManager;
     private final VoteService voteService;
+    private volatile TelegramSecretService telegramSecretService;
 
     private ScheduledExecutorService scheduler;
     private long nextOffset;
@@ -87,6 +88,10 @@ public class TelegramCallbackPoller {
             VoteService voteService
     ) {
         this(telegramService, requestRepo, voteRepo, historyRepo, new ConfigManager(config), voteService);
+    }
+
+    public void setTelegramSecretService(TelegramSecretService telegramSecretService) {
+        this.telegramSecretService = telegramSecretService;
     }
 
     private KonkinConfig config() {
@@ -125,6 +130,8 @@ public class TelegramCallbackPoller {
                 return;
             }
 
+            List<TelegramService.ChatRequest> discoveredChats = new java.util.ArrayList<>();
+
             for (JsonNode update : updates) {
                 long updateId = update.path("update_id").asLong(-1);
                 if (updateId >= 0) {
@@ -132,14 +139,38 @@ public class TelegramCallbackPoller {
                 }
 
                 JsonNode callbackQuery = update.path("callback_query");
-                if (callbackQuery.isMissingNode() || callbackQuery.isNull()) {
+                if (!callbackQuery.isMissingNode() && !callbackQuery.isNull()) {
+                    try {
+                        handleCallbackQuery(callbackQuery);
+                    } catch (Exception e) {
+                        log.warn("Failed to handle callback query: {}", e.getMessage(), e);
+                    }
                     continue;
                 }
 
-                try {
-                    handleCallbackQuery(callbackQuery);
-                } catch (Exception e) {
-                    log.warn("Failed to handle callback query: {}", e.getMessage(), e);
+                // Capture message/channel_post updates as discovered chats
+                JsonNode chat = update.path("message").path("chat");
+                if (chat.isMissingNode() || chat.isNull()) {
+                    chat = update.path("channel_post").path("chat");
+                }
+                if (!chat.isMissingNode() && !chat.isNull()) {
+                    String chatId = chat.path("id").asText("").trim();
+                    if (!chatId.isEmpty()) {
+                        String chatType = chat.path("type").asText("").trim();
+                        String title = chat.has("title") ? chat.path("title").asText("").trim() : "";
+                        String username = chat.has("username") ? chat.path("username").asText("").trim() : "";
+                        if (title.isEmpty() && chat.has("first_name")) {
+                            title = chat.path("first_name").asText("").trim();
+                        }
+                        discoveredChats.add(new TelegramService.ChatRequest(chatId, chatType, title, username));
+                        log.info("Discovered Telegram chat via poller: chatId={}, type={}, title={}", chatId, chatType, title);
+                    }
+                }
+            }
+
+            if (!discoveredChats.isEmpty() && telegramSecretService != null) {
+                if (!telegramSecretService.rememberDiscoveredChats(discoveredChats)) {
+                    log.warn("Failed to persist discovered Telegram chats from poller");
                 }
             }
         } catch (Exception e) {

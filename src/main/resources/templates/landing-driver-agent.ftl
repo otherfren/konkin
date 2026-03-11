@@ -98,6 +98,48 @@
     </section>
     </#if>
 
+    <#if (driverAgentEndpoint.configured!false)>
+    <section class="auth-card" style="margin-top:1rem">
+        <div class="auth-card-header">
+            <h3 class="auth-coin-name">Client Secret</h3>
+        </div>
+        <p class="auth-channels-subtitle">Rotate the OAuth client-secret stored in the driver agent secret file. Takes effect immediately &mdash; existing tokens are revoked.</p>
+        <#if revealedClientSecret?has_content>
+            <div style="margin-top:.8rem;text-align:center">
+                <div class="setup-password-row" style="justify-content:center;margin-bottom:.6rem">
+                    <code class="setup-password-display" id="rotated-secret-value" style="color:var(--accent);font-weight:bold">${revealedClientSecret}</code>
+                    <button class="setup-copy-button" type="button" onclick="navigator.clipboard.writeText(document.getElementById('rotated-secret-value').textContent)">Copy</button>
+                </div>
+                <p class="auth-channels-subtitle" style="margin:0">Copy the secret now &mdash; it will not be shown again.</p>
+            </div>
+        <#else>
+            <div style="margin-top:.8rem;text-align:center">
+                <form method="post" action="/driver_agent/rotate-secret" id="rotate-secret-form">
+                    <button class="login-button" type="button" id="rotate-secret-btn">Rotate Client Secret</button>
+                </form>
+            </div>
+        </#if>
+    </section>
+    </#if>
+
+    <script>
+    (function() {
+        var btn = document.getElementById('rotate-secret-btn');
+        if (btn) {
+            btn.addEventListener('click', function() {
+                var confirmFn = window.confirmModal && window.confirmModal['driver-confirm-modal'];
+                if (confirmFn) {
+                    confirmFn(
+                        'Rotate Client Secret',
+                        'This will generate a new client-secret, update the secret file, and revoke existing tokens. Continue?',
+                        'Rotate'
+                    ).then(function(ok) { if (ok) document.getElementById('rotate-secret-form').submit(); });
+                }
+            });
+        }
+    })();
+    </script>
+
     <div class="driver-panels-grid">
         <section class="auth-overview-panel" aria-labelledby="driver-mcp-registration-title">
             <h3 id="driver-mcp-registration-title" class="auth-section-title">MCP Registration</h3>
@@ -164,6 +206,21 @@
 </div></main>
 
 <@m.settingsScript />
+<@m.confirmModal id="driver-confirm-modal" />
+<script>
+(function() {
+    var newSecret = document.getElementById('rotated-secret-value');
+    if (!newSecret) return;
+    var secret = newSecret.textContent;
+    var codeBlocks = document.querySelectorAll('.driver-command code');
+    for (var i = 0; i < codeBlocks.length; i++) {
+        var text = codeBlocks[i].textContent;
+        if (text.indexOf('YOUR_SECRET') !== -1) {
+            codeBlocks[i].textContent = text.replace('YOUR_SECRET', secret);
+        }
+    }
+})();
+</script>
 <@m.footer />
 </div>
 </@layout.page>

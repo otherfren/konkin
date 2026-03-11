@@ -136,7 +136,50 @@ public class SettingsController {
         ctx.result(landingPageService.renderDriverAgent(
                 passwordProtectionEnabled,
                 mapper.buildDriverAgentModel(),
-                mapper.buildDriverAgentSettingsModel()
+                mapper.buildDriverAgentSettingsModel(),
+                ""
+        ));
+    }
+
+    public void handleDriverAgentRotateSecret(Context ctx) {
+        if (passwordProtectionEnabled && !sessionValidator.test(ctx)) {
+            loginRedirect.accept(ctx);
+            return;
+        }
+
+        KonkinConfig cfg = config();
+        if (cfg.primaryAgent() == null) {
+            ctx.redirect("/driver_agent");
+            return;
+        }
+
+        Path secretFile = Path.of(cfg.primaryAgent().secretFile());
+        String clientId = readClientId(secretFile);
+        String newSecret = generateHexSecret(32);
+        writeAgentSecretFile(secretFile, clientId, newSecret);
+        log.info("Driver agent client-secret rotated via web UI, secret file: {}", secretFile.toAbsolutePath());
+
+        // Hot-reload secret in the running agent endpoint and revoke existing tokens
+        Supplier<List<McpAgentServer>> supplier = agentEndpointsSupplier;
+        if (supplier != null) {
+            for (McpAgentServer endpoint : supplier.get()) {
+                if ("driver".equals(endpoint.agentType()) && endpoint.oauthHandler() != null) {
+                    endpoint.oauthHandler().rotateSecret(newSecret);
+                    if (agentTokenStore != null) {
+                        agentTokenStore.revokeByAgent(endpoint.agentName());
+                    }
+                    log.info("Driver agent secret hot-reloaded, existing tokens revoked");
+                    break;
+                }
+            }
+        }
+
+        ctx.contentType("text/html; charset=UTF-8");
+        ctx.result(landingPageService.renderDriverAgent(
+                passwordProtectionEnabled,
+                mapper.buildDriverAgentModel(),
+                mapper.buildDriverAgentSettingsModel(),
+                newSecret
         ));
     }
 
@@ -483,6 +526,47 @@ public class SettingsController {
             if (msg.startsWith(prefix)) msg = msg.substring(prefix.length());
         }
         return msg;
+    }
+
+    private static String readClientId(Path secretFile) {
+        try {
+            java.util.Properties props = new java.util.Properties();
+            try (var reader = java.nio.file.Files.newBufferedReader(secretFile, java.nio.charset.StandardCharsets.UTF_8)) {
+                props.load(reader);
+            }
+            String clientId = props.getProperty("client-id", "").trim();
+            return clientId.isEmpty() ? "konkin-primary" : clientId;
+        } catch (java.io.IOException e) {
+            log.warn("Failed to read client-id from secret file: {}", secretFile, e);
+            return "konkin-primary";
+        }
+    }
+
+    private static String generateHexSecret(int byteLength) {
+        byte[] random = new byte[byteLength];
+        new SecureRandom().nextBytes(random);
+        StringBuilder hex = new StringBuilder(byteLength * 2);
+        for (byte value : random) {
+            hex.append(Character.forDigit((value >>> 4) & 0xF, 16));
+            hex.append(Character.forDigit(value & 0xF, 16));
+        }
+        return hex.toString();
+    }
+
+    private static void writeAgentSecretFile(Path secretFile, String clientId, String clientSecret) {
+        try {
+            Path parent = secretFile.getParent();
+            if (parent != null) {
+                java.nio.file.Files.createDirectories(parent);
+            }
+            java.nio.file.Files.writeString(secretFile,
+                    "client-id=" + clientId + System.lineSeparator()
+                            + "client-secret=" + clientSecret + System.lineSeparator(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            setOwnerOnlyPermissions(secretFile);
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("Failed to write agent secret file: " + secretFile, e);
+        }
     }
 
     private static void setOwnerOnlyPermissions(Path file) {

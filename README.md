@@ -10,12 +10,18 @@ MCP crypto wallet wrapper for AI agents.
 - Keep secret keys hidden from your agents.
 - Supports 2FA via Telegram/other auth agents.
 
-## Agentic Installation
+## Docker installation helper script
+
+```bash
+  ./scripts/konkin-docker.sh
+```
+
+## (Alternative) Agentic Installation without docker
 
 Give this [Installation Guide](documents/SKILL.installation.md) to your agent.
 He will guide you through the installation process.
 
-## Quick Start
+## Quick Start for developers
 
 **Requires:** Java 21+, Maven 3.9+, at least one crypto wallet daemon.
 

@@ -334,6 +334,26 @@ public class TelegramSecretService {
         }
     }
 
+    public boolean hasPlaceholderEntries(TelegramSecret secret) {
+        if (secret == null) {
+            return false;
+        }
+
+        for (String chatId : secret.chatIds()) {
+            if ("REPLACE_ME".equalsIgnoreCase(chatId.trim())) {
+                return true;
+            }
+        }
+
+        for (ChatMeta meta : secret.chatMetaById().values()) {
+            if ("REPLACE_ME".equalsIgnoreCase(meta.displayName().trim())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public boolean hasConfiguredBotToken(TelegramSecret secret) {
         if (secret == null) {
             return false;

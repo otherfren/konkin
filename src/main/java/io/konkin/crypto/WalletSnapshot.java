@@ -24,5 +24,11 @@ public record WalletSnapshot(
         WalletStatus status,
         BigDecimal totalBalance,
         BigDecimal spendableBalance,
-        Instant lastHeartbeat
-) {}
+        Instant lastHeartbeat,
+        String lastError
+) {
+    public WalletSnapshot(Coin coin, WalletStatus status, BigDecimal totalBalance,
+                          BigDecimal spendableBalance, Instant lastHeartbeat) {
+        this(coin, status, totalBalance, spendableBalance, lastHeartbeat, null);
+    }
+}
