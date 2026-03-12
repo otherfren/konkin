@@ -2,6 +2,12 @@
 ![Coverage](.github/badges/jacoco.svg)
 ![Branches](.github/badges/branches.svg)
 
+** DISCLAIMER **
+
+This is a hobby project — no guarantees! If you find bugs, please report them to [me](fren@kek.to).
+
+** DISCLAIMER **
+
 # Konkin.io
 
 MCP crypto wallet wrapper for AI agents.
