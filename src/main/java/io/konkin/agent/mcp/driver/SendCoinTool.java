@@ -17,6 +17,8 @@
 package io.konkin.agent.mcp.driver;
 
 import io.konkin.agent.mcp.entity.McpDataContracts.SendCoinActionAcceptedResponse;
+import io.konkin.approval.ApprovalPolicyEvaluator;
+import io.konkin.approval.ApprovalPolicyEvaluator.PolicyDecision;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
 import io.konkin.db.ApprovalRequestRepository;
@@ -149,6 +151,9 @@ public final class SendCoinTool {
         String nonceComposite = coin + "|" + nonceUuid + "|" + payloadHash;
         int minApprovalsRequired = coinConfig.auth().minApprovalsRequired();
 
+        PolicyDecision policy = ApprovalPolicyEvaluator.evaluate(
+                coinConfig.auth(), coin, parsedAmount, requestRepo, now);
+
         ApprovalRequestRow row = new ApprovalRequestRow(
                 requestId,
                 coin,
@@ -165,16 +170,16 @@ public final class SendCoinTool {
                 reason,
                 now,
                 now.plus(runtimeConfig.telegramAutoDenyTimeout()),
-                "QUEUED",
-                "queued_for_approval",
-                "Request accepted and queued for approval",
+                policy.state(),
+                policy.reasonCode(),
+                policy.reasonText(),
                 minApprovalsRequired,
                 0,
                 0,
-                "manual",
+                policy.action(),
                 now,
                 now,
-                null
+                policy.isAutoResolved() ? now : null
         );
 
         try {
@@ -190,18 +195,17 @@ public final class SendCoinTool {
                     0L,
                     requestId,
                     null,
-                    "QUEUED",
-                    "driver_agent",
-                    agentName,
-                    "queued_for_approval",
+                    policy.state(),
+                    policy.isAutoResolved() ? "policy" : "driver_agent",
+                    policy.isAutoResolved() ? policy.action() : agentName,
+                    policy.reasonCode(),
                     now
             ));
         } catch (Exception e) {
             log.warn("Request {} created but state transition log failed: {}", requestId, e.getMessage());
-            // Request was created successfully, proceed despite history log failure
         }
 
-        if (telegramNotifier != null) {
+        if (!policy.isAutoResolved() && telegramNotifier != null) {
             try {
                 telegramNotifier.notifyIfTelegramEnabled(row);
             } catch (Exception e) {
@@ -209,11 +213,13 @@ public final class SendCoinTool {
             }
         }
 
-        log.info("send_coin request created: id={}, coin={}, to={}, amount={}",
-                requestId, coin, toAddress, parsedAmount.toPlainString());
+        log.info("send_coin request created: id={}, coin={}, to={}, amount={}, policy={}",
+                requestId, coin, toAddress, parsedAmount.toPlainString(), policy.action());
 
-        var accepted = new SendCoinActionAcceptedResponse("accepted", requestId, coin, "send", "QUEUED");
-        return new CallToolResult(List.of(new TextContent(toJson(accepted))), false, null, null);
+        String status = "auto_denied".equals(policy.action()) ? "denied" : "accepted";
+        var response = new SendCoinActionAcceptedResponse(status, requestId, coin, "send", policy.state());
+        boolean isError = "auto_denied".equals(policy.action());
+        return new CallToolResult(List.of(new TextContent(toJson(response))), isError, null, null);
     }
 
     private static boolean hasAnyEnabledCoin(KonkinConfig config) {

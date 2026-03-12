@@ -18,10 +18,7 @@ package io.konkin.crypto.litecoin;
 
 import io.konkin.crypto.*;
 import org.bitcoinj.base.Coin;
-import org.bitcoinj.base.Sha256Hash;
-import org.consensusj.bitcoin.json.pojo.BitcoinTransactionInfo;
 import org.consensusj.bitcoin.json.pojo.BlockChainInfo;
-import org.consensusj.bitcoin.json.pojo.WalletTransactionInfo;
 import org.consensusj.bitcoin.jsonrpc.BitcoinClient;
 import org.consensusj.jsonrpc.JsonRpcStatusException;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,9 +125,10 @@ class LitecoinWalletTest {
         when(mockClient.send(eq("sendtoaddress"), eq(String.class), any(), any(), any(), any()))
                 .thenReturn(txHash);
 
-        WalletTransactionInfo txInfo = mock(WalletTransactionInfo.class);
-        when(txInfo.getFee()).thenReturn(Coin.valueOf(-10_000)); // -0.0001 LTC fee
-        when(mockClient.getTransaction(any(Sha256Hash.class))).thenReturn(txInfo);
+        com.fasterxml.jackson.databind.node.ObjectNode txNode = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        txNode.put("fee", -0.0001);
+        when(mockClient.send(eq("gettransaction"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq(txHash)))
+                .thenReturn(txNode);
 
         SendRequest request = new SendRequest(io.konkin.crypto.Coin.LTC, "ltc1qdest", new BigDecimal("1.0"), Map.of());
         SendResult result = wallet.send(request);
@@ -158,9 +156,10 @@ class LitecoinWalletTest {
         when(mockClient.send(eq("sendtoaddress"), eq(String.class), any(), any(), any(), any(), eq(true)))
                 .thenReturn(txHash);
 
-        WalletTransactionInfo txInfo = mock(WalletTransactionInfo.class);
-        when(txInfo.getFee()).thenReturn(Coin.valueOf(-20_000));
-        when(mockClient.getTransaction(any(Sha256Hash.class))).thenReturn(txInfo);
+        com.fasterxml.jackson.databind.node.ObjectNode txNode = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+        txNode.put("fee", -0.0002);
+        when(mockClient.send(eq("gettransaction"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq(txHash)))
+                .thenReturn(txNode);
 
         SweepRequest request = new SweepRequest(io.konkin.crypto.Coin.LTC, "ltc1qdest", Map.of());
         SweepResult result = wallet.sweep(request);
@@ -180,12 +179,13 @@ class LitecoinWalletTest {
 
     @Test
     void pendingIncoming_filtersCorrectly() throws Exception {
-        BitcoinTransactionInfo receivePending = mockTx("receive", 0, "c".repeat(64));
-        BitcoinTransactionInfo receiveConfirmed = mockTx("receive", 3, "d".repeat(64));
-        BitcoinTransactionInfo sendPending = mockTx("send", 0, "e".repeat(64));
-
-        when(mockClient.listTransactions(isNull(), eq(100)))
-                .thenReturn(List.of(receivePending, receiveConfirmed, sendPending));
+        com.fasterxml.jackson.databind.JsonNode txArray = mockTxArray(
+                mockTxNode("receive", 0, "c".repeat(64)),
+                mockTxNode("receive", 3, "d".repeat(64)),
+                mockTxNode("send", 0, "e".repeat(64))
+        );
+        when(mockClient.send(eq("listtransactions"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq("*"), eq(100)))
+                .thenReturn(txArray);
 
         List<Transaction> pending = wallet.pendingIncoming();
         assertEquals(1, pending.size());
@@ -195,12 +195,13 @@ class LitecoinWalletTest {
 
     @Test
     void pendingOutgoing_filtersCorrectly() throws Exception {
-        BitcoinTransactionInfo receivePending = mockTx("receive", 0, "c".repeat(64));
-        BitcoinTransactionInfo sendPending = mockTx("send", 0, "e".repeat(64));
-        BitcoinTransactionInfo sendConfirmed = mockTx("send", 6, "f".repeat(64));
-
-        when(mockClient.listTransactions(isNull(), eq(100)))
-                .thenReturn(List.of(receivePending, sendPending, sendConfirmed));
+        com.fasterxml.jackson.databind.JsonNode txArray = mockTxArray(
+                mockTxNode("receive", 0, "c".repeat(64)),
+                mockTxNode("send", 0, "e".repeat(64)),
+                mockTxNode("send", 6, "f".repeat(64))
+        );
+        when(mockClient.send(eq("listtransactions"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq("*"), eq(100)))
+                .thenReturn(txArray);
 
         List<Transaction> pending = wallet.pendingOutgoing();
         assertEquals(1, pending.size());
@@ -210,12 +211,13 @@ class LitecoinWalletTest {
 
     @Test
     void recentIncoming_includesAllConfirmations() throws Exception {
-        BitcoinTransactionInfo receivePending = mockTx("receive", 0, "c".repeat(64));
-        BitcoinTransactionInfo receiveConfirmed = mockTx("receive", 3, "d".repeat(64));
-        BitcoinTransactionInfo sendPending = mockTx("send", 0, "e".repeat(64));
-
-        when(mockClient.listTransactions(isNull(), eq(100)))
-                .thenReturn(List.of(receivePending, receiveConfirmed, sendPending));
+        com.fasterxml.jackson.databind.JsonNode txArray = mockTxArray(
+                mockTxNode("receive", 0, "c".repeat(64)),
+                mockTxNode("receive", 3, "d".repeat(64)),
+                mockTxNode("send", 0, "e".repeat(64))
+        );
+        when(mockClient.send(eq("listtransactions"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq("*"), eq(100)))
+                .thenReturn(txArray);
 
         List<Transaction> recent = wallet.recentIncoming();
         assertEquals(2, recent.size());
@@ -223,12 +225,13 @@ class LitecoinWalletTest {
 
     @Test
     void recentOutgoing_includesAllConfirmations() throws Exception {
-        BitcoinTransactionInfo sendPending = mockTx("send", 0, "e".repeat(64));
-        BitcoinTransactionInfo sendConfirmed = mockTx("send", 6, "f".repeat(64));
-        BitcoinTransactionInfo receivePending = mockTx("receive", 0, "c".repeat(64));
-
-        when(mockClient.listTransactions(isNull(), eq(100)))
-                .thenReturn(List.of(sendPending, sendConfirmed, receivePending));
+        com.fasterxml.jackson.databind.JsonNode txArray = mockTxArray(
+                mockTxNode("send", 0, "e".repeat(64)),
+                mockTxNode("send", 6, "f".repeat(64)),
+                mockTxNode("receive", 0, "c".repeat(64))
+        );
+        when(mockClient.send(eq("listtransactions"), eq(com.fasterxml.jackson.databind.JsonNode.class), eq("*"), eq(100)))
+                .thenReturn(txArray);
 
         List<Transaction> recent = wallet.recentOutgoing();
         assertEquals(2, recent.size());
@@ -279,17 +282,24 @@ class LitecoinWalletTest {
         verify(mockClient, never()).send(eq("getnewaddress"), eq(String.class), any(), any());
     }
 
-    private BitcoinTransactionInfo mockTx(String category, int confirmations, String txId) {
-        BitcoinTransactionInfo tx = mock(BitcoinTransactionInfo.class);
-        when(tx.getCategory()).thenReturn(category);
-        when(tx.getConfirmations()).thenReturn(confirmations);
-        when(tx.getTxId()).thenReturn(Sha256Hash.wrap(txId));
-        when(tx.getAmount()).thenReturn(Coin.valueOf(100_000_000)); // 1 LTC
-        when(tx.getFee()).thenReturn(null);
-        org.bitcoinj.base.Address mockAddr = mock(org.bitcoinj.base.Address.class);
-        when(mockAddr.toString()).thenReturn("ltc1qaddr");
-        when(tx.getAddress()).thenReturn(mockAddr);
-        when(tx.getTime()).thenReturn(Instant.now());
-        return tx;
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private com.fasterxml.jackson.databind.JsonNode mockTxNode(String category, int confirmations, String txId) {
+        com.fasterxml.jackson.databind.node.ObjectNode node = JSON.createObjectNode();
+        node.put("category", category);
+        node.put("confirmations", confirmations);
+        node.put("txid", txId);
+        node.put("amount", 1.0);
+        node.put("address", "ltc1qaddr");
+        node.put("time", Instant.now().getEpochSecond());
+        return node;
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode mockTxArray(com.fasterxml.jackson.databind.JsonNode... nodes) {
+        com.fasterxml.jackson.databind.node.ArrayNode array = JSON.createArrayNode();
+        for (com.fasterxml.jackson.databind.JsonNode node : nodes) {
+            array.add(node);
+        }
+        return array;
     }
 }

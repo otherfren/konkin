@@ -190,7 +190,7 @@ public class ConfigManager {
 
             Config toml = new TomlParser().parse(Files.readString(tempFile, StandardCharsets.UTF_8));
             for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
-                toml.set(entry.getKey(), entry.getValue());
+                toml.set(entry.getKey(), toTomlCompatible(entry.getValue()));
             }
             new TomlWriter().write(toml, tempFile, WritingMode.REPLACE);
 
@@ -298,7 +298,7 @@ public class ConfigManager {
 
             Config toml = new TomlParser().parse(Files.readString(tempFile, StandardCharsets.UTF_8));
             for (Map.Entry<String, Object> entry : pathValues.entrySet()) {
-                toml.set(entry.getKey(), entry.getValue());
+                toml.set(entry.getKey(), toTomlCompatible(entry.getValue()));
             }
             new TomlWriter().write(toml, tempFile, WritingMode.REPLACE);
 
@@ -318,6 +318,29 @@ public class ConfigManager {
         } finally {
             tomlWriteSemaphore.release();
         }
+    }
+
+    /**
+     * Recursively converts Java Maps to NightConfig Config objects so the TOML writer
+     * can serialize nested tables (e.g. rule criteria). Lists are also traversed.
+     */
+    @SuppressWarnings("unchecked")
+    private static Object toTomlCompatible(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Config sub = Config.inMemory();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                sub.set(String.valueOf(e.getKey()), toTomlCompatible(e.getValue()));
+            }
+            return sub;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> converted = new ArrayList<>(list.size());
+            for (Object item : list) {
+                converted.add(toTomlCompatible(item));
+            }
+            return converted;
+        }
+        return value;
     }
 
     /**

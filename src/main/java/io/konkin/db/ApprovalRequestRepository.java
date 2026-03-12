@@ -390,6 +390,33 @@ public class ApprovalRequestRepository {
         );
     }
 
+    // --- Aggregation ---
+
+    /**
+     * Sum the amount_native of recent requests for a coin within a time window.
+     * Only includes requests in active states (not denied/expired/cancelled).
+     * Excludes sweep requests (amount_native = 'ALL').
+     */
+    public java.math.BigDecimal sumRecentAmounts(String coin, Instant since) {
+        String sql = """
+                SELECT COALESCE(SUM(CAST(amount_native AS DECIMAL(38, 18))), 0)
+                FROM approval_requests
+                WHERE coin = :coin
+                  AND state IN ('QUEUED', 'PENDING', 'APPROVED', 'EXECUTING', 'COMPLETED')
+                  AND requested_at >= :since
+                  AND amount_native IS NOT NULL
+                  AND amount_native != 'ALL'
+                """;
+
+        return jdbi.withHandle(h ->
+                h.createQuery(sql)
+                        .bind("coin", coin)
+                        .bind("since", since)
+                        .mapTo(java.math.BigDecimal.class)
+                        .one()
+        );
+    }
+
     // --- Counts ---
 
     public int countOpenRequests() {

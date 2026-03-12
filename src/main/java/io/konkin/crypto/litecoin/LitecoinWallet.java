@@ -16,13 +16,11 @@
 
 package io.konkin.crypto.litecoin;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import io.konkin.crypto.*;
 import io.konkin.crypto.Coin;
 import org.bitcoinj.base.BitcoinNetwork;
-import org.bitcoinj.base.Network;
-import org.consensusj.bitcoin.json.pojo.BitcoinTransactionInfo;
 import org.consensusj.bitcoin.json.pojo.BlockChainInfo;
-import org.consensusj.bitcoin.json.pojo.WalletTransactionInfo;
 import org.consensusj.bitcoin.jsonrpc.BitcoinClient;
 import org.consensusj.jsonrpc.JsonRpcStatusException;
 
@@ -109,9 +107,8 @@ public final class LitecoinWallet extends CoinWallet {
             String txIdStr = client.send("sendtoaddress", String.class,
                     request.toAddress(), request.amount().toPlainString(), comment, "");
 
-            org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
-            WalletTransactionInfo txInfo = client.getTransaction(txId);
-            BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
+            // Use raw RPC to avoid bitcoinj trying to parse ltc1... addresses in transaction details
+            BigDecimal fee = getRawTransactionFee(txIdStr);
 
             String feeCapStr = request.extras().get("feeCapNative");
             if (feeCapStr != null && !feeCapStr.isBlank()) {
@@ -146,9 +143,8 @@ public final class LitecoinWallet extends CoinWallet {
                     request.toAddress(), balance.toPlainString(), comment, "",
                     true); // subtractfeefromamount
 
-            org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
-            WalletTransactionInfo txInfo = client.getTransaction(txId);
-            BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
+            // Use raw RPC to avoid bitcoinj trying to parse ltc1... addresses in transaction details
+            BigDecimal fee = getRawTransactionFee(txIdStr);
             BigDecimal swept = balance.subtract(fee);
 
             return new SweepResult(Coin.LTC, List.of(txIdStr), swept, fee, Map.of());
@@ -239,12 +235,13 @@ public final class LitecoinWallet extends CoinWallet {
     private List<Transaction> listPending(TransactionDirection direction) {
         try {
             String category = direction == TransactionDirection.INCOMING ? "receive" : "send";
-            List<BitcoinTransactionInfo> all = client.listTransactions(null, 100);
+            // Use raw RPC to avoid bitcoinj trying to parse ltc1... bech32 addresses
+            JsonNode txArray = client.send("listtransactions", JsonNode.class, "*", 100);
             List<Transaction> pending = new ArrayList<>();
-            for (BitcoinTransactionInfo tx : all) {
-                if (!category.equals(tx.getCategory())) continue;
-                if (tx.getConfirmations() > 0) continue;
-                pending.add(toTransaction(tx, direction));
+            for (JsonNode node : txArray) {
+                if (!category.equals(node.path("category").asText())) continue;
+                if (node.path("confirmations").asInt(0) > 0) continue;
+                pending.add(toTransaction(node, direction));
             }
             return List.copyOf(pending);
         } catch (JsonRpcStatusException e) {
@@ -257,11 +254,12 @@ public final class LitecoinWallet extends CoinWallet {
     private List<Transaction> listRecent(TransactionDirection direction) {
         try {
             String category = direction == TransactionDirection.INCOMING ? "receive" : "send";
-            List<BitcoinTransactionInfo> all = client.listTransactions(null, 100);
+            // Use raw RPC to avoid bitcoinj trying to parse ltc1... bech32 addresses
+            JsonNode txArray = client.send("listtransactions", JsonNode.class, "*", 100);
             List<Transaction> recent = new ArrayList<>();
-            for (BitcoinTransactionInfo tx : all) {
-                if (!category.equals(tx.getCategory())) continue;
-                recent.add(toTransaction(tx, direction));
+            for (JsonNode node : txArray) {
+                if (!category.equals(node.path("category").asText())) continue;
+                recent.add(toTransaction(node, direction));
             }
             return List.copyOf(recent);
         } catch (JsonRpcStatusException e) {
@@ -271,25 +269,35 @@ public final class LitecoinWallet extends CoinWallet {
         }
     }
 
-    private Transaction toTransaction(BitcoinTransactionInfo tx, TransactionDirection direction) {
-        BigDecimal amount = tx.getAmount().toBtc().abs();
-        BigDecimal fee = tx.getFee() != null ? tx.getFee().toBtc().abs() : BigDecimal.ZERO;
-        String address = tx.getAddress() != null ? tx.getAddress().toString() : "";
-        Instant timestamp = tx.getTime() != null ? tx.getTime() : Instant.EPOCH;
-        boolean confirmed = tx.getConfirmations() > 0;
+    private Transaction toTransaction(JsonNode node, TransactionDirection direction) {
+        BigDecimal amount = node.path("amount").decimalValue().abs();
+        BigDecimal fee = node.has("fee") ? node.path("fee").decimalValue().abs() : BigDecimal.ZERO;
+        String address = node.path("address").asText("");
+        long timeSecs = node.path("time").asLong(0);
+        Instant timestamp = timeSecs > 0 ? Instant.ofEpochSecond(timeSecs) : Instant.EPOCH;
+        int confirmations = node.path("confirmations").asInt(0);
+        boolean confirmed = confirmations > 0;
         return new Transaction(
                 Coin.LTC,
-                tx.getTxId().toString(),
+                node.path("txid").asText(""),
                 direction,
                 address,
                 amount,
                 fee,
                 null,
-                tx.getConfirmations(),
+                confirmations,
                 confirmed,
                 timestamp,
                 Map.of()
         );
+    }
+
+    private BigDecimal getRawTransactionFee(String txIdStr) throws JsonRpcStatusException, IOException {
+        JsonNode txInfo = client.send("gettransaction", JsonNode.class, txIdStr);
+        if (txInfo.has("fee")) {
+            return txInfo.path("fee").decimalValue().abs();
+        }
+        return BigDecimal.ZERO;
     }
 
     private boolean isInsufficientFunds(JsonRpcStatusException e) {
