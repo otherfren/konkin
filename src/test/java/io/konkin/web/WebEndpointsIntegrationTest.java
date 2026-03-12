@@ -705,7 +705,7 @@ class WebEndpointsIntegrationTest extends WebIntegrationTestSupport {
             assertTrue(authDefinitions.body().contains("Auth channels"));
             assertTrue(authDefinitions.body().contains("btc-main @ http://127.0.0.1:" + btcMainPort));
             assertTrue(authDefinitions.body().contains("btc-backup @ http://127.0.0.1:" + btcBackupPort));
-            assertTrue(authDefinitions.body().contains(">***<"));
+            assertTrue(authDefinitions.body().contains("value=\"***\""));
             assertTrue(authDefinitions.body().contains("aria-label=\"Reveal wallet balance\""));
         }
     }
