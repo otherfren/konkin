@@ -38,7 +38,7 @@ public final class PendingTransactionsTool {
 
     public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero"));
         properties.put("direction", Map.of("type", "string",
                 "description", "Filter by direction: incoming, outgoing, or both (default: both)"));
 

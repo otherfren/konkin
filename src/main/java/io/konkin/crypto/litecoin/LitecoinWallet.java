@@ -92,8 +92,9 @@ public final class LitecoinWallet extends CoinWallet {
     public DepositAddress depositAddress() {
         try {
             String label = config().extras().getOrDefault(LitecoinExtras.MEMO, "");
-            org.bitcoinj.base.Address addr = client.getNewAddress(label);
-            return new DepositAddress(Coin.LTC, addr.toString(), Map.of());
+            // Use raw RPC call to avoid bitcoinj trying to parse ltc1... bech32 addresses as Bitcoin addresses
+            String addr = client.send("getnewaddress", String.class, label);
+            return new DepositAddress(Coin.LTC, addr, Map.of());
         } catch (JsonRpcStatusException e) {
             throw new WalletOperationException("Failed to generate LTC deposit address (getnewaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {

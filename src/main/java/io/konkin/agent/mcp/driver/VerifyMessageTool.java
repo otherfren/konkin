@@ -36,7 +36,7 @@ public final class VerifyMessageTool {
 
     public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero"));
         properties.put("message", Map.of("type", "string", "description", "The original message that was signed"));
         properties.put("address", Map.of("type", "string", "description", "The address that allegedly signed the message"));
         properties.put("signature", Map.of("type", "string", "description", "The signature to verify"));

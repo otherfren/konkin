@@ -56,7 +56,7 @@ public final class SendCoinTool {
             TelegramApprovalNotifier telegramNotifier
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero, testdummycoin"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero, testdummycoin"));
         properties.put("toAddress", Map.of("type", "string", "description", "Destination wallet address"));
         properties.put("amountNative", Map.of("type", "string", "description", "Amount in native coin units"));
         properties.put("feePolicy", Map.of("type", "string", "description", "Fee policy: normal, priority, economy"));
@@ -118,7 +118,7 @@ public final class SendCoinTool {
         CoinConfig coinConfig = sendActionCoinConfig(runtimeConfig, coin);
         if (coinConfig == null) {
             return errorResult("unsupported_coin",
-                    "Coin '" + coin + "' is not supported by this endpoint. Supported coins: bitcoin, monero, testdummycoin.");
+                    "Coin '" + coin + "' is not supported by this endpoint. Supported coins: bitcoin, litecoin, monero, testdummycoin.");
         }
 
         if (!coinConfig.enabled()) {
@@ -226,6 +226,7 @@ public final class SendCoinTool {
     private static CoinConfig sendActionCoinConfig(KonkinConfig config, String coin) {
         return switch (coin) {
             case "bitcoin" -> config.bitcoin();
+            case "litecoin" -> config.litecoin();
             case "monero" -> config.monero();
             case "testdummycoin" -> config.testDummyCoin();
             default -> null;

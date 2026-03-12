@@ -54,7 +54,7 @@ public final class SweepWalletTool {
             TelegramApprovalNotifier telegramNotifier
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, monero"));
+        properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero"));
         properties.put("toAddress", Map.of("type", "string", "description", "Destination wallet address to sweep all funds into"));
         properties.put("reason", Map.of("type", "string", "description", "Mandatory reason WHY this sweep action is being requested"));
 
@@ -100,7 +100,7 @@ public final class SweepWalletTool {
         CoinConfig coinConfig = sweepCoinConfig(runtimeConfig, coin);
         if (coinConfig == null) {
             return errorResult("unsupported_coin",
-                    "Coin '" + coin + "' is not supported for sweep. Supported coins: bitcoin, monero.");
+                    "Coin '" + coin + "' is not supported for sweep. Supported coins: bitcoin, litecoin, monero.");
         }
 
         if (!coinConfig.enabled()) {
@@ -186,12 +186,13 @@ public final class SweepWalletTool {
     }
 
     private static boolean hasAnyEnabledCoin(KonkinConfig config) {
-        return config.bitcoin().enabled() || config.monero().enabled();
+        return config.bitcoin().enabled() || config.litecoin().enabled() || config.monero().enabled();
     }
 
     private static CoinConfig sweepCoinConfig(KonkinConfig config, String coin) {
         return switch (coin) {
             case "bitcoin" -> config.bitcoin();
+            case "litecoin" -> config.litecoin();
             case "monero" -> config.monero();
             default -> null;
         };

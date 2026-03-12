@@ -169,8 +169,13 @@ class WalletToolSupportTest {
     }
 
     @Test
+    void resolveCoin_litecoin() {
+        assertEquals(Coin.LTC, WalletToolSupport.resolveCoin("litecoin"));
+    }
+
+    @Test
     void resolveCoin_unknown_returnsNull() {
-        assertNull(WalletToolSupport.resolveCoin("litecoin"));
+        assertNull(WalletToolSupport.resolveCoin("dogecoin"));
     }
 
     // --- lookupSupervisor ---

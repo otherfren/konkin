@@ -114,9 +114,8 @@ class LitecoinWalletTest {
 
     @Test
     void depositAddress_returnsAddress() throws Exception {
-        org.bitcoinj.base.Address mockAddr = mock(org.bitcoinj.base.Address.class);
-        when(mockAddr.toString()).thenReturn("ltc1qtest123");
-        when(mockClient.getNewAddress(anyString())).thenReturn(mockAddr);
+        when(mockClient.send(eq("getnewaddress"), eq(String.class), anyString()))
+                .thenReturn("ltc1qtest123");
 
         DepositAddress addr = wallet.depositAddress();
         assertEquals(io.konkin.crypto.Coin.LTC, addr.coin());

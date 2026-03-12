@@ -81,16 +81,19 @@ public final class WalletToolSupport {
         return switch (normalized) {
             case "bitcoin" -> config.bitcoin().enabled() ? null
                     : errorResult("coin_not_enabled", "Bitcoin is currently disabled in config.");
+            case "litecoin" -> config.litecoin().enabled() ? null
+                    : errorResult("coin_not_enabled", "Litecoin is currently disabled in config.");
             case "monero" -> config.monero().enabled() ? null
                     : errorResult("coin_not_enabled", "Monero is currently disabled in config.");
             default -> errorResult("unsupported_coin",
-                    "Coin '" + normalized + "' is not supported. Supported: bitcoin, monero.");
+                    "Coin '" + normalized + "' is not supported. Supported: bitcoin, litecoin, monero.");
         };
     }
 
     public static Coin resolveCoin(String coin) {
         return switch (coin.trim().toLowerCase()) {
             case "bitcoin" -> Coin.BTC;
+            case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
             default -> null;
         };
