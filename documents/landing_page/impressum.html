@@ -14,13 +14,13 @@
       src: url('fonts/ShareTechMono-Regular.ttf') format('truetype');
     }
     :root {
-      --bg:      #0a0a0a;
-      --bg2:     #111111;
-      --border:  #252218;
-      --text:    #e0ddd5;
-      --muted:   #8a8578;
-      --accent:  #d4922a;
-      --gold:    #c9a84c;
+      --bg:      #ffffff;
+      --bg2:     #f5f6f8;
+      --border:  #e2e8f0;
+      --text:    #0f172a;
+      --muted:   #475569;
+      --accent:  #2563eb;
+      --gold:    #1d4ed8;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -29,7 +29,8 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 15px;
       line-height: 1.65;
     }
 
@@ -46,8 +47,9 @@
       justify-content: space-between;
       padding: 0 2rem;
       height: 56px;
-      background: var(--bg2);
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     }
 
     .nav-logo {
@@ -81,7 +83,7 @@
     .btn-ghost {
       border: 1px solid var(--border);
       padding: 0.4rem 1rem;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 0.82rem;
     }
     .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
@@ -95,20 +97,20 @@
 
     h1 {
       font-size: 2rem;
-      font-weight: 400;
-      letter-spacing: 0.04em;
+      font-weight: 700;
+      letter-spacing: 0.02em;
       text-transform: uppercase;
       margin-bottom: 2rem;
     }
 
     h2 {
       font-size: 1.1rem;
-      font-weight: 400;
+      font-weight: 600;
       letter-spacing: 0.04em;
       text-transform: uppercase;
       margin-top: 2rem;
       margin-bottom: 0.5rem;
-      color: var(--gold);
+      color: var(--accent);
     }
 
     p, address {
@@ -120,10 +122,10 @@
 
     .placeholder {
       color: var(--accent);
-      background: rgba(212, 146, 42, 0.1);
-      border: 1px dashed rgba(212, 146, 42, 0.35);
+      background: rgba(37, 99, 235, 0.08);
+      border: 1px dashed rgba(37, 99, 235, 0.25);
       padding: 0.1rem 0.4rem;
-      border-radius: 4px;
+      border-radius: 6px;
       font-size: 0.9em;
     }
 
@@ -134,7 +136,7 @@
       text-align: center;
       color: var(--muted);
       font-size: 0.82rem;
-      background: var(--bg2);
+      background: var(--bg);
     }
 
     footer .footer-inner {
@@ -165,7 +167,7 @@
       align-items: center;
       gap: 0.4rem;
       border: 1px solid var(--border);
-      border-radius: 4px;
+      border-radius: 6px;
       padding: 0.25rem 0.65rem;
       font-size: 0.72rem;
       color: var(--muted);
