@@ -2397,6 +2397,19 @@ p {
     border-radius: 6px;
 }
 
+.settings-input[readonly] {
+    background: var(--bg-soft);
+    color: var(--muted);
+    cursor: default;
+}
+
+.settings-field .auth-secret {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+}
+
 .settings-select {
     appearance: auto;
 }

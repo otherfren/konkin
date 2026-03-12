@@ -70,8 +70,9 @@
 
         toggle.addEventListener('click', () => {
             const masked = valueEl.dataset.masked !== 'false';
+            const isInput = valueEl.tagName === 'INPUT' || valueEl.tagName === 'TEXTAREA';
             if (masked) {
-                valueEl.textContent = valueEl.dataset.secretValue || '-';
+                if (isInput) { valueEl.value = valueEl.dataset.secretValue || '-'; } else { valueEl.textContent = valueEl.dataset.secretValue || '-'; }
                 valueEl.dataset.masked = 'false';
                 const revealLabel = toggle.getAttribute('aria-label') || 'Reveal secret';
                 const hideLabel = revealLabel.replace('Reveal', 'Hide');
@@ -81,7 +82,7 @@
                 toggle.setAttribute('title', hideTitle);
                 toggle.classList.add('is-revealed');
             } else {
-                valueEl.textContent = '***';
+                if (isInput) { valueEl.value = '***'; } else { valueEl.textContent = '***'; }
                 valueEl.dataset.masked = 'true';
                 const currentLabel = toggle.getAttribute('aria-label') || '';
                 toggle.setAttribute('aria-label', currentLabel.replace('Hide', 'Reveal') || 'Reveal secret');

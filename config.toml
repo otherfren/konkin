@@ -120,7 +120,7 @@ config-version = 1
 			rest-api = true
 			telegram = true
 			auto-accept = []
-			veto-channels = ["telegram", "web-ui"]
+			veto-channels = ["web-ui", "web-ui"]
 			# MCP auth channel identifiers shown in Auth Definitions
 			mcp-auth-channels = ["agent-arthur"]
 			min-approvals-required = 2

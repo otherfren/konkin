@@ -50,24 +50,40 @@
                 </div>
             </#if>
         </div>
-        <br/>
-        <section class="auth-meta-item auth-compact-block" aria-label="Connection and secrets">
-            <h4 class="auth-meta-label">Connection</h4>
-            <span class="mono auth-meta-value auth-inline-meta">${coin.connectionStatus!'unknown'} · last life-sign: ${coin.lastLifeSign!'unknown'}</span>
-            <h4 class="auth-meta-label">Secrets</h4>
-            <span class="mono auth-meta-value auth-inline-meta">daemon: ${coin.daemonSecretFile!'unknown'} · wallet: ${coin.walletSecretFile!'unknown'}</span>
-            <h4 class="auth-meta-label">Balance</h4>
-            <span class="auth-secret">
-                <span class="mono auth-meta-value auth-secret-value" data-secret-value="${(coin.maskedBalance!'unknown')}" data-masked="true">***</span>
-                <button
-                    type="button"
-                    class="auth-secret-toggle"
-                    aria-label="Reveal wallet balance"
-                    title="Reveal balance"
-                >
-                    <span aria-hidden="true">&#x1F441;</span>
-                </button>
-            </span>
+        <section class="auth-card" style="margin-top:12px" aria-label="Connection and secrets">
+            <h4 class="auth-section-title">Connection &amp; Secrets</h4>
+            <div class="settings-form" style="margin-top:10px">
+                <div class="settings-field">
+                    <label class="settings-label">Status</label>
+                    <input type="text" class="settings-input mono" value="${coin.connectionStatus!'unknown'}" readonly />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Last life-sign</label>
+                    <input type="text" class="settings-input mono" value="${coin.lastLifeSign!'unknown'}" readonly />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Daemon secret</label>
+                    <input type="text" class="settings-input mono" value="${coin.daemonSecretFile!'unknown'}" readonly />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Wallet secret</label>
+                    <input type="text" class="settings-input mono" value="${coin.walletSecretFile!'unknown'}" readonly />
+                </div>
+                <div class="settings-field">
+                    <label class="settings-label">Balance</label>
+                    <span class="auth-secret" style="flex:1">
+                        <input type="text" class="settings-input mono auth-secret-value" value="***" data-secret-value="${(coin.maskedBalance!'unknown')}" data-masked="true" readonly />
+                        <button
+                            type="button"
+                            class="auth-secret-toggle"
+                            aria-label="Reveal wallet balance"
+                            title="Reveal balance"
+                        >
+                            <span aria-hidden="true">&#x1F441;</span>
+                        </button>
+                    </span>
+                </div>
+            </div>
         </section>
 
         <#-- Connection wizard — works without JS via <details> + form POST -->
@@ -77,83 +93,80 @@
         <#assign defaultRpcPort = "8332">
         <#if coinId == "litecoin"><#assign defaultRpcPort = "9332"></#if>
 
-        <details class="wizard-details" data-coin="${coinId}">
-            <summary class="wizard-open-btn<#if !configured> wizard-add-btn</#if>">
-                <#if configured>&#9998; Edit Connection<#else>+ Configure Connection</#if>
-            </summary>
-
-            <form class="wizard-panel" data-coin="${coinId}" data-mode="${configured?string('edit', 'add')}" method="post" action="/wallets/${coinId}/save-connection">
-                <h4 class="wizard-title">${coinId?upper_case} Connection Setup</h4>
-                <div class="wizard-fields">
+        <section class="auth-card settings-section" data-section="connection" style="margin-top:1rem">
+            <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
+                <h3 class="auth-coin-name"><#if configured>Edit Connection<#else>Configure Connection</#if></h3>
+                <span class="settings-expand-hint">click to expand</span><span class="settings-toggle-icon">&#9654;</span>
+            </div>
+            <div class="settings-card-body" hidden>
+                <form class="wizard-panel" data-coin="${coinId}" data-mode="${configured?string('edit', 'add')}" method="post" action="/wallets/${coinId}/save-connection">
+                    <div class="settings-form">
                     <#if coinId == "bitcoin" || coinId == "litecoin">
-                        <label class="wizard-field">
-                            <span class="wizard-label">RPC Host</span>
+                        <div class="settings-field">
+                            <label class="settings-label">RPC Host</label>
                             <input type="text" class="settings-input" name="rpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.rpcEndpoint??>${maskedCfg.rpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
-                        </label>
-                        <label class="wizard-field">
-                            <span class="wizard-label">RPC Port</span>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">RPC Port</label>
                             <input type="text" class="settings-input" name="rpcPort" value="<#if configured && maskedCfg?has_content && maskedCfg.rpcEndpoint?? && (maskedCfg.rpcEndpoint?split(':')?size > 1)>${maskedCfg.rpcEndpoint?split(':')[1]}<#else>${defaultRpcPort}</#if>" required />
-                        </label>
-                        <label class="wizard-field">
-                            <span class="wizard-label">RPC User</span>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">RPC User</label>
                             <input type="text" class="settings-input" name="rpcUser" value="<#if configured && maskedCfg?has_content>${maskedCfg.rpcUser!''}</#if>" required />
-                        </label>
-                        <label class="wizard-field">
-                            <span class="wizard-label">RPC Password</span>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">RPC Password</label>
                             <input type="password" class="settings-input" name="rpcPassword" placeholder="${configured?string('unchanged', '')}"<#if !configured> required</#if> />
-                        </label>
-                        <label class="wizard-field">
-                            <span class="wizard-label">Wallet Name</span>
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Wallet Name</label>
                             <input type="text" class="settings-input" name="walletName" value="<#if configured && maskedCfg?has_content>${maskedCfg.walletName!''}</#if>" placeholder="optional" />
-                        </label>
+                        </div>
                     <#elseif coinId == "monero">
-                        <fieldset class="wizard-fieldset">
-                            <legend>Daemon RPC</legend>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Host</span>
-                                <input type="text" class="settings-input" name="daemonHost" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint??>${maskedCfg.daemonEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Port</span>
-                                <input type="text" class="settings-input" name="daemonPort" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint?? && (maskedCfg.daemonEndpoint?split(':')?size > 1)>${maskedCfg.daemonEndpoint?split(':')[1]}<#else>18081</#if>" required />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">User</span>
-                                <input type="text" class="settings-input" name="daemonUser" placeholder="optional" />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Password</span>
-                                <input type="password" class="settings-input" name="daemonPassword" placeholder="${configured?string('unchanged', 'optional')}" />
-                            </label>
-                        </fieldset>
-                        <fieldset class="wizard-fieldset">
-                            <legend>Wallet RPC</legend>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Host</span>
-                                <input type="text" class="settings-input" name="walletRpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint??>${maskedCfg.walletRpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Port</span>
-                                <input type="text" class="settings-input" name="walletRpcPort" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint?? && (maskedCfg.walletRpcEndpoint?split(':')?size > 1)>${maskedCfg.walletRpcEndpoint?split(':')[1]}<#else>18083</#if>" required />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">User</span>
-                                <input type="text" class="settings-input" name="walletRpcUser" value="<#if configured && maskedCfg?has_content>${maskedCfg.walletRpcUser!''}</#if>" required />
-                            </label>
-                            <label class="wizard-field">
-                                <span class="wizard-label">Password</span>
-                                <input type="password" class="settings-input" name="walletRpcPassword" placeholder="${configured?string('unchanged', '')}"<#if !configured> required</#if> />
-                            </label>
-                        </fieldset>
+                        <h4 class="settings-subsection-title">Daemon RPC</h4>
+                        <div class="settings-field">
+                            <label class="settings-label">Host</label>
+                            <input type="text" class="settings-input" name="daemonHost" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint??>${maskedCfg.daemonEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Port</label>
+                            <input type="text" class="settings-input" name="daemonPort" value="<#if configured && maskedCfg?has_content && maskedCfg.daemonEndpoint?? && (maskedCfg.daemonEndpoint?split(':')?size > 1)>${maskedCfg.daemonEndpoint?split(':')[1]}<#else>18081</#if>" required />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">User</label>
+                            <input type="text" class="settings-input" name="daemonUser" placeholder="optional" />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Password</label>
+                            <input type="password" class="settings-input" name="daemonPassword" placeholder="${configured?string('unchanged', 'optional')}" />
+                        </div>
+                        <h4 class="settings-subsection-title">Wallet RPC</h4>
+                        <div class="settings-field">
+                            <label class="settings-label">Host</label>
+                            <input type="text" class="settings-input" name="walletRpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint??>${maskedCfg.walletRpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Port</label>
+                            <input type="text" class="settings-input" name="walletRpcPort" value="<#if configured && maskedCfg?has_content && maskedCfg.walletRpcEndpoint?? && (maskedCfg.walletRpcEndpoint?split(':')?size > 1)>${maskedCfg.walletRpcEndpoint?split(':')[1]}<#else>18083</#if>" required />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">User</label>
+                            <input type="text" class="settings-input" name="walletRpcUser" value="<#if configured && maskedCfg?has_content>${maskedCfg.walletRpcUser!''}</#if>" required />
+                        </div>
+                        <div class="settings-field">
+                            <label class="settings-label">Password</label>
+                            <input type="password" class="settings-input" name="walletRpcPassword" placeholder="${configured?string('unchanged', '')}"<#if !configured> required</#if> />
+                        </div>
                     </#if>
-                </div>
-                <div class="wizard-actions">
-                    <button type="button" class="wizard-test-btn">Test Connection</button>
-                    <div class="wizard-test-result"></div>
-                    <button type="submit" class="wizard-save-btn">Save &amp; Enable</button>
-                </div>
-            </form>
-        </details>
+                    <div class="settings-actions">
+                        <button type="button" class="wizard-test-btn">Test Connection</button>
+                        <div class="wizard-test-result"></div>
+                        <button type="submit" class="wizard-save-btn">Save &amp; Enable</button>
+                    </div>
+                    </div>
+                </form>
+            </div>
+        </section>
 
         <section class="auth-card settings-section" data-section="coin-settings" style="margin-top:1rem">
             <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
