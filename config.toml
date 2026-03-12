@@ -60,7 +60,7 @@ config-version = 1
 			mcp-auth-channels = ["agent-lancelot"]
 			min-approvals-required = 1
 			[[coins.litecoin.auth.auto-deny]]
-				criteria = {period = "1h", type = "cumulated-value-gt", value = 0.14}
+				criteria = {period = "1d", type = "cumulated-value-gt", value = 12345.0}
 
 				[[coins.litecoin.auth.auto-accept]]
 					[coins.litecoin.auth.auto-accept.criteria]

@@ -179,7 +179,7 @@ public class McpAgentServer {
         }
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
             mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
-            mcpSyncServer.addTool(SweepWalletTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
+            mcpSyncServer.addTool(SweepWalletTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, walletSupervisors));
         }
         if (walletSupervisors != null && !walletSupervisors.isEmpty() && runtimeConfig != null) {
             mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisors, runtimeConfig));

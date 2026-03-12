@@ -21,6 +21,8 @@ import io.konkin.approval.ApprovalPolicyEvaluator;
 import io.konkin.approval.ApprovalPolicyEvaluator.PolicyDecision;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -33,6 +35,7 @@ import io.modelcontextprotocol.spec.McpSchema.TextContent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -53,7 +56,8 @@ public final class SweepWalletTool {
             ApprovalRequestRepository requestRepo,
             HistoryRepository historyRepo,
             KonkinConfig runtimeConfig,
-            TelegramApprovalNotifier telegramNotifier
+            TelegramApprovalNotifier telegramNotifier,
+            Map<Coin, WalletSupervisor> walletSupervisors
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero"));
@@ -70,7 +74,7 @@ public final class SweepWalletTool {
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
             try {
-                return handleSweep(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, request.arguments());
+                return handleSweep(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, walletSupervisors, request.arguments());
             } catch (IllegalArgumentException e) {
                 log.warn("sweep_wallet validation error: {}", e.getMessage());
                 return errorResult("validation_error", e.getMessage());
@@ -88,6 +92,7 @@ public final class SweepWalletTool {
             HistoryRepository historyRepo,
             KonkinConfig runtimeConfig,
             TelegramApprovalNotifier telegramNotifier,
+            Map<Coin, WalletSupervisor> walletSupervisors,
             Map<String, Object> args
     ) {
         String coin = normalizeCoin(argString(args, "coin"));
@@ -122,9 +127,22 @@ public final class SweepWalletTool {
         String nonceComposite = coin + "|" + nonceUuid + "|" + payloadHash;
         int minApprovalsRequired = coinConfig.auth().minApprovalsRequired();
 
-        // Sweep has no known amount — pass null so VALUE_GT/VALUE_LT rules are skipped
+        // Fetch wallet balance so policy rules can evaluate the actual sweep amount
+        BigDecimal sweepAmount = null;
+        Coin resolved = resolveCoin(coin);
+        if (resolved != null && walletSupervisors != null) {
+            WalletSupervisor supervisor = walletSupervisors.get(resolved);
+            if (supervisor != null) {
+                try {
+                    sweepAmount = supervisor.execute(w -> w.balance()).spendable();
+                } catch (Exception e) {
+                    log.warn("Could not fetch {} balance for policy evaluation: {}", coin, e.getMessage());
+                }
+            }
+        }
+
         PolicyDecision policy = ApprovalPolicyEvaluator.evaluate(
-                coinConfig.auth(), coin, null, requestRepo, now);
+                coinConfig.auth(), coin, sweepAmount, requestRepo, now);
 
         ApprovalRequestRow row = new ApprovalRequestRow(
                 requestId,
