@@ -232,4 +232,322 @@ class SettingsValidatorTest {
         assertNotNull(error);
         assertTrue(error.contains("spending-queue-mode"));
     }
+
+    // ── validateServer — additional fields ──────────────────────────────
+
+    @Test
+    void validateServer_validLogLevel_noError() {
+        assertNull(SettingsValidator.validateServer(Map.of("log-level", "debug")));
+    }
+
+    @Test
+    void validateServer_invalidLogLevel_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("log-level", "verbose")));
+    }
+
+    @Test
+    void validateServer_logLevel_nonString_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("log-level", 42)));
+    }
+
+    @Test
+    void validateServer_validLogRotateMaxSizeMb_noError() {
+        assertNull(SettingsValidator.validateServer(Map.of("log-rotate-max-size-mb", 50)));
+    }
+
+    @Test
+    void validateServer_logRotateMaxSizeMb_zero_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("log-rotate-max-size-mb", 0)));
+    }
+
+    @Test
+    void validateServer_validHost_noError() {
+        assertNull(SettingsValidator.validateServer(Map.of("host", "0.0.0.0")));
+    }
+
+    @Test
+    void validateServer_blankHost_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("host", " ")));
+    }
+
+    @Test
+    void validateServer_validLogFile_noError() {
+        assertNull(SettingsValidator.validateServer(Map.of("log-file", "./logs/app.log")));
+    }
+
+    @Test
+    void validateServer_blankLogFile_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("log-file", "")));
+    }
+
+    @Test
+    void validateServer_validSecretsDir_noError() {
+        assertNull(SettingsValidator.validateServer(Map.of("secrets-dir", "./secrets")));
+    }
+
+    @Test
+    void validateServer_blankSecretsDir_error() {
+        assertNotNull(SettingsValidator.validateServer(Map.of("secrets-dir", "")));
+    }
+
+    @Test
+    void validateServer_unknownField_error() {
+        String error = SettingsValidator.validateServer(Map.of("banana", "yes"));
+        assertNotNull(error);
+        assertTrue(error.contains("Unknown field"));
+    }
+
+    // ── validateDatabase ────────────────────────────────────────────────
+
+    @Test
+    void validateDatabase_validPoolSize_noError() {
+        assertNull(SettingsValidator.validateDatabase(Map.of("pool-size", 10)));
+    }
+
+    @Test
+    void validateDatabase_poolSizeTooLarge_error() {
+        assertNotNull(SettingsValidator.validateDatabase(Map.of("pool-size", 999)));
+    }
+
+    @Test
+    void validateDatabase_poolSizeZero_error() {
+        assertNotNull(SettingsValidator.validateDatabase(Map.of("pool-size", 0)));
+    }
+
+    @Test
+    void validateDatabase_unknownField_error() {
+        assertNotNull(SettingsValidator.validateDatabase(Map.of("flavor", "postgres")));
+    }
+
+    @Test
+    void validateDatabase_stringFields_noError() {
+        assertNull(SettingsValidator.validateDatabase(Map.of("url", "jdbc:h2:mem", "user", "sa", "password", "pw")));
+    }
+
+    // ── validateWebUi ───────────────────────────────────────────────────
+
+    @Test
+    void validateWebUi_booleanFields_noError() {
+        assertNull(SettingsValidator.validateWebUi(Map.of("password-protection.enabled", true)));
+    }
+
+    @Test
+    void validateWebUi_nonBoolean_error() {
+        assertNotNull(SettingsValidator.validateWebUi(Map.of("password-protection.enabled", "yes")));
+    }
+
+    @Test
+    void validateWebUi_unknownField_error() {
+        assertNotNull(SettingsValidator.validateWebUi(Map.of("theme", "dark")));
+    }
+
+    // ── validateRestApi ─────────────────────────────────────────────────
+
+    @Test
+    void validateRestApi_validEnabled_noError() {
+        assertNull(SettingsValidator.validateRestApi(Map.of("enabled", true)));
+    }
+
+    @Test
+    void validateRestApi_nonBoolean_error() {
+        assertNotNull(SettingsValidator.validateRestApi(Map.of("enabled", "yes")));
+    }
+
+    @Test
+    void validateRestApi_unknownField_error() {
+        assertNotNull(SettingsValidator.validateRestApi(Map.of("rate-limit", 100)));
+    }
+
+    // ── validateTelegram ────────────────────────────────────────────────
+
+    @Test
+    void validateTelegram_validEnabled_noError() {
+        assertNull(SettingsValidator.validateTelegram(Map.of("enabled", true)));
+    }
+
+    @Test
+    void validateTelegram_validAutoDenyTimeout_noError() {
+        assertNull(SettingsValidator.validateTelegram(Map.of("auto-deny-timeout", "5m")));
+    }
+
+    @Test
+    void validateTelegram_iso8601Duration_noError() {
+        assertNull(SettingsValidator.validateTelegram(Map.of("auto-deny-timeout", "PT5M")));
+    }
+
+    @Test
+    void validateTelegram_invalidDuration_error() {
+        assertNotNull(SettingsValidator.validateTelegram(Map.of("auto-deny-timeout", "banana")));
+    }
+
+    @Test
+    void validateTelegram_nonStringDuration_error() {
+        assertNotNull(SettingsValidator.validateTelegram(Map.of("auto-deny-timeout", 5)));
+    }
+
+    @Test
+    void validateTelegram_blankApiBaseUrl_error() {
+        assertNotNull(SettingsValidator.validateTelegram(Map.of("api-base-url", "")));
+    }
+
+    @Test
+    void validateTelegram_unknownField_error() {
+        assertNotNull(SettingsValidator.validateTelegram(Map.of("token", "secret")));
+    }
+
+    // ── validateAgent ───────────────────────────────────────────────────
+
+    @Test
+    void validateAgent_validFields_noError() {
+        assertNull(SettingsValidator.validateAgent(Map.of("visible", true, "port", 9090, "bind", "127.0.0.1")));
+    }
+
+    @Test
+    void validateAgent_nonBooleanVisible_error() {
+        assertNotNull(SettingsValidator.validateAgent(Map.of("visible", "yes")));
+    }
+
+    @Test
+    void validateAgent_portOutOfRange_error() {
+        assertNotNull(SettingsValidator.validateAgent(Map.of("port", 70000)));
+    }
+
+    @Test
+    void validateAgent_blankBind_error() {
+        assertNotNull(SettingsValidator.validateAgent(Map.of("bind", "")));
+    }
+
+    @Test
+    void validateAgent_unknownField_error() {
+        assertNotNull(SettingsValidator.validateAgent(Map.of("threads", 4)));
+    }
+
+    // ── validateDebug ───────────────────────────────────────────────────
+
+    @Test
+    void validateDebug_validBooleans_noError() {
+        assertNull(SettingsValidator.validateDebug(Map.of("enabled", true, "seed-fake-data", false)));
+    }
+
+    @Test
+    void validateDebug_nonBoolean_error() {
+        assertNotNull(SettingsValidator.validateDebug(Map.of("enabled", "yes")));
+    }
+
+    @Test
+    void validateDebug_unknownField_error() {
+        assertNotNull(SettingsValidator.validateDebug(Map.of("verbose", true)));
+    }
+
+    // ── validateCoin — rule validation ──────────────────────────────────
+
+    @Test
+    void validateCoin_validAutoAcceptRule_noError() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-lt", "value", 0.01));
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_invalidRuleType_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "invalid-type", "value", 1.0));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-deny", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleValueZero_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-gt", "value", 0));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-deny", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleValueNegative_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-gt", "value", -1.0));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleValueAsString_noError() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-gt", "value", "5.5"));
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleValueNotANumber_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-gt", "value", "abc"));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleValueWrongType_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "value-gt", "value", true));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_cumulatedRuleWithPeriod_noError() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "cumulated-value-gt", "value", 10.0, "period", "24h"));
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.auto-deny", rules)));
+    }
+
+    @Test
+    void validateCoin_cumulatedRuleMissingPeriod_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "cumulated-value-gt", "value", 10.0));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-deny", rules)));
+    }
+
+    @Test
+    void validateCoin_cumulatedRuleInvalidPeriod_error() {
+        List<Map<String, Object>> rules = List.of(Map.of("type", "cumulated-value-lt", "value", 5.0, "period", "banana"));
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", rules)));
+    }
+
+    @Test
+    void validateCoin_ruleNotAList_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", "not-a-list")));
+    }
+
+    @Test
+    void validateCoin_ruleItemNotAMap_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.auto-accept", List.of("not-a-map"))));
+    }
+
+    @Test
+    void validateCoin_validMinApprovals_noError() {
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.min-approvals-required", 3)));
+    }
+
+    @Test
+    void validateCoin_minApprovalsZero_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.min-approvals-required", 0)));
+    }
+
+    @Test
+    void validateCoin_validVetoChannels_noError() {
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.veto-channels", List.of("telegram"))));
+    }
+
+    @Test
+    void validateCoin_vetoChannelsNotAList_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.veto-channels", "telegram")));
+    }
+
+    @Test
+    void validateCoin_vetoChannelsBlankEntry_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.veto-channels", List.of(""))));
+    }
+
+    @Test
+    void validateCoin_validMcpAuthChannels_noError() {
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.mcp-auth-channels", List.of("agent-1"))));
+    }
+
+    @Test
+    void validateCoin_authBooleans_noError() {
+        assertNull(SettingsValidator.validateCoin(Map.of("auth.web-ui", true, "auth.rest-api", false, "auth.telegram", true)));
+    }
+
+    @Test
+    void validateCoin_authBooleanNonBoolean_error() {
+        assertNotNull(SettingsValidator.validateCoin(Map.of("auth.web-ui", "yes")));
+    }
 }

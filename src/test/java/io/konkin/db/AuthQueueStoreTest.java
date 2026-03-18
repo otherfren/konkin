@@ -270,6 +270,118 @@ class AuthQueueStoreTest {
         assertTrue(dep2.transitions().isEmpty());
     }
 
+    // --- findQueuedForExecution ---
+
+    @Test
+    void findQueuedForExecution_returnsEmpty_whenNone() {
+        insertRequest("r1", "APPROVED");
+        insertRequest("r2", "EXECUTING");
+        assertTrue(requestRepo.findQueuedForExecution().isEmpty());
+    }
+
+    @Test
+    void findQueuedForExecution_returnsOnlyQueuedForExecution() {
+        insertRequest("r1", "QUEUED_FOR_EXECUTION");
+        insertRequest("r2", "APPROVED");
+        insertRequest("r3", "QUEUED_FOR_EXECUTION");
+        insertRequest("r4", "COMPLETED");
+
+        List<ApprovalRequestRow> results = requestRepo.findQueuedForExecution();
+        assertEquals(2, results.size());
+        List<String> ids = results.stream().map(ApprovalRequestRow::id).toList();
+        assertTrue(ids.containsAll(List.of("r1", "r3")));
+    }
+
+    // --- sumQueuedAndExecutingAmounts ---
+
+    @Test
+    void sumQueuedAndExecutingAmounts_returnsZero_whenEmpty() {
+        assertEquals(0, requestRepo.sumQueuedAndExecutingAmounts("bitcoin").compareTo(java.math.BigDecimal.ZERO));
+    }
+
+    @Test
+    void sumQueuedAndExecutingAmounts_sumsCorrectStates() {
+        insertRequestWithAmount("r1", "QUEUED_FOR_EXECUTION", "bitcoin", "1.5");
+        insertRequestWithAmount("r2", "EXECUTING", "bitcoin", "0.5");
+        insertRequestWithAmount("r3", "APPROVED", "bitcoin", "10.0");  // should not count
+        insertRequestWithAmount("r4", "COMPLETED", "bitcoin", "5.0");  // should not count
+        insertRequestWithAmount("r5", "QUEUED_FOR_EXECUTION", "monero", "100.0"); // different coin
+
+        java.math.BigDecimal sum = requestRepo.sumQueuedAndExecutingAmounts("bitcoin");
+        assertEquals(0, sum.compareTo(new java.math.BigDecimal("2.0")));
+    }
+
+    @Test
+    void sumQueuedAndExecutingAmounts_excludesSweeps() {
+        insertRequestWithAmount("r1", "QUEUED_FOR_EXECUTION", "bitcoin", "1.0");
+        insertRequestWithAmount("r2", "QUEUED_FOR_EXECUTION", "bitcoin", "ALL"); // sweep
+        java.math.BigDecimal sum = requestRepo.sumQueuedAndExecutingAmounts("bitcoin");
+        assertEquals(0, sum.compareTo(java.math.BigDecimal.ONE));
+    }
+
+    // --- compareAndSetState ---
+
+    @Test
+    void compareAndSetState_succeeds_whenStateMatches() {
+        insertRequest("cas-1", "QUEUED_FOR_EXECUTION");
+        boolean result = requestRepo.compareAndSetState(
+                "cas-1", "QUEUED_FOR_EXECUTION", "EXECUTING",
+                "poller", "Picked up by execution poller", Instant.now());
+        assertTrue(result);
+        assertEquals("EXECUTING", requestRepo.findApprovalRequestById("cas-1").state());
+    }
+
+    @Test
+    void compareAndSetState_fails_whenStateMismatch() {
+        insertRequest("cas-2", "APPROVED");
+        boolean result = requestRepo.compareAndSetState(
+                "cas-2", "QUEUED_FOR_EXECUTION", "EXECUTING",
+                "poller", "Picked up by execution poller", Instant.now());
+        assertFalse(result);
+        assertEquals("APPROVED", requestRepo.findApprovalRequestById("cas-2").state());
+    }
+
+    @Test
+    void compareAndSetState_fails_whenIdNotFound() {
+        boolean result = requestRepo.compareAndSetState(
+                "no-such-id", "QUEUED_FOR_EXECUTION", "CANCELLED",
+                "user", "Cancelled", Instant.now());
+        assertFalse(result);
+    }
+
+    // --- findByState ---
+
+    @Test
+    void findByState_returnsMatchingRows() {
+        insertRequest("s1", "EXECUTING");
+        insertRequest("s2", "EXECUTING");
+        insertRequest("s3", "COMPLETED");
+
+        List<ApprovalRequestRow> results = requestRepo.findByState("EXECUTING");
+        assertEquals(2, results.size());
+    }
+
+    @Test
+    void findByState_returnsEmpty_whenNoMatch() {
+        insertRequest("s1", "COMPLETED");
+        assertTrue(requestRepo.findByState("EXECUTING").isEmpty());
+    }
+
+    // --- findVotableRequests ---
+
+    @Test
+    void findVotableRequests_returnsOnlyQueuedAndPending() {
+        insertRequest("v1", "QUEUED");
+        insertRequest("v2", "PENDING");
+        insertRequest("v3", "APPROVED");
+        insertRequest("v4", "QUEUED_FOR_EXECUTION");
+
+        List<ApprovalRequestRow> results = requestRepo.findVotableRequests();
+        assertEquals(2, results.size());
+        List<String> ids = results.stream().map(ApprovalRequestRow::id).toList();
+        assertTrue(ids.containsAll(List.of("v1", "v2")));
+    }
+
     // --- pagination helpers ---
 
     @Test
@@ -372,6 +484,27 @@ class AuthQueueStoreTest {
                 .bind("requestId", requestId)
                 .bind("channelId", channelId)
                 .bind("now", Instant.now())
+                .execute());
+    }
+
+    private void insertRequestWithAmount(String id, String state, String coin, String amount) {
+        Instant now = Instant.now();
+        jdbi.useHandle(h -> h.createUpdate("""
+                INSERT INTO approval_requests (
+                    id, coin, tool_name, nonce_uuid, payload_hash_sha256, nonce_composite,
+                    to_address, amount_native, requested_at, expires_at, state, min_approvals_required, reason
+                ) VALUES (:id, :coin, 'wallet_send', :nonceUuid, :sha256, :nonce,
+                    'addr-test', :amount, :requestedAt, :expiresAt, :state, 1, 'test')
+                """)
+                .bind("id", id)
+                .bind("coin", coin)
+                .bind("nonceUuid", "nonce-" + id)
+                .bind("sha256", "sha256-" + id)
+                .bind("nonce", coin + "|nonce-" + id)
+                .bind("amount", amount)
+                .bind("requestedAt", now)
+                .bind("expiresAt", now.plusSeconds(600))
+                .bind("state", state)
                 .execute());
     }
 

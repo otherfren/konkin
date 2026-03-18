@@ -53,6 +53,7 @@ public final class TestDatabaseManager {
             h.execute("DELETE FROM approval_channels");
             h.execute("DELETE FROM agent_tokens");
             h.execute("DELETE FROM kv_store");
+            h.execute("DELETE FROM config_overrides");
         });
     }
 
