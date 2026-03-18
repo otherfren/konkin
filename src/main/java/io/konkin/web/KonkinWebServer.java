@@ -470,12 +470,8 @@ public class KonkinWebServer {
                 }
 
                 String expectedKey = activeApiKeyRef.get();
-                if (expectedKey == null) {
-                    throw new io.javalin.http.ServiceUnavailableResponse();
-                }
-
                 String providedApiKey = ctx.header("X-API-Key");
-                if (providedApiKey == null || !constantTimeEquals(providedApiKey, expectedKey)) {
+                if (expectedKey == null || providedApiKey == null || !constantTimeEquals(providedApiKey, expectedKey)) {
                     throw new UnauthorizedResponse();
                 }
             });
@@ -484,7 +480,7 @@ public class KonkinWebServer {
                 String path = ctx.path();
                 boolean apiRequest = "/api/v1".equals(path) || path.startsWith("/api/v1/");
                 if (apiRequest && !"/api/v1/health".equals(path)) {
-                    throw new NotFoundResponse();
+                    throw new UnauthorizedResponse();
                 }
             });
         }
@@ -539,6 +535,20 @@ public class KonkinWebServer {
             app.get("/api/v1/coin-runtimes/{coin}", coinRuntimeController::getOne);
             app.put("/api/v1/coin-runtimes/{coin}", coinRuntimeController::update);
             app.delete("/api/v1/coin-runtimes/{coin}", coinRuntimeController::delete);
+
+            // Wallet API
+            io.konkin.api.WalletApiController walletApi = new io.konkin.api.WalletApiController(
+                    walletSupervisors, configManager, requestRepo, historyRepo, telegramNotifier);
+            app.get("/api/v1/wallets/{coin}/balance", walletApi::getBalance);
+            app.get("/api/v1/wallets/{coin}/status", walletApi::getStatus);
+            app.post("/api/v1/wallets/{coin}/deposit-address", walletApi::createDepositAddress);
+            app.get("/api/v1/wallets/{coin}/pending-incoming", walletApi::getPendingIncoming);
+            app.get("/api/v1/wallets/pending-outgoing", walletApi::getPendingOutgoing);
+            app.get("/api/v1/wallets/{coin}/pending-outgoing", walletApi::getPendingOutgoingByCoin);
+            app.post("/api/v1/wallets/{coin}/send", walletApi::send);
+            app.post("/api/v1/wallets/{coin}/sweep", walletApi::sweep);
+            app.post("/api/v1/wallets/{coin}/sign-message", walletApi::signMessage);
+            app.post("/api/v1/wallets/{coin}/verify-message", walletApi::verifyMessage);
         }
 
         LandingPageController webUiPageControllerFinal = landingPageController;
@@ -575,6 +585,7 @@ public class KonkinWebServer {
             app.post("/logout", webUiPageControllerFinal::handleLogout);
             app.post("/queue/approve", webUiPageControllerFinal::handleQueueApprove);
             app.post("/queue/deny", webUiPageControllerFinal::handleQueueDeny);
+            app.post("/queue/cancel", webUiPageControllerFinal::handleQueueCancel);
 
             // Settings update endpoints
             app.get("/settings", settingsControllerFinal::handleSettingsPage);
@@ -650,7 +661,8 @@ public class KonkinWebServer {
         }
 
         if (!walletSupervisors.isEmpty() && requestRepo != null && historyRepo != null) {
-            executionService = new TransactionExecutionService(walletSupervisors, requestRepo, historyRepo);
+            executionService = new TransactionExecutionService(walletSupervisors, requestRepo, historyRepo,
+                    () -> configManager.get().spendingQueueMode());
             executionService.start();
         }
 

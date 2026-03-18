@@ -35,6 +35,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -134,6 +135,47 @@ public final class BitcoinWallet extends CoinWallet {
             throw new WalletOperationException("BTC send failed (sendtoaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
             throw new WalletConnectionException("Failed to connect to Bitcoin node (sendtoaddress → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean supportsBatchSend() {
+        return true;
+    }
+
+    @Override
+    public BatchSendResult batchSend(List<SendRequest> requests) {
+        try {
+            // Build address→amount map for sendmany
+            Map<String, BigDecimal> amounts = new LinkedHashMap<>();
+            for (SendRequest req : requests) {
+                amounts.merge(req.toAddress(), req.amount(), BigDecimal::add);
+            }
+
+            // sendmany "" {addr:amount,...}
+            // Convert amounts map to JSON object string for RPC
+            var amountsJson = new LinkedHashMap<String, String>();
+            for (var entry : amounts.entrySet()) {
+                amountsJson.put(entry.getKey(), entry.getValue().toPlainString());
+            }
+
+            String txIdStr = client.send("sendmany", String.class, "", amountsJson);
+
+            org.bitcoinj.base.Sha256Hash txId = org.bitcoinj.base.Sha256Hash.wrap(txIdStr);
+            WalletTransactionInfo txInfo = client.getTransaction(txId);
+            BigDecimal fee = txInfo.getFee() != null ? txInfo.getFee().toBtc().abs() : BigDecimal.ZERO;
+
+            return new BatchSendResult(Coin.BTC, txIdStr, amounts, fee, Map.of());
+        } catch (JsonRpcStatusException e) {
+            if (isInsufficientFunds(e)) {
+                BigDecimal totalRequested = requests.stream()
+                        .map(SendRequest::amount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                throw new WalletInsufficientFundsException(totalRequested, safeBalance());
+            }
+            throw new WalletOperationException("BTC batch send failed (sendmany → " + client.getServerURI() + "): " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new WalletConnectionException("Failed to connect to Bitcoin node (sendmany → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 

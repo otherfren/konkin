@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -127,6 +128,41 @@ public final class LitecoinWallet extends CoinWallet {
             throw new WalletOperationException("LTC send failed (sendtoaddress → " + client.getServerURI() + "): " + e.getMessage(), e);
         } catch (IOException e) {
             throw new WalletConnectionException("Failed to connect to Litecoin node (sendtoaddress → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public boolean supportsBatchSend() {
+        return true;
+    }
+
+    @Override
+    public BatchSendResult batchSend(List<SendRequest> requests) {
+        try {
+            Map<String, BigDecimal> amounts = new LinkedHashMap<>();
+            for (SendRequest req : requests) {
+                amounts.merge(req.toAddress(), req.amount(), BigDecimal::add);
+            }
+
+            var amountsJson = new LinkedHashMap<String, String>();
+            for (var entry : amounts.entrySet()) {
+                amountsJson.put(entry.getKey(), entry.getValue().toPlainString());
+            }
+
+            String txIdStr = client.send("sendmany", String.class, "", amountsJson);
+            BigDecimal fee = getRawTransactionFee(txIdStr);
+
+            return new BatchSendResult(Coin.LTC, txIdStr, amounts, fee, Map.of());
+        } catch (JsonRpcStatusException e) {
+            if (isInsufficientFunds(e)) {
+                BigDecimal totalRequested = requests.stream()
+                        .map(SendRequest::amount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                throw new WalletInsufficientFundsException(totalRequested, safeBalance());
+            }
+            throw new WalletOperationException("LTC batch send failed (sendmany → " + client.getServerURI() + "): " + e.getMessage(), e);
+        } catch (IOException e) {
+            throw new WalletConnectionException("Failed to connect to Litecoin node (sendmany → " + client.getServerURI() + "): " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 

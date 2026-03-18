@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{host}}/api/v1/requests/req-123/dependencies"
+  url: "{{host}}/api/v1/requests/req-ebe8e020-4969-410b-9566-64aa77ba6278/dependencies"
   headers:
     - name: X-Api-Key
       value: "{{API_KEY}}"

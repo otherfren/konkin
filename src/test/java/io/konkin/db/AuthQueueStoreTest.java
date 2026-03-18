@@ -68,7 +68,7 @@ class AuthQueueStoreTest {
         insertRequest("r-executing", "EXECUTING");
         insertRequest("r-completed", "COMPLETED");
         insertRequest("r-failed", "FAILED");
-        assertEquals(4, requestRepo.countOpenRequests());
+        assertEquals(2, requestRepo.countOpenRequests());
     }
 
     // --- isLockdownActive ---

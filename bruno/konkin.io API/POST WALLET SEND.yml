@@ -1,0 +1,27 @@
+info:
+  name: POST WALLET SEND
+  type: http
+  seq: 56
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/wallets/bitcoin/send"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  body:
+    type: json
+    data: |
+      {
+        "toAddress": "bc1qexampleaddress0123456789",
+        "amountNative": "0.001",
+        "feePolicy": "normal",
+        "reason": "Test send via REST API"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

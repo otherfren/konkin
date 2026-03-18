@@ -28,7 +28,8 @@ config-version = 1
 	log-rotate-max-size-mb = 10
 	port = 7070
 	log-level = "info"
-	secrets-dir = "./secrets"
+	spending-queue-mode = "always-queue"
+	secrets-dir = "./secrets/"
 	host = "127.0.0.1"
 	log-file = "./logs/konkin.log"
 
@@ -59,8 +60,11 @@ config-version = 1
 			veto-channels = ["web-ui", "telegram"]
 			mcp-auth-channels = ["agent-lancelot"]
 			min-approvals-required = 1
-			[[coins.litecoin.auth.auto-deny]]
-				criteria = {period = "1d", type = "cumulated-value-gt", value = 12345.0}
+				[[coins.litecoin.auth.auto-deny]]
+					[coins.litecoin.auth.auto-deny.criteria]
+						period = "1d"
+						type = "cumulated-value-gt"
+						value = 12345.0
 
 				[[coins.litecoin.auth.auto-accept]]
 					[coins.litecoin.auth.auto-accept.criteria]

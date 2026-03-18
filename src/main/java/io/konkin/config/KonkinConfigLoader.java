@@ -45,6 +45,10 @@ final class KonkinConfigLoader {
         String logLevel = toml.getOrElse("server.log-level", "info");
         String logFile = toml.getOrElse("server.log-file", "./logs/konkin.log");
         int logRotateMaxSizeMb = toml.getIntOrElse("server.log-rotate-max-size-mb", 10);
+        String spendingQueueMode = normalizeString(toml.getOrElse("server.spending-queue-mode", "balance-required"));
+        if (spendingQueueMode == null || spendingQueueMode.isBlank()) {
+            spendingQueueMode = "balance-required";
+        }
         String dbUrl = toml.getOrElse("database.url", "jdbc:h2:./data/konkin");
         String dbUser = toml.getOrElse("database.user", "konkin");
         // [M-3] Resolve DB password: replace default 'sa' with auto-generated secret
@@ -141,6 +145,7 @@ final class KonkinConfigLoader {
 
         return new KonkinConfig(
                 host, port, secretsDir, logLevel, logFile, logRotateMaxSizeMb,
+                spendingQueueMode,
                 dbUrl, dbUser, dbPassword, dbPoolSize,
                 landingEnabled, landingPasswordProtectionEnabled, landingPasswordFile,
                 landingTemplateDirectory, landingStaticDirectory, landingStaticHostedPath,

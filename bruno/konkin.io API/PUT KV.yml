@@ -9,6 +9,9 @@ http:
   headers:
     - name: X-Api-Key
       value: "{{API_KEY}}"
+  body:
+    type: text
+    data: foo
   auth: inherit
 
 settings:

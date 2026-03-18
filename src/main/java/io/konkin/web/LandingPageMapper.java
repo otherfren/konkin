@@ -1282,6 +1282,7 @@ public class LandingPageMapper {
         s.put("logFile", safe(c.logFile()));
         s.put("logRotateMaxSizeMb", c.logRotateMaxSizeMb());
         s.put("secretsDir", safe(c.secretsDir()));
+        s.put("spendingQueueMode", safe(c.spendingQueueMode()));
 
         // Database
         s.put("dbUrl", safe(c.dbUrl()));

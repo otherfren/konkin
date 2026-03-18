@@ -14,6 +14,56 @@
 <main class="main-section"><div class="content">
     <h2 class="queue-title">History</h2>
 
+    <#assign queueNotice = (queuePage.queueNotice!'')>
+    <#assign queueNoticeError = (queuePage.queueNoticeError!false)>
+    <#assign queueConfirmRequired = (queuePage.queueConfirmRequired!false)>
+    <#assign queueConfirmDecision = (queuePage.queueConfirmDecision!'')>
+    <#assign queueConfirmRequestId = (queuePage.queueConfirmRequestId!'')>
+    <#assign queueConfirmRequestIdShort = (queuePage.queueConfirmRequestIdShort!'-')>
+    <#assign queueConfirmActionPath = (queuePage.queueConfirmActionPath!'')>
+    <#assign queueConfirmCoin = (queuePage.queueConfirmCoin!'')>
+    <#assign queueConfirmAmountNative = (queuePage.queueConfirmAmountNative!'')>
+    <#assign queueConfirmToAddress = (queuePage.queueConfirmToAddress!'')>
+    <#assign queueConfirmToolName = (queuePage.queueConfirmToolName!'')>
+    <#assign queueConfirmReason = (queuePage.queueConfirmReason!'')>
+
+    <#if queueNotice?has_content>
+        <div class="queue-notice<#if queueNoticeError> queue-notice-error</#if>">${queueNotice}</div>
+    </#if>
+
+    <#if queueConfirmRequired>
+        <section class="queue-confirm-panel" aria-labelledby="queue-confirm-title">
+            <h3 id="queue-confirm-title" class="queue-confirm-title">Confirmation required</h3>
+            <p class="queue-confirm-copy">
+                Confirm <strong>${queueConfirmDecision}</strong> for request <span class="mono">${queueConfirmRequestIdShort}</span>.
+            </p>
+            <#if queueConfirmToolName?has_content || queueConfirmCoin?has_content || queueConfirmAmountNative?has_content || queueConfirmToAddress?has_content>
+                <div class="queue-confirm-details">
+                    <#if queueConfirmToolName?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">${queueConfirmToolName}</span></p></#if>
+                    <#if queueConfirmCoin?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">${queueConfirmCoin}</span></p></#if>
+                    <#if queueConfirmAmountNative?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">${queueConfirmAmountNative}</span></p></#if>
+                    <#if queueConfirmToAddress?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">${queueConfirmToAddress}</span></p></#if>
+                    <#if queueConfirmReason?has_content><p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">${queueConfirmReason}</span></p></#if>
+                </div>
+            </#if>
+            <div class="queue-confirm-actions">
+                <form method="post" action="${queueConfirmActionPath}" class="queue-confirm-inline-form">
+                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
+                    <input type="hidden" name="request_id" value="${queueConfirmRequestId}">
+                    <input type="hidden" name="confirm" value="yes">
+                    <button
+                        type="submit"
+                        class="queue-action-btn queue-action-deny"
+                    >confirm ${queueConfirmDecision}</button>
+                </form>
+                <a
+                    href="${auditLogPath}"
+                    class="queue-action-btn queue-action-cancel"
+                >go back</a>
+            </div>
+        </section>
+    </#if>
+
     <#assign lqSort = (logQueuePage.sortBy!'updated_at')>
     <#assign lqDir = (logQueuePage.sortDir!'desc')>
     <#assign lqPage = (logQueuePage.page!1)>
@@ -170,7 +220,18 @@
                             >details</a>
                             <pre id="details-source-log-${row?index}" class="queue-details-source" hidden>${(row.detailsJson!'{}')}</pre>
                         </td>
-                        <td class="action-cell"></td>
+                        <td class="action-cell">
+                            <#if (row.state!'') == 'QUEUED_FOR_EXECUTION'>
+                                <form method="post" action="/queue/cancel" class="queue-decision-form" data-decision="cancel"
+                                      data-coin="${(row.coin!'')}" data-amount="${(row.amountNative!'')}"
+                                      data-to-address="${(row.toAddress!'')}" data-tool="${(row.toolName!'')}"
+                                      data-reason="${(row.reason!'')}">
+                                    <input type="hidden" name="_csrf" value="${csrfToken!''}">
+                                    <input type="hidden" name="request_id" value="${(row.id!'')}">
+                                    <button type="submit" class="queue-action-btn queue-action-deny">cancel</button>
+                                </form>
+                            </#if>
+                        </td>
                     </tr>
                 </#list>
             </#if>
@@ -181,6 +242,88 @@
 
 <@m.copyButtonScript />
 <@m.detailsExpandScript defaultColSpan=8 />
+
+<div id="queue-confirm-modal" class="queue-confirm-modal" hidden>
+    <div class="queue-confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="queue-confirm-modal-title">
+        <h3 id="queue-confirm-modal-title" class="queue-confirm-modal-title">Confirm cancellation</h3>
+        <p id="queue-confirm-modal-message" class="queue-confirm-modal-copy">Cancel this queued transaction?</p>
+        <div id="queue-confirm-modal-details" class="queue-confirm-details" hidden></div>
+        <div class="queue-confirm-modal-actions">
+            <button type="button" id="queue-confirm-modal-cancel" class="queue-action-btn queue-action-cancel">go back</button>
+            <button type="button" id="queue-confirm-modal-submit" class="queue-action-btn queue-action-deny">confirm cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const decisionForms = document.querySelectorAll('.queue-decision-form[data-decision]');
+    const confirmModal = document.getElementById('queue-confirm-modal');
+    const confirmMessage = document.getElementById('queue-confirm-modal-message');
+    const confirmDetails = document.getElementById('queue-confirm-modal-details');
+    const confirmCancel = document.getElementById('queue-confirm-modal-cancel');
+    const confirmSubmit = document.getElementById('queue-confirm-modal-submit');
+    let pendingDecisionForm = null;
+
+    const closeConfirmModal = () => {
+        if (confirmModal) confirmModal.hidden = true;
+        if (confirmDetails) { confirmDetails.innerHTML = ''; confirmDetails.hidden = true; }
+        pendingDecisionForm = null;
+    };
+
+    const esc = s => (s || '').replace(/</g, '&lt;');
+
+    const openConfirmModal = form => {
+        if (!confirmModal || !confirmMessage || !confirmSubmit) return false;
+        pendingDecisionForm = form;
+        confirmMessage.textContent = 'Cancel this queued transaction?';
+
+        const tool = form.getAttribute('data-tool') || '';
+        const coin = form.getAttribute('data-coin') || '';
+        const amount = form.getAttribute('data-amount') || '';
+        const toAddr = form.getAttribute('data-to-address') || '';
+        const reason = form.getAttribute('data-reason') || '';
+        let html = '';
+        if (tool) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Tool:</span> <span class="mono">' + esc(tool) + '</span></p>';
+        if (coin) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Coin:</span> <span class="mono">' + esc(coin) + '</span></p>';
+        if (amount) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Amount:</span> <span class="mono">' + esc(amount) + '</span></p>';
+        if (toAddr) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">To Address:</span> <span class="mono queue-confirm-address">' + esc(toAddr) + '</span></p>';
+        if (reason) html += '<p class="queue-confirm-detail"><span class="queue-confirm-detail-label">Reason:</span> <span class="mono">' + esc(reason) + '</span></p>';
+        if (html && confirmDetails) {
+            confirmDetails.innerHTML = html;
+            confirmDetails.hidden = false;
+        }
+
+        confirmModal.hidden = false;
+        confirmSubmit.focus();
+        return true;
+    };
+
+    decisionForms.forEach(form => {
+        form.addEventListener('submit', e => {
+            e.preventDefault();
+            if (!openConfirmModal(form)) form.submit();
+        });
+    });
+
+    if (confirmCancel) confirmCancel.addEventListener('click', closeConfirmModal);
+    if (confirmSubmit) confirmSubmit.addEventListener('click', () => {
+        if (pendingDecisionForm) {
+            const hiddenConfirm = document.createElement('input');
+            hiddenConfirm.type = 'hidden';
+            hiddenConfirm.name = 'confirm';
+            hiddenConfirm.value = 'yes';
+            pendingDecisionForm.appendChild(hiddenConfirm);
+            pendingDecisionForm.submit();
+        }
+    });
+
+    if (confirmModal) {
+        confirmModal.addEventListener('click', e => { if (e.target === confirmModal) closeConfirmModal(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !confirmModal.hidden) closeConfirmModal(); });
+    }
+})();
+</script>
 
 <@m.footer />
 </div>

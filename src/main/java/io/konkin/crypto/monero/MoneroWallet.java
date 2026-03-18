@@ -131,6 +131,47 @@ public final class MoneroWallet extends CoinWallet {
     }
 
     @Override
+    public boolean supportsBatchSend() {
+        return true;
+    }
+
+    @Override
+    public BatchSendResult batchSend(List<SendRequest> requests) {
+        try {
+            MoneroTxConfig txConfig = new MoneroTxConfig()
+                    .setAccountIndex(accountIndex)
+                    .setRelay(true);
+
+            Map<String, BigDecimal> amountsByAddress = new LinkedHashMap<>();
+            for (SendRequest req : requests) {
+                BigInteger amountAtomic = xmrToAtomic(req.amount());
+                txConfig.addDestination(req.toAddress(), amountAtomic);
+                amountsByAddress.merge(req.toAddress(), req.amount(), BigDecimal::add);
+            }
+
+            MoneroTxWallet tx = rpc.createTx(txConfig);
+            String txHash = tx.getHash();
+            BigDecimal fee = tx.getFee() != null ? atomicToXmr(tx.getFee()) : BigDecimal.ZERO;
+
+            Map<String, String> extras = new LinkedHashMap<>();
+            if (tx.getKey() != null) {
+                extras.put(MoneroExtras.TX_KEY, tx.getKey());
+            }
+
+            return new BatchSendResult(Coin.XMR, txHash, amountsByAddress, fee, extras);
+        } catch (MoneroError e) {
+            String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+            if (msg.contains("not enough")) {
+                BigDecimal totalRequested = requests.stream()
+                        .map(SendRequest::amount)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                throw new WalletInsufficientFundsException(totalRequested, safeBalance());
+            }
+            throw mapMoneroError(e, "batchSend");
+        }
+    }
+
+    @Override
     public SweepResult sweep(SweepRequest request) {
         try {
             MoneroTxConfig txConfig = new MoneroTxConfig()

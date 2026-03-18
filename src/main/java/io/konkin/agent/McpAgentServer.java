@@ -27,7 +27,9 @@ import io.konkin.agent.mcp.driver.DecisionNotificationPoller;
 import io.konkin.agent.mcp.driver.DecisionStatusResource;
 import io.konkin.agent.mcp.driver.DepositAddressTool;
 import io.konkin.agent.mcp.driver.DriverReadinessPrompt;
-import io.konkin.agent.mcp.driver.PendingTransactionsTool;
+import io.konkin.agent.mcp.driver.PendingIncomingTool;
+import io.konkin.agent.mcp.driver.PendingOutgoingTool;
+import io.konkin.agent.mcp.driver.RequestStatusTool;
 import io.konkin.agent.mcp.driver.SendCoinTool;
 import io.konkin.agent.mcp.driver.SweepWalletTool;
 import io.konkin.agent.mcp.driver.SignMessageTool;
@@ -178,16 +180,20 @@ public class McpAgentServer {
             mcpSyncServer.addResourceTemplate(ConfigRequirementsResource.coinTemplate(primaryConfigRequirementsService));
         }
         if (requestRepo != null && historyRepo != null && runtimeConfig != null) {
-            mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier));
+            mcpSyncServer.addTool(SendCoinTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, walletSupervisors));
             mcpSyncServer.addTool(SweepWalletTool.create(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, walletSupervisors));
         }
         if (walletSupervisors != null && !walletSupervisors.isEmpty() && runtimeConfig != null) {
             mcpSyncServer.addTool(WalletStatusTool.create(walletSupervisors, runtimeConfig));
             mcpSyncServer.addTool(WalletBalanceTool.create(walletSupervisors, runtimeConfig));
             mcpSyncServer.addTool(DepositAddressTool.create(walletSupervisors, runtimeConfig));
-            mcpSyncServer.addTool(PendingTransactionsTool.create(walletSupervisors, runtimeConfig));
+            mcpSyncServer.addTool(PendingIncomingTool.create(walletSupervisors, runtimeConfig));
             mcpSyncServer.addTool(SignMessageTool.create(walletSupervisors, runtimeConfig));
             mcpSyncServer.addTool(VerifyMessageTool.create(walletSupervisors, runtimeConfig));
+        }
+        if (requestRepo != null) {
+            mcpSyncServer.addTool(PendingOutgoingTool.create(requestRepo));
+            mcpSyncServer.addTool(RequestStatusTool.create(requestRepo));
         }
         if (requestRepo != null && depLoader != null) {
             mcpSyncServer.addResourceTemplate(DecisionStatusResource.template(requestRepo, depLoader));

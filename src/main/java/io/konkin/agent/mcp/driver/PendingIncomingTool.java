@@ -32,27 +32,24 @@ import java.util.Map;
 
 import static io.konkin.agent.mcp.driver.WalletToolSupport.*;
 
-public final class PendingTransactionsTool {
+public final class PendingIncomingTool {
 
-    private PendingTransactionsTool() {}
+    private PendingIncomingTool() {}
 
     public static SyncToolSpecification create(Map<Coin, WalletSupervisor> supervisors, KonkinConfig config) {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero"));
-        properties.put("direction", Map.of("type", "string",
-                "description", "Filter by direction: incoming, outgoing, or both (default: both)"));
 
         McpSchema.Tool tool = new McpSchema.Tool(
-                "pending_transactions",
+                "pending_incoming",
                 null,
-                "List pending (unconfirmed) incoming and/or outgoing transactions.",
+                "List pending unconfirmed incoming transactions from the wallet.",
                 new McpSchema.JsonSchema("object", properties, List.of("coin"), null, null, null),
                 null, null, null
         );
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
             String coin = argString(request.arguments(), "coin");
-            String direction = argString(request.arguments(), "direction");
             CallToolResult validation = validateCoinEnabled(config, coin);
             if (validation != null) return validation;
 
@@ -60,17 +57,8 @@ public final class PendingTransactionsTool {
             WalletSupervisor supervisor = lookupSupervisor(supervisors, resolved);
             if (supervisor == null) return errorResult("wallet_offline", "No wallet supervisor for " + coin);
 
-            String dir = direction == null ? "both" : direction.trim().toLowerCase();
-
             try {
-                List<Transaction> transactions = new ArrayList<>();
-
-                if ("incoming".equals(dir) || "both".equals(dir)) {
-                    transactions.addAll(supervisor.execute(w -> w.pendingIncoming()));
-                }
-                if ("outgoing".equals(dir) || "both".equals(dir)) {
-                    transactions.addAll(supervisor.execute(w -> w.pendingOutgoing()));
-                }
+                List<Transaction> transactions = supervisor.execute(w -> w.pendingIncoming());
 
                 List<Map<String, Object>> txList = new ArrayList<>();
                 for (Transaction tx : transactions) {
@@ -90,14 +78,13 @@ public final class PendingTransactionsTool {
 
                 return jsonResult(Map.of(
                         "coin", coin.trim().toLowerCase(),
-                        "direction", dir,
                         "transactions", txList,
                         "count", txList.size()
                 ));
             } catch (WalletException e) {
                 return walletError(e);
             } catch (Exception e) {
-                return unexpectedError("pending_transactions", e);
+                return unexpectedError("pending_incoming", e);
             }
         });
     }

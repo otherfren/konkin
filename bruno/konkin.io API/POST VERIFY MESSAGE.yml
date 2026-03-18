@@ -1,0 +1,26 @@
+info:
+  name: POST VERIFY MESSAGE
+  type: http
+  seq: 59
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/wallets/bitcoin/verify-message"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  body:
+    type: json
+    data: |
+      {
+        "message": "Hello, this is a test message",
+        "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+        "signature": "signature-goes-here"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

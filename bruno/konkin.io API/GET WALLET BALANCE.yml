@@ -1,11 +1,11 @@
 info:
-  name: GET KV BY KEY
+  name: GET WALLET BALANCE
   type: http
-  seq: 3
+  seq: 50
 
 http:
   method: GET
-  url: "{{host}}/api/v1/kv/deposit-address:monero"
+  url: "{{host}}/api/v1/wallets/bitcoin/balance"
   headers:
     - name: X-Api-Key
       value: "{{API_KEY}}"

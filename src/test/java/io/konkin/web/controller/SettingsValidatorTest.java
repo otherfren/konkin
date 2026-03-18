@@ -202,4 +202,34 @@ class SettingsValidatorTest {
         Map<String, Object> values = Map.of("port", 70000);
         assertNotNull(SettingsValidator.validateServer(values));
     }
+
+    // ── spending-queue-mode ─────────────────────────────────────────────
+
+    @Test
+    void validateServer_spendingQueueMode_balanceRequired_noError() {
+        Map<String, Object> values = Map.of("spending-queue-mode", "balance-required");
+        assertNull(SettingsValidator.validateServer(values));
+    }
+
+    @Test
+    void validateServer_spendingQueueMode_alwaysQueue_noError() {
+        Map<String, Object> values = Map.of("spending-queue-mode", "always-queue");
+        assertNull(SettingsValidator.validateServer(values));
+    }
+
+    @Test
+    void validateServer_spendingQueueMode_invalidValue_error() {
+        Map<String, Object> values = Map.of("spending-queue-mode", "invalid-mode");
+        String error = SettingsValidator.validateServer(values);
+        assertNotNull(error);
+        assertTrue(error.contains("spending-queue-mode"));
+    }
+
+    @Test
+    void validateServer_spendingQueueMode_nonStringValue_error() {
+        Map<String, Object> values = Map.of("spending-queue-mode", 42);
+        String error = SettingsValidator.validateServer(values);
+        assertNotNull(error);
+        assertTrue(error.contains("spending-queue-mode"));
+    }
 }

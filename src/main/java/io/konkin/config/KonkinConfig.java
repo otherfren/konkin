@@ -39,6 +39,7 @@ public class KonkinConfig {
     private final String logLevel;
     private final String logFile;
     private final int logRotateMaxSizeMb;
+    private final String spendingQueueMode;
     private final String dbUrl;
     private final String dbUser;
     private final String dbPassword;
@@ -77,6 +78,7 @@ public class KonkinConfig {
 
     KonkinConfig(
             String host, int port, String secretsDir, String logLevel, String logFile, int logRotateMaxSizeMb,
+            String spendingQueueMode,
             String dbUrl, String dbUser, String dbPassword, int dbPoolSize,
             boolean landingEnabled, boolean landingPasswordProtectionEnabled, String landingPasswordFile,
             String landingTemplateDirectory, String landingStaticDirectory, String landingStaticHostedPath,
@@ -93,6 +95,7 @@ public class KonkinConfig {
         this.logLevel = logLevel;
         this.logFile = logFile;
         this.logRotateMaxSizeMb = logRotateMaxSizeMb;
+        this.spendingQueueMode = spendingQueueMode;
         this.dbUrl = dbUrl;
         this.dbUser = dbUser;
         this.dbPassword = dbPassword;
@@ -187,6 +190,7 @@ public class KonkinConfig {
     public String logLevel() { return logLevel; }
     public String logFile() { return logFile; }
     public int logRotateMaxSizeMb() { return logRotateMaxSizeMb; }
+    public String spendingQueueMode() { return spendingQueueMode; }
     public String dbUrl() { return dbUrl; }
     public String dbUser() { return dbUser; }
     public String dbPassword() { return dbPassword; }

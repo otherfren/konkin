@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.util.Map;
 
 public abstract class CoinWallet {
 
@@ -70,6 +71,21 @@ public abstract class CoinWallet {
      */
     public List<Transaction> recentOutgoing() {
         return pendingOutgoing();
+    }
+
+    /**
+     * Whether this wallet supports sending to multiple destinations in a single transaction.
+     */
+    public boolean supportsBatchSend() {
+        return false;
+    }
+
+    /**
+     * Send to multiple destinations in a single transaction.
+     * Default implementation throws — override in wallets that support it.
+     */
+    public BatchSendResult batchSend(List<SendRequest> requests) {
+        throw new UnsupportedOperationException("Batch send not supported for " + coin());
     }
 
     public abstract SignedMessage signMessage(String message);

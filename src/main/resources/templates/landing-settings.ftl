@@ -51,6 +51,14 @@
                     <label class="settings-label">Secrets Dir <span class="settings-restart" title="Requires restart">&#128274;</span></label>
                     <input type="text" class="settings-input" name="secrets-dir" value="${settings.secretsDir!''}" />
                 </div>
+                <div class="settings-field">
+                    <label class="settings-label">Spending Queue Mode</label>
+                    <select class="settings-input settings-select" name="spending-queue-mode">
+                        <#list ["balance-required","always-queue"] as mode>
+                            <option value="${mode}"<#if (settings.spendingQueueMode!'balance-required') == mode> selected</#if>>${mode}</option>
+                        </#list>
+                    </select>
+                </div>
                 <div class="settings-actions">
                     <button type="button" class="settings-save-btn">Save</button>
                     <span class="settings-status"></span>

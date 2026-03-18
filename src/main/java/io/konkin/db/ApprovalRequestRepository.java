@@ -37,7 +37,7 @@ public class ApprovalRequestRepository {
     private static final String COUNT_PENDING_SQL = """
             SELECT COUNT(*)
             FROM approval_requests
-            WHERE state IN ('QUEUED', 'PENDING', 'APPROVED', 'EXECUTING')
+            WHERE state IN ('QUEUED', 'PENDING')
             """;
 
     private static final String LOCKDOWN_ACTIVE_SQL = """
@@ -351,6 +351,25 @@ public class ApprovalRequestRepository {
         );
     }
 
+    public List<ApprovalRequestRow> findQueuedForExecution() {
+        String sql = """
+                SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
+                       to_address, amount_native, fee_policy, fee_cap_native, memo, reason,
+                       requested_at, expires_at, state, state_reason_code, state_reason_text,
+                       min_approvals_required, approvals_granted, approvals_denied, policy_action_at_creation,
+                       created_at, updated_at, resolved_at
+                FROM approval_requests
+                WHERE state = 'QUEUED_FOR_EXECUTION'
+                ORDER BY requested_at ASC
+                """;
+
+        return jdbi.withHandle(h ->
+                h.createQuery(sql)
+                        .map(APPROVAL_REQUEST_MAPPER)
+                        .list()
+        );
+    }
+
     public List<ApprovalRequestRow> findByState(String state) {
         String sql = """
                 SELECT id, coin, tool_name, request_session_id, nonce_uuid, payload_hash_sha256, nonce_composite,
@@ -402,7 +421,7 @@ public class ApprovalRequestRepository {
                 SELECT COALESCE(SUM(CAST(amount_native AS DECIMAL(38, 18))), 0)
                 FROM approval_requests
                 WHERE coin = :coin
-                  AND state IN ('QUEUED', 'PENDING', 'APPROVED', 'EXECUTING', 'COMPLETED')
+                  AND state IN ('QUEUED', 'PENDING', 'APPROVED', 'QUEUED_FOR_EXECUTION', 'EXECUTING', 'COMPLETED')
                   AND requested_at >= :since
                   AND amount_native IS NOT NULL
                   AND amount_native != 'ALL'
@@ -412,6 +431,28 @@ public class ApprovalRequestRepository {
                 h.createQuery(sql)
                         .bind("coin", coin)
                         .bind("since", since)
+                        .mapTo(java.math.BigDecimal.class)
+                        .one()
+        );
+    }
+
+    /**
+     * Sum the amount_native of requests currently in QUEUED_FOR_EXECUTION or EXECUTING state for a coin.
+     * Excludes sweep requests (amount_native = 'ALL' or null).
+     */
+    public java.math.BigDecimal sumQueuedAndExecutingAmounts(String coin) {
+        String sql = """
+                SELECT COALESCE(SUM(CAST(amount_native AS DECIMAL(38, 18))), 0)
+                FROM approval_requests
+                WHERE coin = :coin
+                  AND state IN ('QUEUED_FOR_EXECUTION', 'EXECUTING')
+                  AND amount_native IS NOT NULL
+                  AND amount_native != 'ALL'
+                """;
+
+        return jdbi.withHandle(h ->
+                h.createQuery(sql)
+                        .bind("coin", coin)
                         .mapTo(java.math.BigDecimal.class)
                         .one()
         );

@@ -1,0 +1,24 @@
+info:
+  name: POST SIGN MESSAGE
+  type: http
+  seq: 58
+
+http:
+  method: POST
+  url: "{{host}}/api/v1/wallets/bitcoin/sign-message"
+  headers:
+    - name: X-Api-Key
+      value: "{{API_KEY}}"
+  body:
+    type: json
+    data: |
+      {
+        "message": "Hello, this is a test message"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

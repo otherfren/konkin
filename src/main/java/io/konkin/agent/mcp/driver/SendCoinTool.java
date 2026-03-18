@@ -21,6 +21,9 @@ import io.konkin.approval.ApprovalPolicyEvaluator;
 import io.konkin.approval.ApprovalPolicyEvaluator.PolicyDecision;
 import io.konkin.config.CoinConfig;
 import io.konkin.config.KonkinConfig;
+import io.konkin.crypto.Coin;
+import io.konkin.crypto.WalletSnapshot;
+import io.konkin.crypto.WalletSupervisor;
 import io.konkin.db.ApprovalRequestRepository;
 import io.konkin.db.HistoryRepository;
 import io.konkin.db.entity.ApprovalRequestRow;
@@ -55,7 +58,8 @@ public final class SendCoinTool {
             ApprovalRequestRepository requestRepo,
             HistoryRepository historyRepo,
             KonkinConfig runtimeConfig,
-            TelegramApprovalNotifier telegramNotifier
+            TelegramApprovalNotifier telegramNotifier,
+            Map<Coin, WalletSupervisor> walletSupervisors
     ) {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("coin", Map.of("type", "string", "description", "Coin identifier: bitcoin, litecoin, monero, testdummycoin"));
@@ -76,7 +80,7 @@ public final class SendCoinTool {
 
         return new SyncToolSpecification(tool, (exchange, request) -> {
             try {
-                return handleSendCoin(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, request.arguments());
+                return handleSendCoin(agentName, requestRepo, historyRepo, runtimeConfig, telegramNotifier, walletSupervisors, request.arguments());
             } catch (IllegalArgumentException e) {
                 log.warn("send_coin validation error: {}", e.getMessage());
                 return errorResult("validation_error", e.getMessage());
@@ -94,6 +98,7 @@ public final class SendCoinTool {
             HistoryRepository historyRepo,
             KonkinConfig runtimeConfig,
             TelegramApprovalNotifier telegramNotifier,
+            Map<Coin, WalletSupervisor> walletSupervisors,
             Map<String, Object> args
     ) {
         String coin = normalizeCoin(argString(args, "coin"));
@@ -135,6 +140,28 @@ public final class SendCoinTool {
         if (toAddress.length() < 10) {
             return errorResult("invalid_address",
                     "Destination address '" + toAddress + "' is too short to be a valid cryptocurrency address.");
+        }
+
+        // Early balance gate (balance-required mode) — reject before entering approval pipeline
+        if (!"always-queue".equals(runtimeConfig.spendingQueueMode())) {
+            Coin resolved = resolveCoin(coin);
+            WalletSupervisor supervisor = walletSupervisors != null && resolved != null
+                    ? walletSupervisors.get(resolved) : null;
+            if (supervisor != null) {
+                WalletSnapshot snapshot = supervisor.snapshot();
+                BigDecimal totalBalance = snapshot.totalBalance();
+                if (totalBalance != null) {
+                    BigDecimal alreadyQueued = requestRepo.sumQueuedAndExecutingAmounts(coin);
+                    BigDecimal totalNeeded = parsedAmount.add(alreadyQueued);
+                    if (totalNeeded.compareTo(totalBalance) > 0) {
+                        return errorResult("insufficient_total_balance",
+                                "Insufficient total balance: need " + totalNeeded.toPlainString()
+                                        + " (request " + parsedAmount.toPlainString()
+                                        + " + queued " + alreadyQueued.toPlainString()
+                                        + ") but total balance is " + totalBalance.toPlainString());
+                    }
+                }
+            }
         }
 
         Instant now = Instant.now();

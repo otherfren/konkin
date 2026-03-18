@@ -466,6 +466,74 @@ public class LandingPageController {
         handleQueueDecision(ctx, "deny");
     }
 
+    public void handleQueueCancel(Context ctx) {
+        if (requestRepo == null) {
+            ctx.status(404);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !hasValidSession(ctx)) {
+            showLogin(ctx, false);
+            return;
+        }
+
+        if (passwordProtectionEnabled && !WebUtils.isValidCsrf(ctx)) {
+            log.warn("CSRF validation failed for queue cancel from {}", ctx.ip());
+            ctx.status(403);
+            renderLandingForPage(ctx, "history", "", false, "",
+                    "Invalid CSRF token. Please reload the page and try again.", true, null);
+            return;
+        }
+
+        String requestId = defaultIfBlank(ctx.formParam("request_id"), "").trim();
+        if (requestId.isEmpty()) {
+            renderLandingForPage(ctx, "history", "", false, "",
+                    "Missing approval request id.", true, null);
+            return;
+        }
+
+        String confirm = defaultIfBlank(ctx.formParam("confirm"), "").trim();
+        if (!"yes".equalsIgnoreCase(confirm)) {
+            ApprovalRequestRow row = requestRepo.findApprovalRequestById(requestId);
+            String coin = "";
+            String amountNative = "";
+            String toAddress = "";
+            String toolName = "";
+            String reason = "";
+            if (row != null) {
+                coin = row.coin() != null ? row.coin() : "";
+                amountNative = row.amountNative() != null ? row.amountNative() : "";
+                toAddress = row.toAddress() != null ? row.toAddress() : "";
+                toolName = row.toolName() != null ? row.toolName() : "";
+                reason = row.reason() != null ? row.reason() : "";
+            }
+            renderLandingForPage(
+                    ctx, "history", "", false, "",
+                    "Please confirm to cancel request " + abbreviateId(requestId) + ".",
+                    false,
+                    new QueueConfirmData("cancel", requestId, coin, amountNative, toAddress, toolName, reason)
+            );
+            return;
+        }
+
+        Instant now = Instant.now();
+        boolean cancelled = requestRepo.compareAndSetState(
+                requestId, "QUEUED_FOR_EXECUTION", "CANCELLED",
+                "user_cancelled", "Cancelled via web UI", now);
+
+        if (cancelled) {
+            historyRepo.insertStateTransition(new StateTransitionRow(
+                    0L, requestId, "QUEUED_FOR_EXECUTION", "CANCELLED",
+                    "web_ui", WEB_UI_CHANNEL_ID, "user_cancelled", now));
+            renderLandingForPage(ctx, "history", "", false, "",
+                    "Request " + abbreviateId(requestId) + " cancelled.", false, null);
+        } else {
+            renderLandingForPage(ctx, "history", "", false, "",
+                    "Could not cancel request " + abbreviateId(requestId) + " — it may have already been picked up for execution.",
+                    true, null);
+        }
+    }
+
     // ── Telegram handlers (delegate to TelegramWebController) ──────────────
 
     public Map<String, Instant> activeSessions() {
@@ -784,12 +852,21 @@ public class LandingPageController {
             pageMeta.put("queueConfirmRequestIdShort", "");
             pageMeta.put("queueConfirmActionPath", "");
         } else {
-            String decision = "deny".equalsIgnoreCase(queueConfirmData.decision()) ? "deny" : "approve";
+            String decision = switch (queueConfirmData.decision() != null ? queueConfirmData.decision().toLowerCase(Locale.ROOT) : "") {
+                case "deny" -> "deny";
+                case "cancel" -> "cancel";
+                default -> "approve";
+            };
+            String actionPath = switch (decision) {
+                case "deny" -> "/queue/deny";
+                case "cancel" -> "/queue/cancel";
+                default -> "/queue/approve";
+            };
             pageMeta.put("queueConfirmRequired", true);
             pageMeta.put("queueConfirmDecision", decision);
             pageMeta.put("queueConfirmRequestId", queueConfirmData.requestId());
             pageMeta.put("queueConfirmRequestIdShort", abbreviateId(queueConfirmData.requestId()));
-            pageMeta.put("queueConfirmActionPath", "deny".equals(decision) ? "/queue/deny" : "/queue/approve");
+            pageMeta.put("queueConfirmActionPath", actionPath);
             pageMeta.put("queueConfirmCoin", queueConfirmData.coin() != null ? queueConfirmData.coin() : "");
             pageMeta.put("queueConfirmAmountNative", queueConfirmData.amountNative() != null ? queueConfirmData.amountNative() : "");
             pageMeta.put("queueConfirmToAddress", queueConfirmData.toAddress() != null ? queueConfirmData.toAddress() : "");

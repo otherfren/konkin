@@ -34,8 +34,11 @@ final class SettingsValidator {
     private static final Set<String> VALID_LOG_LEVELS = Set.of("trace", "debug", "info", "warn", "error");
 
     private static final Set<String> SERVER_FIELDS = Set.of(
-            "host", "port", "log-level", "log-file", "log-rotate-max-size-mb", "secrets-dir"
+            "host", "port", "log-level", "log-file", "log-rotate-max-size-mb", "secrets-dir",
+            "spending-queue-mode"
     );
+
+    private static final Set<String> VALID_SPENDING_QUEUE_MODES = Set.of("balance-required", "always-queue");
 
     private static final Set<String> DATABASE_FIELDS = Set.of(
             "url", "user", "password", "pool-size"
@@ -115,6 +118,13 @@ final class SettingsValidator {
         if (values.containsKey("secrets-dir")) {
             String err = requireNonBlankString(values.get("secrets-dir"), "secrets-dir");
             if (err != null) return err;
+        }
+
+        if (values.containsKey("spending-queue-mode")) {
+            Object raw = values.get("spending-queue-mode");
+            if (!(raw instanceof String s) || !VALID_SPENDING_QUEUE_MODES.contains(s.toLowerCase(Locale.ROOT))) {
+                return "spending-queue-mode must be one of: " + VALID_SPENDING_QUEUE_MODES;
+            }
         }
 
         return null;
