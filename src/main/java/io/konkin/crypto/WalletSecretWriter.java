@@ -82,6 +82,28 @@ public final class WalletSecretWriter {
     }
 
     /**
+     * Writes bitcoincash-daemon.conf + bitcoincash-wallet.conf.
+     */
+    public static WrittenSecrets writeBitcoinCashSecrets(Path secretsDir, String rpcHost, String rpcPort,
+            String rpcUser, String rpcPassword, String walletName) {
+        String daemonContent = "rpcuser=" + rpcUser + "\n"
+                + "rpcpassword=" + rpcPassword + "\n"
+                + "rpcconnect=" + rpcHost + "\n"
+                + "rpcport=" + rpcPort + "\n";
+
+        StringBuilder walletContent = new StringBuilder();
+        if (walletName != null && !walletName.isBlank()) {
+            walletContent.append("wallet=").append(walletName.trim()).append("\n");
+        }
+
+        Path daemonPath = writeSecretFile(secretsDir, "bitcoincash-daemon.conf", daemonContent);
+        Path walletPath = writeSecretFile(secretsDir, "bitcoincash-wallet.conf", walletContent.toString());
+
+        log.info("Wrote Bitcoin Cash secret files — daemon={}, wallet={}", daemonPath, walletPath);
+        return new WrittenSecrets(daemonPath, walletPath);
+    }
+
+    /**
      * Writes monero-daemon.conf + monero-wallet-rpc.conf.
      */
     public static WrittenSecrets writeMoneroSecrets(Path secretsDir, String daemonHost, String daemonPort,

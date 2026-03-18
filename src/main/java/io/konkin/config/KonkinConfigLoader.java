@@ -138,6 +138,7 @@ final class KonkinConfigLoader {
 
         CoinConfig bitcoin = loadBitcoinConfig(toml, secretsDir);
         CoinConfig litecoin = loadLitecoinConfig(toml, secretsDir);
+        CoinConfig bitcoinCash = loadBitcoinCashConfig(toml, secretsDir);
         CoinConfig monero = loadCoinConfig(toml, "monero", "xmr-main",
                 "monero-daemon-config-file", "monero-wallet-rpc-config-file",
                 "monero-daemon.conf", "monero-wallet-rpc.conf", secretsDir);
@@ -154,7 +155,7 @@ final class KonkinConfigLoader {
                 restApiEnabled, restApiSecretFile,
                 telegramEnabled, telegramSecretFile, telegramApiBaseUrl, telegramAutoDenyTimeout, telegramChatIds,
                 primaryAgent, secondaryAgents,
-                bitcoin, litecoin, monero, testDummyCoin
+                bitcoin, litecoin, monero, bitcoinCash, testDummyCoin
         );
     }
 
@@ -334,6 +335,41 @@ final class KonkinConfigLoader {
 
         int minApprovalsRequired = toml.getIntOrElse("coins.litecoin.auth.min-approvals-required", 1);
         List<String> vetoChannels = loadVetoChannels(toml, "coins.litecoin.auth");
+
+        return new CoinConfig(
+                enabled,
+                daemonSecretFile,
+                walletSecretFile,
+                signingAddress,
+                new CoinAuthConfig(autoAccept, autoDeny, webUi, restApi, telegram, mcp, mcpAuthChannels, minApprovalsRequired, vetoChannels)
+        );
+    }
+
+    private static CoinConfig loadBitcoinCashConfig(UnmodifiableConfig toml, String secretsDir) {
+        boolean enabled = toml.getOrElse("coins.bitcoincash.enabled", false);
+
+        String daemonSecretFile = resolveSecretsDir(toml.getOrElse(
+                "coins.bitcoincash.secret-files.bitcoincash-daemon-config-file",
+                secretsDir + "bitcoincash-daemon.conf"
+        ), secretsDir);
+        String walletSecretFile = resolveSecretsDir(toml.getOrElse(
+                "coins.bitcoincash.secret-files.bitcoincash-wallet-config-file",
+                secretsDir + "bitcoincash-wallet.conf"
+        ), secretsDir);
+
+        String signingAddress = toml.getOrElse("coins.bitcoincash.signing-address", "");
+
+        boolean webUi = toml.getOrElse("coins.bitcoincash.auth.web-ui", true);
+        boolean restApi = toml.getOrElse("coins.bitcoincash.auth.rest-api", true);
+        boolean telegram = toml.getOrElse("coins.bitcoincash.auth.telegram", false);
+        String mcp = toml.getOrElse("coins.bitcoincash.auth.mcp", "bch-main");
+        List<String> mcpAuthChannels = loadMcpAuthChannels(toml, "coins.bitcoincash.auth", mcp);
+
+        List<ApprovalRule> autoAccept = readApprovalRules(toml, "coins.bitcoincash.auth.auto-accept");
+        List<ApprovalRule> autoDeny = readApprovalRules(toml, "coins.bitcoincash.auth.auto-deny");
+
+        int minApprovalsRequired = toml.getIntOrElse("coins.bitcoincash.auth.min-approvals-required", 1);
+        List<String> vetoChannels = loadVetoChannels(toml, "coins.bitcoincash.auth");
 
         return new CoinConfig(
                 enabled,

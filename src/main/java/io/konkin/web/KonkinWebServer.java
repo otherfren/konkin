@@ -199,6 +199,21 @@ public class KonkinWebServer {
             }
         }
 
+        if (config.bitcoinCash().enabled()) {
+            try {
+                WalletConnectionConfig bchConfig = WalletSecretLoader.loadBitcoinCash(
+                        config.bitcoinCash().daemonConfigSecretFile(),
+                        config.bitcoinCash().walletConfigSecretFile()
+                );
+                bchConfig = withBitcoinCashExtras(bchConfig, config);
+                WalletSupervisor bchSupervisor = new WalletSupervisor(bchConfig, new io.konkin.crypto.bitcoincash.BitcoinCashWalletFactory());
+                bchSupervisor.start();
+                walletSupervisors.put(Coin.BCH, bchSupervisor);
+            } catch (Exception e) {
+                log.warn("Failed to start Bitcoin Cash wallet supervisor: {}", e.getMessage());
+            }
+        }
+
         LandingPageController landingPageController = null;
         WalletController walletController = null;
         SettingsController settingsController = null;
@@ -339,6 +354,7 @@ public class KonkinWebServer {
                         case BTC -> "bitcoin";
                         case LTC -> "litecoin";
                         case XMR -> "monero";
+                        case BCH -> "bitcoincash";
                         case ETH -> "ethereum";
                         case SOL -> "solana";
                         case ZANO -> "zano";
@@ -989,6 +1005,22 @@ public class KonkinWebServer {
         }
         if (configFilePath != null) {
             extras.put(io.konkin.crypto.litecoin.LitecoinExtras.CONFIG_FILE_PATH, configFilePath);
+        }
+        return new WalletConnectionConfig(base.coin(), base.rpcUrl(), base.username(), base.password(), extras);
+    }
+
+    private static WalletConnectionConfig withBitcoinCashExtras(WalletConnectionConfig base, KonkinConfig config) {
+        String signingAddress = config.bitcoinCash().signingAddress();
+        String configFilePath = config.configFilePath();
+        if ((signingAddress == null || signingAddress.isBlank()) && configFilePath == null) {
+            return base;
+        }
+        var extras = new java.util.LinkedHashMap<>(base.extras());
+        if (signingAddress != null && !signingAddress.isBlank()) {
+            extras.put(io.konkin.crypto.bitcoincash.BitcoinCashExtras.SIGNING_ADDRESS, signingAddress);
+        }
+        if (configFilePath != null) {
+            extras.put(io.konkin.crypto.bitcoincash.BitcoinCashExtras.CONFIG_FILE_PATH, configFilePath);
         }
         return new WalletConnectionConfig(base.coin(), base.rpcUrl(), base.username(), base.password(), extras);
     }

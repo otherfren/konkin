@@ -17,6 +17,7 @@
 package io.konkin.crypto;
 
 import io.konkin.crypto.bitcoin.BitcoinExtras;
+import io.konkin.crypto.bitcoincash.BitcoinCashExtras;
 import io.konkin.crypto.litecoin.LitecoinExtras;
 import io.konkin.crypto.monero.MoneroExtras;
 import org.slf4j.Logger;
@@ -87,6 +88,32 @@ public final class WalletSecretLoader {
                 rpcUrl, walletName.isEmpty() ? "(default)" : walletName, extras.get(LitecoinExtras.NETWORK));
 
         return new WalletConnectionConfig(Coin.LTC, rpcUrl, rpcUser, rpcPassword, extras);
+    }
+
+    public static WalletConnectionConfig loadBitcoinCash(String daemonSecretPath, String walletSecretPath) {
+        Properties daemon = loadProperties(Path.of(daemonSecretPath), "bitcoincash daemon");
+        Properties wallet = loadProperties(Path.of(walletSecretPath), "bitcoincash wallet");
+
+        String rpcUser = daemon.getProperty("rpcuser", "").trim();
+        String rpcPassword = daemon.getProperty("rpcpassword", "").trim();
+        String rpcConnect = daemon.getProperty("rpcconnect", "127.0.0.1").trim();
+        String rpcPort = daemon.getProperty("rpcport", "8332").trim();
+
+        warnIfNotLoopback(rpcConnect, "Bitcoin Cash RPC");
+        String rpcUrl = "http://" + rpcConnect + ":" + rpcPort;
+
+        String walletName = wallet.getProperty("wallet", "").trim();
+
+        Map<String, String> extras = new LinkedHashMap<>();
+        if (!walletName.isEmpty()) {
+            extras.put(BitcoinCashExtras.WALLET_NAME, walletName);
+        }
+        extras.put(BitcoinCashExtras.NETWORK, detectBitcoinCashNetwork(rpcPort));
+
+        log.info("Loaded Bitcoin Cash wallet config — rpcUrl={}, wallet={}, network={}",
+                rpcUrl, walletName.isEmpty() ? "(default)" : walletName, extras.get(BitcoinCashExtras.NETWORK));
+
+        return new WalletConnectionConfig(Coin.BCH, rpcUrl, rpcUser, rpcPassword, extras);
     }
 
     public static WalletConnectionConfig loadMonero(String daemonSecretPath, String walletRpcSecretPath) {
@@ -192,6 +219,14 @@ public final class WalletSecretLoader {
         return switch (port) {
             case "19332" -> "testnet";
             case "19443" -> "regtest";
+            default -> "mainnet";
+        };
+    }
+
+    private static String detectBitcoinCashNetwork(String port) {
+        return switch (port) {
+            case "18332" -> "testnet";
+            case "18444" -> "regtest";
             default -> "mainnet";
         };
     }

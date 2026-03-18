@@ -679,7 +679,7 @@ public class LandingPageMapper {
     }
 
     public List<String> getAllKnownCoinIds() {
-        return List.of("bitcoin", "litecoin", "monero");
+        return List.of("bitcoin", "litecoin", "monero", "bitcoincash");
     }
 
     private static int coinSortOrder(Map<String, Object> coin) {
@@ -822,6 +822,16 @@ public class LandingPageMapper {
                     m.put("walletName", walletName);
                     yield Map.copyOf(m);
                 }
+                case "bitcoincash" -> {
+                    WalletConnectionConfig wcc = WalletSecretLoader.loadBitcoinCash(daemonPath, walletPath);
+                    Map<String, String> m = new LinkedHashMap<>();
+                    String endpoint = wcc.rpcUrl().replaceFirst("^https?://", "");
+                    m.put("rpcEndpoint", endpoint);
+                    m.put("rpcUser", wcc.username() != null ? wcc.username() : "");
+                    String walletName = wcc.extras().getOrDefault("walletName", "");
+                    m.put("walletName", walletName);
+                    yield Map.copyOf(m);
+                }
                 case "monero" -> {
                     WalletConnectionConfig wcc = WalletSecretLoader.loadMonero(daemonPath, walletPath);
                     Map<String, String> m = new LinkedHashMap<>();
@@ -846,6 +856,7 @@ public class LandingPageMapper {
         if (config().bitcoin().enabled()) coins.add("bitcoin");
         if (config().litecoin().enabled()) coins.add("litecoin");
         if (config().monero().enabled()) coins.add("monero");
+        if (config().bitcoinCash().enabled()) coins.add("bitcoincash");
         return List.copyOf(coins);
     }
 
@@ -1165,6 +1176,7 @@ public class LandingPageMapper {
             case "bitcoin" -> Coin.BTC;
             case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
+            case "bitcoincash" -> Coin.BCH;
             default -> null;
         };
         return coin != null ? walletSupervisors.get(coin) : null;

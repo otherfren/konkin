@@ -72,6 +72,7 @@ public class KonkinConfig {
     private final CoinConfig bitcoin;
     private final CoinConfig litecoin;
     private final CoinConfig monero;
+    private final CoinConfig bitcoinCash;
     private final CoinConfig testDummyCoin;
     String configFilePath;
     private Set<String> freshlyCreatedAgentSecrets = Set.of();
@@ -87,7 +88,7 @@ public class KonkinConfig {
             boolean restApiEnabled, String restApiSecretFile,
             boolean telegramEnabled, String telegramSecretFile, String telegramApiBaseUrl, Duration telegramAutoDenyTimeout, List<String> telegramChatIds,
             AgentConfig primaryAgent, Map<String, AgentConfig> secondaryAgents,
-            CoinConfig bitcoin, CoinConfig litecoin, CoinConfig monero, CoinConfig testDummyCoin
+            CoinConfig bitcoin, CoinConfig litecoin, CoinConfig monero, CoinConfig bitcoinCash, CoinConfig testDummyCoin
     ) {
         this.host = host;
         this.port = port;
@@ -122,6 +123,7 @@ public class KonkinConfig {
         this.bitcoin = bitcoin;
         this.litecoin = litecoin;
         this.monero = monero;
+        this.bitcoinCash = bitcoinCash;
         this.testDummyCoin = testDummyCoin;
     }
 
@@ -226,6 +228,7 @@ public class KonkinConfig {
     public CoinConfig bitcoin() { return bitcoin; }
     public CoinConfig litecoin() { return litecoin; }
     public CoinConfig monero() { return monero; }
+    public CoinConfig bitcoinCash() { return bitcoinCash; }
     public CoinConfig testDummyCoin() { return testDummyCoin; }
 
     /**
@@ -238,6 +241,7 @@ public class KonkinConfig {
             case "bitcoin" -> bitcoin();
             case "litecoin" -> litecoin();
             case "monero" -> monero();
+            case "bitcoincash" -> bitcoinCash();
             case "testdummycoin" -> testDummyCoin();
             default -> null;
         };

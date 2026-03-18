@@ -92,6 +92,7 @@
         <#assign maskedCfg = (coin.maskedConfig!{})>
         <#assign defaultRpcPort = "8332">
         <#if coinId == "litecoin"><#assign defaultRpcPort = "9332"></#if>
+        <#if coinId == "bitcoincash"><#assign defaultRpcPort = "8332"></#if>
 
         <section class="auth-card settings-section" data-section="connection" style="margin-top:1rem">
             <div class="auth-card-header settings-card-header" role="button" tabindex="0" aria-expanded="false">
@@ -101,7 +102,7 @@
             <div class="settings-card-body" hidden>
                 <form class="wizard-panel" data-coin="${coinId}" data-mode="${configured?string('edit', 'add')}" method="post" action="/wallets/${coinId}/save-connection">
                     <div class="settings-form">
-                    <#if coinId == "bitcoin" || coinId == "litecoin">
+                    <#if coinId == "bitcoin" || coinId == "litecoin" || coinId == "bitcoincash">
                         <div class="settings-field">
                             <label class="settings-label">RPC Host</label>
                             <input type="text" class="settings-input" name="rpcHost" value="<#if configured && maskedCfg?has_content && maskedCfg.rpcEndpoint??>${maskedCfg.rpcEndpoint?split(':')[0]!'127.0.0.1'}<#else>127.0.0.1</#if>" required />

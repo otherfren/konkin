@@ -159,6 +159,19 @@ final class SecretFileBootstrapper {
                     defaultLitecoinWalletSecretContent()
             );
         }
+
+        if (config.bitcoinCash().enabled()) {
+            ensureSecretFileExists(
+                    Path.of(config.bitcoinCash().daemonConfigSecretFile()),
+                    "coins.bitcoincash.secret-files.bitcoincash-daemon-config-file",
+                    defaultBitcoinCashDaemonSecretContent()
+            );
+            ensureSecretFileExists(
+                    Path.of(config.bitcoinCash().walletConfigSecretFile()),
+                    "coins.bitcoincash.secret-files.bitcoincash-wallet-config-file",
+                    defaultBitcoinCashWalletSecretContent()
+            );
+        }
         return freshlyCreated;
     }
 
@@ -193,6 +206,10 @@ final class SecretFileBootstrapper {
         if (config.litecoin().enabled()) {
             paths.add(config.litecoin().daemonConfigSecretFile());
             paths.add(config.litecoin().walletConfigSecretFile());
+        }
+        if (config.bitcoinCash().enabled()) {
+            paths.add(config.bitcoinCash().daemonConfigSecretFile());
+            paths.add(config.bitcoinCash().walletConfigSecretFile());
         }
 
         // REST API secret file
@@ -361,6 +378,27 @@ final class SecretFileBootstrapper {
                 # Fill with your wallet details.
                 wallet=REPLACE_WITH_LITECOIN_WALLET_NAME
                 wallet-passphrase=REPLACE_WITH_LITECOIN_WALLET_PASSPHRASE
+                """;
+    }
+
+    private static String defaultBitcoinCashDaemonSecretContent() {
+        return """
+                # KONKIN Bitcoin Cash daemon secret config
+                # Fill with your node RPC credentials.
+                # WARNING: default port 8332 conflicts with Bitcoin Core — change if running both
+                rpcuser=REPLACE_WITH_BITCOINCASH_RPC_USER
+                rpcpassword=REPLACE_WITH_BITCOINCASH_RPC_PASSWORD
+                rpcconnect=127.0.0.1
+                rpcport=8332
+                """;
+    }
+
+    private static String defaultBitcoinCashWalletSecretContent() {
+        return """
+                # KONKIN Bitcoin Cash wallet secret config
+                # Fill with your wallet details.
+                wallet=REPLACE_WITH_BITCOINCASH_WALLET_NAME
+                wallet-passphrase=REPLACE_WITH_BITCOINCASH_WALLET_PASSPHRASE
                 """;
     }
 

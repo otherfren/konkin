@@ -98,3 +98,18 @@ config-version = 1
         # MCP auth channel identifiers shown in Auth Definitions
         mcp-auth-channels = ["agent-arthur"]
         min-approvals-required = 1
+
+[coins.bitcoincash]
+    # WARNING: default port 8332 conflicts with Bitcoin Core — change if running both
+    enabled = false
+
+    [coins.bitcoincash.secret-files]
+        bitcoincash-daemon-config-file = "{secrets-dir}/bitcoincash-daemon.conf"
+        bitcoincash-wallet-config-file = "{secrets-dir}/bitcoincash-wallet.conf"
+
+    [coins.bitcoincash.auth]
+        web-ui = true
+        rest-api = false
+        telegram = false
+        mcp = "bch-main"
+        min-approvals-required = 1

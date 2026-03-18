@@ -85,8 +85,10 @@ public final class WalletToolSupport {
                     : errorResult("coin_not_enabled", "Litecoin is currently disabled in config.");
             case "monero" -> config.monero().enabled() ? null
                     : errorResult("coin_not_enabled", "Monero is currently disabled in config.");
+            case "bitcoincash" -> config.bitcoinCash().enabled() ? null
+                    : errorResult("coin_not_enabled", "Bitcoin Cash is currently disabled in config.");
             default -> errorResult("unsupported_coin",
-                    "Coin '" + normalized + "' is not supported. Supported: bitcoin, litecoin, monero.");
+                    "Coin '" + normalized + "' is not supported. Supported: bitcoin, litecoin, monero, bitcoincash.");
         };
     }
 
@@ -95,6 +97,7 @@ public final class WalletToolSupport {
             case "bitcoin" -> Coin.BTC;
             case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
+            case "bitcoincash" -> Coin.BCH;
             default -> null;
         };
     }

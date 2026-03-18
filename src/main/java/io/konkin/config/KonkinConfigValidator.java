@@ -98,6 +98,7 @@ final class KonkinConfigValidator {
         validateBitcoinConfig(config);
         validateMoneroConfig(config);
         validateNonBitcoinCoinConfig("litecoin", config.litecoin(), config);
+        validateNonBitcoinCoinConfig("bitcoincash", config.bitcoinCash(), config);
         validateNonBitcoinCoinConfig("testdummycoin", config.testDummyCoin(), config);
         validateAgentsConfig(config);
     }
@@ -335,6 +336,7 @@ final class KonkinConfigValidator {
         validateCoinMcpAuthChannelReferences(config, "bitcoin", config.bitcoin().auth().mcp(), config.bitcoin().auth().mcpAuthChannels());
         validateCoinMcpAuthChannelReferences(config, "litecoin", config.litecoin().auth().mcp(), config.litecoin().auth().mcpAuthChannels());
         validateCoinMcpAuthChannelReferences(config, "monero", config.monero().auth().mcp(), config.monero().auth().mcpAuthChannels());
+        validateCoinMcpAuthChannelReferences(config, "bitcoincash", config.bitcoinCash().auth().mcp(), config.bitcoinCash().auth().mcpAuthChannels());
         validateCoinMcpAuthChannelReferences(config, "testdummycoin", config.testDummyCoin().auth().mcp(), config.testDummyCoin().auth().mcpAuthChannels());
     }
 

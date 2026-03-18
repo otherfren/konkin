@@ -33,7 +33,7 @@ class KonkinConfigValidatorTest {
                 restApiEnabled, restApiSecretFile,
                 telegramEnabled, telegramSecretFile, telegramApiBaseUrl, Duration.ofMinutes(5), telegramChatIds,
                 primaryAgent, secondaryAgents,
-                bitcoin, litecoin, monero, testDummyCoin
+                bitcoin, litecoin, monero, DISABLED_COIN, testDummyCoin
         );
     }
 
@@ -56,7 +56,7 @@ class KonkinConfigValidatorTest {
                 "/tmp/templates", "/tmp/static", "/static",
                 false, false, false, false, false, null,
                 false, null, null, Duration.ofMinutes(5), List.of(), null, Map.of(),
-                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN
+                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN
         );
         assertThrows(IllegalStateException.class, () -> KonkinConfigValidator.validate(config));
     }
@@ -91,7 +91,7 @@ class KonkinConfigValidatorTest {
                 "/tmp/templates", "/tmp/static", "noslash",
                 false, false, false, false, false, null,
                 false, null, null, Duration.ofMinutes(5), List.of(), null, Map.of(),
-                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN
+                DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN, DISABLED_COIN
         );
         assertThrows(IllegalStateException.class, () -> KonkinConfigValidator.validate(config));
     }

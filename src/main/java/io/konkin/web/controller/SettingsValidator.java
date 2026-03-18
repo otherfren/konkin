@@ -276,7 +276,7 @@ final class SettingsValidator {
             if (params.get("walletRpcPassword") == null || params.get("walletRpcPassword").isBlank()) {
                 errors.add("Wallet RPC Password is required");
             }
-        } else if ("bitcoin".equals(coinId) || "litecoin".equals(coinId)) {
+        } else if ("bitcoin".equals(coinId) || "litecoin".equals(coinId) || "bitcoincash".equals(coinId)) {
             validateRequiredHost(params.get("rpcHost"), "RPC Host", errors);
             validatePort(params.get("rpcPort"), "RPC Port", errors);
             if (params.get("rpcUser") == null || params.get("rpcUser").isBlank()) {

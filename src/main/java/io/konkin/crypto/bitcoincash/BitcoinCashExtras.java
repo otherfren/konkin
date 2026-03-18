@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-package io.konkin.crypto;
+package io.konkin.crypto.bitcoincash;
 
-public enum Coin {
-    BTC,
-    LTC,
-    XMR,
-    ETH,
-    SOL,
-    ZANO,
-    TRX,
-    ARRR,
-    BCH
+public final class BitcoinCashExtras {
+
+    public static final String FEE_POLICY = "feePolicy";
+    public static final String FEE_CAP_NATIVE = "feeCapNative";
+    public static final String MEMO = "memo";
+    public static final String WALLET_NAME = "walletName";
+    public static final String NETWORK = "network";
+    public static final String SIGNING_ADDRESS = "signingAddress";
+    public static final String CONFIG_FILE_PATH = "configFilePath";
+
+    private BitcoinCashExtras() {}
 }

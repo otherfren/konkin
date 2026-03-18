@@ -97,6 +97,21 @@ config-version = 1
 						type = "value-lt"
 						value = 0.01
 
+	[coins.bitcoincash]
+		# WARNING: default port 8332 conflicts with Bitcoin Core — change if running both
+		enabled = true
+
+		[coins.bitcoincash.secret-files]
+			bitcoincash-daemon-config-file = "{secrets-dir}/bitcoincash-daemon.conf"
+			bitcoincash-wallet-config-file = "{secrets-dir}/bitcoincash-wallet.conf"
+
+		[coins.bitcoincash.auth]
+			web-ui = true
+			rest-api = false
+			telegram = false
+			mcp = "bch-main"
+			min-approvals-required = 1
+
 	[coins.testdummycoin]
 		enabled = false
 

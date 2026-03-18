@@ -27,6 +27,7 @@ import io.konkin.crypto.WalletSecretWriter;
 import io.konkin.crypto.WalletStatus;
 import io.konkin.crypto.WalletSupervisor;
 import io.konkin.crypto.bitcoin.BitcoinExtras;
+import io.konkin.crypto.bitcoincash.BitcoinCashExtras;
 import io.konkin.crypto.litecoin.LitecoinExtras;
 import io.konkin.crypto.monero.MoneroExtras;
 import io.konkin.web.LandingPageMapper;
@@ -247,7 +248,7 @@ public class WalletController {
             }
 
             String network = config.extras().getOrDefault(
-                    coin == Coin.XMR ? MoneroExtras.NETWORK : (coin == Coin.LTC ? LitecoinExtras.NETWORK : BitcoinExtras.NETWORK),
+                    coin == Coin.XMR ? MoneroExtras.NETWORK : (coin == Coin.LTC ? LitecoinExtras.NETWORK : (coin == Coin.BCH ? BitcoinCashExtras.NETWORK : BitcoinExtras.NETWORK)),
                     "unknown");
             String statusLabel = status == WalletStatus.AVAILABLE ? "Connected" :
                     status == WalletStatus.SYNCING ? "Connected (syncing)" : "Offline";
@@ -349,6 +350,10 @@ public class WalletController {
                         params.get("rpcHost"), params.get("rpcPort"),
                         params.get("rpcUser"), params.get("rpcPassword"),
                         params.get("walletName"));
+                case BCH -> WalletSecretWriter.writeBitcoinCashSecrets(secretsDir,
+                        params.get("rpcHost"), params.get("rpcPort"),
+                        params.get("rpcUser"), params.get("rpcPassword"),
+                        params.get("walletName"));
                 case XMR -> WalletSecretWriter.writeMoneroSecrets(secretsDir,
                         params.get("daemonHost"), params.get("daemonPort"),
                         params.get("daemonUser"), params.get("daemonPassword"),
@@ -369,6 +374,10 @@ public class WalletController {
                 case LTC -> {
                     configUpdates.put("secret-files.litecoin-daemon-config-file", secretsDirPlaceholder + "/" + written.daemonConfigPath().getFileName());
                     configUpdates.put("secret-files.litecoin-wallet-config-file", secretsDirPlaceholder + "/" + written.walletConfigPath().getFileName());
+                }
+                case BCH -> {
+                    configUpdates.put("secret-files.bitcoincash-daemon-config-file", secretsDirPlaceholder + "/" + written.daemonConfigPath().getFileName());
+                    configUpdates.put("secret-files.bitcoincash-wallet-config-file", secretsDirPlaceholder + "/" + written.walletConfigPath().getFileName());
                 }
                 case XMR -> {
                     configUpdates.put("secret-files.monero-daemon-config-file", secretsDirPlaceholder + "/" + written.daemonConfigPath().getFileName());
@@ -430,6 +439,8 @@ public class WalletController {
                 case BTC -> io.konkin.crypto.WalletSecretLoader.loadBitcoin(
                         coinConfig.daemonConfigSecretFile(), coinConfig.walletConfigSecretFile());
                 case LTC -> io.konkin.crypto.WalletSecretLoader.loadLitecoin(
+                        coinConfig.daemonConfigSecretFile(), coinConfig.walletConfigSecretFile());
+                case BCH -> io.konkin.crypto.WalletSecretLoader.loadBitcoinCash(
                         coinConfig.daemonConfigSecretFile(), coinConfig.walletConfigSecretFile());
                 case XMR -> io.konkin.crypto.WalletSecretLoader.loadMonero(
                         coinConfig.daemonConfigSecretFile(), coinConfig.walletConfigSecretFile());
@@ -526,10 +537,15 @@ public class WalletController {
 
             Map<String, String> extras = new LinkedHashMap<>();
             if (walletName != null && !walletName.isEmpty()) {
-                extras.put(coin == Coin.LTC ? LitecoinExtras.WALLET_NAME : BitcoinExtras.WALLET_NAME, walletName);
+                String walletKey = coin == Coin.LTC ? LitecoinExtras.WALLET_NAME
+                        : coin == Coin.BCH ? BitcoinCashExtras.WALLET_NAME : BitcoinExtras.WALLET_NAME;
+                extras.put(walletKey, walletName);
             }
-            extras.put(coin == Coin.LTC ? LitecoinExtras.NETWORK : BitcoinExtras.NETWORK,
-                    coin == Coin.LTC ? detectLitecoinNetwork(rpcPort) : detectBitcoinNetwork(rpcPort));
+            String networkKey = coin == Coin.LTC ? LitecoinExtras.NETWORK
+                    : coin == Coin.BCH ? BitcoinCashExtras.NETWORK : BitcoinExtras.NETWORK;
+            String networkValue = coin == Coin.LTC ? detectLitecoinNetwork(rpcPort)
+                    : coin == Coin.BCH ? detectBitcoinCashNetwork(rpcPort) : detectBitcoinNetwork(rpcPort);
+            extras.put(networkKey, networkValue);
 
             return new WalletConnectionConfig(coin, rpcUrl, rpcUser, rpcPassword, extras);
         }
@@ -539,6 +555,7 @@ public class WalletController {
         return switch (coin) {
             case BTC -> new io.konkin.crypto.bitcoin.BitcoinWalletFactory();
             case LTC -> new io.konkin.crypto.litecoin.LitecoinWalletFactory();
+            case BCH -> new io.konkin.crypto.bitcoincash.BitcoinCashWalletFactory();
             case XMR -> new io.konkin.crypto.monero.MoneroWalletFactory();
             default -> throw new IllegalArgumentException("No factory for coin: " + coin);
         };
@@ -568,6 +585,14 @@ public class WalletController {
         };
     }
 
+    private static String detectBitcoinCashNetwork(String port) {
+        return switch (port) {
+            case "18332" -> "testnet";
+            case "18444" -> "regtest";
+            default -> "mainnet";
+        };
+    }
+
     private static String detectMoneroNetwork(String port) {
         return switch (port) {
             case "28081", "28082" -> "testnet";
@@ -582,6 +607,7 @@ public class WalletController {
             case "bitcoin" -> Coin.BTC;
             case "litecoin" -> Coin.LTC;
             case "monero" -> Coin.XMR;
+            case "bitcoincash" -> Coin.BCH;
             default -> null;
         };
     }
