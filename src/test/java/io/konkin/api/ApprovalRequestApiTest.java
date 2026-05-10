@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -62,12 +63,12 @@ class ApprovalRequestApiTest extends WebIntegrationTestSupport {
 
     private String requestJson(String id, String state, int approvalsGranted, int approvalsDenied) {
         double now = epochNow();
-        return """
+        return String.format(Locale.ROOT, """
                 {"id":"%s","coin":"bitcoin","toolName":"bitcoin_send","nonceUuid":"nonce-%s",\
                 "payloadHashSha256":"sha256-%s","nonceComposite":"composite-%s","reason":"test request %s",\
                 "requestedAt":%f,"expiresAt":%f,"state":"%s","minApprovalsRequired":1,\
                 "approvalsGranted":%d,"approvalsDenied":%d,"createdAt":%f,"updatedAt":%f}
-                """.formatted(id, id, id, id, id, now, now + 600, state, approvalsGranted, approvalsDenied, now, now);
+                """, id, id, id, id, id, now, now + 600, state, approvalsGranted, approvalsDenied, now, now);
     }
 
     @Test
@@ -127,12 +128,12 @@ class ApprovalRequestApiTest extends WebIntegrationTestSupport {
         postJson(server, "/api/v1/requests", requestJson("req-upd", "PENDING", 0, 0), AUTH);
 
         double now = epochNow();
-        String updateJson = """
+        String updateJson = String.format(Locale.ROOT, """
                 {"id":"req-upd","coin":"bitcoin","toolName":"bitcoin_send","nonceUuid":"nonce-req-upd",\
                 "payloadHashSha256":"sha256-req-upd","nonceComposite":"composite-req-upd","reason":"updated reason",\
                 "requestedAt":%f,"expiresAt":%f,"state":"PENDING","minApprovalsRequired":1,\
                 "approvalsGranted":0,"approvalsDenied":0,"createdAt":%f,"updatedAt":%f}
-                """.formatted(now, now + 600, now, now);
+                """, now, now + 600, now, now);
 
         HttpResponse<String> resp = putJson(server, "/api/v1/requests/req-upd", updateJson, AUTH);
         assertEquals(200, resp.statusCode());

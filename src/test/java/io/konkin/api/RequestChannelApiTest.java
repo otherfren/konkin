@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,9 +59,9 @@ class RequestChannelApiTest extends WebIntegrationTestSupport {
 
     private String requestChannelJson(long id, String requestId, String channelId, String deliveryState) {
         double now = System.currentTimeMillis() / 1000.0;
-        return """
+        return String.format(Locale.ROOT, """
                 {"id":%d,"requestId":"%s","channelId":"%s","deliveryState":"%s","attemptCount":0,"createdAt":%f}
-                """.formatted(id, requestId, channelId, deliveryState, now);
+                """, id, requestId, channelId, deliveryState, now);
     }
 
     @Test

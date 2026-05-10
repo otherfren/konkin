@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,9 +59,9 @@ class CoinRuntimeApiTest extends WebIntegrationTestSupport {
 
     private String coinRuntimeJson(String coin, String activeRequestId) {
         double now = System.currentTimeMillis() / 1000.0;
-        return """
+        return String.format(Locale.ROOT, """
                 {"coin":"%s","activeRequestId":%s,"cooldownUntil":null,"lockdownUntil":null,"updatedAt":%f}
-                """.formatted(coin, activeRequestId == null ? "null" : "\"" + activeRequestId + "\"", now);
+                """, coin, activeRequestId == null ? "null" : "\"" + activeRequestId + "\"", now);
     }
 
     @Test

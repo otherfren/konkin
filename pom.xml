@@ -30,12 +30,12 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.21.1</version>
+            <version>2.21.3</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.datatype</groupId>
             <artifactId>jackson-datatype-jsr310</artifactId>
-            <version>2.21.1</version>
+            <version>2.21.3</version>
         </dependency>
 
         <!-- H2 Database -->
@@ -63,12 +63,12 @@
         <dependency>
             <groupId>com.electronwill.night-config</groupId>
             <artifactId>toml</artifactId>
-            <version>3.8.3</version>
+            <version>3.8.4</version>
         </dependency>
         <dependency>
             <groupId>com.electronwill.night-config</groupId>
             <artifactId>core</artifactId>
-            <version>3.8.3</version>
+            <version>3.8.4</version>
         </dependency>
 
         <!-- Logging: SLF4J + Logback -->
@@ -94,7 +94,7 @@
         <dependency>
             <groupId>org.jdbi</groupId>
             <artifactId>jdbi3-core</artifactId>
-            <version>3.51.0</version>
+            <version>3.53.0</version>
         </dependency>
 
         <!-- Required for btc-rpc-client -->
@@ -142,7 +142,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.22.0</version>
+            <version>5.23.0</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -229,7 +229,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.12</version>
+                <version>0.8.14</version>
                 <executions>
                     <execution>
                         <goals>

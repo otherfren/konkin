@@ -26,6 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.net.http.HttpResponse;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -58,10 +59,10 @@ class ApprovalChannelApiTest extends WebIntegrationTestSupport {
 
     private String channelJson(String id) {
         double now = System.currentTimeMillis() / 1000.0;
-        return """
+        return String.format(Locale.ROOT, """
                 {"id":"%s","channelType":"REST_API","displayName":"Test Channel %s",\
                 "enabled":true,"configFingerprint":"fingerprint-%s","createdAt":%f}
-                """.formatted(id, id, id, now);
+                """, id, id, id, now);
     }
 
     @Test
@@ -93,10 +94,10 @@ class ApprovalChannelApiTest extends WebIntegrationTestSupport {
         postJson(server, "/api/v1/channels", channelJson("ch-upd"), AUTH);
 
         double now = System.currentTimeMillis() / 1000.0;
-        String updateJson = """
+        String updateJson = String.format(Locale.ROOT, """
                 {"id":"ch-upd","channelType":"REST_API","displayName":"Updated Name",\
                 "enabled":false,"configFingerprint":"new-fingerprint","createdAt":%f}
-                """.formatted(now);
+                """, now);
         HttpResponse<String> resp = putJson(server, "/api/v1/channels/ch-upd", updateJson, AUTH);
         assertEquals(200, resp.statusCode());
 
